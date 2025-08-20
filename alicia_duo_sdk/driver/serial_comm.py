@@ -8,14 +8,10 @@ from typing import List, Optional, Tuple
 import threading
 from datetime import datetime
 
-from ..utils.logger import logger
-
-# # 配置日志
-# logging.basicConfig(level=logging.INFO, 
-#                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-# logger = logging.getLogger("SerialComm")
-
-
+# 配置日志
+logging.basicConfig(level=logging.INFO, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("SerialComm")
 READ_LENGTH = 50
 DEFAULT_LENGTH = 5
 class SerialComm:
@@ -253,101 +249,60 @@ class SerialComm:
             Optional[List[int]]: 完整的数据帧，如果没有则返回None
         """
         try:
-            frames = self.read_frames(max_frames=1)
-            if frames:
-                return frames
-            return None
+            if not self.serial_port or not self.serial_port.is_open:
+                if not self.connect():
+                    return None
+            
+            # 检查是否有数据可读
+            if self.serial_port.in_waiting == 0:
+                return None
+            
+            # 导入串口缓存数据
+            self._rx_buffer += self.serial_port.read(self.serial_port.in_waiting)
+
+            while len(self._rx_buffer) >= READ_LENGTH:
+                # Step 1: 同步到帧头 0xAA
+                if self._rx_buffer[0] != 0xAA:
+                    self._rx_buffer.pop(0)
+                    continue
+
+                frame_length = self._rx_buffer[2] + DEFAULT_LENGTH       # 数据长度 + 基础长度
+                candidate = self._rx_buffer[:frame_length]
+
+                # Step 2: 验证帧尾和校验
+                valid_tail = candidate[-1] == 0xFF
+                valid_checksum = self._serial_data_check(candidate)
+
+                parsed = {
+                "timestamp": datetime.now().isoformat(),
+                "raw": ' '.join(f"{b:02X}" for b in candidate),
+                "raw_decimal": list(candidate),
+                "valid": valid_tail and valid_checksum
+            }
+            
+                if self.debug_mode:
+                    now = time.time()
+                    if self.debug_mode and now - self._last_print_time > 1.0:
+                        logger.info(f"[Frame] {parsed['raw_decimal']} {'(OK)' if parsed['valid'] else '(Invalid)'}")
+                        self._last_print_time = now
+
+                self._rx_buffer = self._rx_buffer[frame_length:]
+
+                 # Step 4: 若缓存过大，强制同步（防炸）
+                if len(self._rx_buffer) > 1000:
+                    aa_index = self._rx_buffer.find(0xAA)
+                    if aa_index == -1:
+                        self._rx_buffer.clear()
+                    else:
+                        self._rx_buffer = self._rx_buffer[aa_index:]
+
+                if parsed["valid"]:
+                    self._rx_buffer.clear()
+                    return candidate    
+                
         except Exception as e:
             logger.error(f"读取数据异常: {str(e)}")
             return 9999999
-
-    def read_frames(self, max_frames: int = 0, verify_checksum: bool = True) -> List[List[int]]:
-        """Read all complete frames currently in buffer.
-        
-        Frame detection logic:
-        - Frame starts with 0xAA
-        - Frame length is calculated as: data_length (from index [2]) + 5
-        - Uses frame length instead of 0xFF ending to avoid truncating data containing 0xFF
-
-        :param max_frames, int: Maximum number of frames to return (0 means no limit)
-        :return: List of frames (each frame is a list of ints)
-        """
-        results: List[List[int]] = []
-        # Ensure connection
-        if not self.serial_port or not self.serial_port.is_open:
-            if not self.connect():
-                return results
-
-        # Pull available bytes into buffer
-        if self.serial_port.in_waiting > 0:
-            self._rx_buffer += self.serial_port.read(self.serial_port.in_waiting)
-
-        # Scan buffer for complete frames using frame length information
-        while len(self._rx_buffer) >= 3:  # Need at least 3 bytes to read frame length
-            # Look for frame start marker 0xAA
-            start_idx = self._rx_buffer.find(0xAA)
-            if start_idx == -1:
-                # No start marker, clear buffer and stop
-                self._rx_buffer.clear()
-                break
-
-            if start_idx > 0:
-                # Drop leading noise
-                del self._rx_buffer[:start_idx]
-
-            # Need at least 3 bytes after 0xAA to read frame length
-            if len(self._rx_buffer) < 3:
-                break
-
-            # Read frame length from index [2] (third byte)
-            data_length = self._rx_buffer[2]
-            total_frame_length = data_length + DEFAULT_LENGTH
-
-            # Check if we have enough bytes for the complete frame
-            if len(self._rx_buffer) < total_frame_length:
-                # Wait for more data
-                break
-
-            # Extract the complete frame
-            candidate = self._rx_buffer[:total_frame_length]
-
-            # Verify frame structure
-            valid_start = candidate[0] == 0xAA
-            valid_length = len(candidate) == total_frame_length
-            valid_checksum = True
-
-            if verify_checksum and valid_length:
-                try:
-                    valid_checksum = self._serial_data_check(candidate)
-                except Exception:
-                    valid_checksum = False
-
-            if self.debug_mode:
-                now = time.time()
-                if now - self._last_print_time > 1.0:
-                    logger.info(
-                        f"[Frame] Length={total_frame_length}, Data={list(candidate)} {'(OK)' if (valid_start and valid_length and valid_checksum) else '(Invalid)'}"
-                    )
-                    self._last_print_time = now
-
-            # Consume this frame regardless of validity
-            del self._rx_buffer[:total_frame_length]
-
-            if valid_start and valid_length and valid_checksum:
-                results.append(list(candidate))
-
-                if max_frames > 0 and len(results) >= max_frames:
-                    break
-
-            # Guard against huge buffer
-            if len(self._rx_buffer) > 1000:
-                aa_index = self._rx_buffer.find(0xAA)
-                if aa_index == -1:
-                    self._rx_buffer.clear()
-                else:
-                    del self._rx_buffer[:aa_index]
-                    
-        return results
     
     def _serial_data_check(self, frame: bytearray) -> bool:
         """
@@ -360,7 +315,7 @@ class SerialComm:
             bool: 校验是否通过
         """
         data_len = frame[2]
-        if len(frame) != data_len + DEFAULT_LENGTH and frame[1] != 0x12:
+        if len(frame) != data_len + DEFAULT_LENGTH:
             return False
 
         payload = frame[3:3 + data_len]

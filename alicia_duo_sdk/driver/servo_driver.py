@@ -202,9 +202,7 @@ class ArmController:
                     logger.error("检测到严重的串口通信异常，机械臂可能已断开连接")
                     break
                 if frame:
-                    # 解析数据帧，更新内部状态
-                    for i in range(len(frame)):
-                        self.data_parser.parse_frame(frame[i])
+                    self.data_parser.parse_frame(frame)
         
             except Exception as e:
                 logger.error(f"状态更新线程异常: {str(e)}")
