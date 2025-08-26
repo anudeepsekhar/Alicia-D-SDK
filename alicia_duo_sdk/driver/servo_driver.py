@@ -28,7 +28,7 @@ class ArmController:
     FRAME_FOOTER = 0xFF
     FRAME_MINIMAL_SIZE = 5
     ARM_DATA_SIZE = 18
-    GRIPPER_FRAME_SIZE = 8
+    GRIPPER_FRAME_SIZE = 11
     
     # 指令ID
     CMD_GRIPPER = 0x02     # 夹爪控制与行程反馈
@@ -389,7 +389,7 @@ class ArmController:
         frame = [0] * self.GRIPPER_FRAME_SIZE
         frame[0] = self.FRAME_HEADER
         frame[1] = self.CMD_GRIPPER
-        frame[2] = 3  # 数据长度
+        frame[2] = 6  # 数据长度
         frame[3] = 1  # 夹爪ID
         frame[-1] = self.FRAME_FOOTER
         
@@ -397,11 +397,14 @@ class ArmController:
         gripper_value = self._rad_to_hardware_value_grip(angle_rad)
         
         # 写入夹爪角度
-        frame[4] = gripper_value & 0xFF  # 低字节
-        frame[5] = (gripper_value >> 8) & 0xFF  # 高字节
+        frame[4] = 3400 & 0xFF  # 低字节
+        frame[5] = (3400 >> 8) & 0xFF  # 高字节
+        frame[6] = gripper_value & 0xFF  # 低字节
+        frame[7] = (gripper_value >> 8) & 0xFF  # 高字节
+        frame[8] = 254
         
         # 计算并设置校验和
-        frame[6] = self._calculate_checksum(frame)
+        frame[9] = self._calculate_checksum(frame)
         
         if self.debug_mode:
             angle_deg = round(angle_rad * self.RAD_TO_DEG, 2)
