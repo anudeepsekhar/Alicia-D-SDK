@@ -27,11 +27,11 @@ class DataParser:
     RAD_TO_DEG = 180.0 / math.pi  # 弧度转角度系数
     
     # 指令ID
-    CMD_GRIPPER = 0x12     # 夹爪控制与行程反馈
+    CMD_GRIPPER = 0x02     # 夹爪控制与行程反馈
     CMD_ZERO_POS = 0x03    # 机械臂以当前位置为零点  
-    CMD_JOINT = 0x14       # 机械臂角度反馈与控制
+    CMD_JOINT = 0x04       # 机械臂角度反馈与控制
     CMD_MULTI_ARM = 0x06   # 四机械臂角度反馈与控制
-    CMD_VERSION = 0x0A     # 机械臂固件版本反馈
+    CMD_VERSION = 0x12     # 机械臂固件版本反馈
     CMD_TORQUE = 0x13      # 机械臂力矩控制
     CMD_ERROR = 0xEE       # 错误反馈
 

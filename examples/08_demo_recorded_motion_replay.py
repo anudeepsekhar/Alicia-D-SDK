@@ -255,8 +255,8 @@ if __name__ == "__main__":
     # !!! 请先使用00_demo_read_version.py检查版本号 !!!
     # !!! 如果你能够读到版本号，版本号为5.4.19以上，则使用默认波特率1000000 !!!
     # !!! 如果显示超时或者多次尝试后没有版本号输出，则使用默认波特率921600 !!!
-    parser.add_argument('--baudrate', type=int, default=921600, help="波特率")
-    parser.add_argument("--port",   default="")
+    parser.add_argument('--baudrate', type=int, default=1000000, help="波特率")
+    parser.add_argument("--port",   default="COM6")
     parser.add_argument("--motion", required=True)
     parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--speed",  type=float, default=1.0, help="倍速播放（>1 更快）")
