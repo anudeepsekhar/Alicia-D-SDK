@@ -135,11 +135,23 @@ class SerialComm:
         current_time = time.time()
         should_log = (current_time - self.last_log_time) >= 5.0  # 每5秒允许打印一次日志
         if self.port_name:
-            if os.access(self.port_name, os.R_OK | os.W_OK):
-                logger.info(f"使用指定的端口: {self.port_name}")
-                return self.port_name
+            # Windows: 对于COM端口号大于9的情况，需要添加 \\.\ 前缀
+            device_name = self.port_name
+            if platform.system() == "Windows" and device_name.startswith("COM"):
+                try:
+                    port_num = int(device_name[3:])  # 去掉"COM"前缀
+                    if port_num > 9 and not device_name.startswith("\\\\.\\"):
+                        device_name = f"\\\\.\\{device_name}"
+                        if should_log:
+                            logger.info(f"Windows COM端口号大于9，添加前缀: {device_name}")
+                except ValueError:
+                    pass  # 如果端口号解析失败，使用原始名称
+            
+            if os.access(device_name, os.R_OK | os.W_OK):
+                logger.info(f"使用指定的端口: {device_name}")
+                return device_name
             else:
-                logger.warning(f"指定的端口 {self.port_name} 不可用，将搜索其他设备")
+                logger.warning(f"指定的端口 {device_name} 不可用，将搜索其他设备")
         # 获取串口列表
         try:
             ports = list(serial.tools.list_ports.comports())
@@ -180,10 +192,30 @@ class SerialComm:
         # Pass 1: strictly match priority keys
         for key in candidates_priority:
             for p in ports:
-                if key in p.device and os.access(p.device, os.R_OK | os.W_OK):
-                    if should_log:
-                        logger.info(f"找到可用设备: {p.device}")
-                    return p.device
+                if key in p.device:
+                    device_name = p.device
+                    # Windows: 对于COM端口号大于9的情况，需要添加 \\.\ 前缀
+                    if platform.system() == "Windows" and device_name.startswith("COM"):
+                        # 提取COM端口号
+                        try:
+                            port_num = int(device_name[3:])  # 去掉"COM"前缀
+                            if port_num > 9:
+                                device_name = f"\\\\.\\{device_name}"
+                                if should_log:
+                                    logger.info(f"Windows COM端口号大于9，添加前缀: {device_name}")
+                        except ValueError:
+                            pass  # 如果端口号解析失败，使用原始名称
+                    
+                    # 检查处理后的设备名称是否可访问
+                    # Windows COM端口不需要文件系统访问检查
+                    if platform.system() == "Windows" and device_name.startswith(("COM", "\\\\.\\COM")):
+                        if should_log:
+                            logger.info(f"找到可用设备: {device_name}")
+                        return device_name
+                    elif os.access(device_name, os.R_OK | os.W_OK):
+                        if should_log:
+                            logger.info(f"找到可用设备: {device_name}")
+                        return device_name
 
         # Pass 2: if only /dev/tty.* is present on macOS, try map to /dev/cu.*
         if platform.system() == "Darwin":
