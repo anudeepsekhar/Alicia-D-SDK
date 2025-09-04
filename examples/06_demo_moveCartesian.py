@@ -9,7 +9,7 @@ Demo: Teaching 模式下记录末端姿态轨迹并回放
 
 import time
 import numpy as np
-from alicia_duo_sdk.controller import get_default_session, ControlApi
+from alicia_d_sdk.controller import get_default_session, ControlApi
 
 def teaching_demo_cartesian(args):
     # === 初始化机器人会话 ===

@@ -2,7 +2,7 @@
 Demo: 打印机械臂信息（关节角度，夹爪角度，以及末端位姿）
 '''
 
-from alicia_duo_sdk.controller import get_default_session, ControlApi
+from alicia_d_sdk.controller import get_default_session, ControlApi
 import time
 
 

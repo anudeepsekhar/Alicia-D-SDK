@@ -17,7 +17,7 @@ import numpy as np
 from typing import List, Dict, Any
 from datetime import datetime
 
-from alicia_duo_sdk.controller import get_default_session, ControlApi
+from alicia_d_sdk.controller import get_default_session, ControlApi
 
 
 class TrajectoryRecorder:

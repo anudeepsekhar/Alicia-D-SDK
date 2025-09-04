@@ -19,7 +19,7 @@ def read_requirements():
 
 # 从 __init__.py 读取版本号
 def get_version():
-    init_py_path = os.path.join(os.path.dirname(__file__), 'alicia_duo_sdk', '__init__.py')
+    init_py_path = os.path.join(os.path.dirname(__file__), 'alicia_d_sdk', '__init__.py')
     version_line = ''
     if os.path.exists(init_py_path):
         with open(init_py_path, 'r', encoding='utf-8') as f:
@@ -33,7 +33,7 @@ def get_version():
     return "0.1.0" # 默认版本
 
 setup(
-    name='alicia_duo_sdk',
+    name='alicia_d_sdk',
     version='5.5.0',
     author='Synria Robotics',
     author_email='tech@xuanyatech.com', 
@@ -41,7 +41,7 @@ setup(
     long_description=read_readme(),
     long_description_content_type='text/markdown',
     url='https://github.com/Synria-Robotics/Alicia-D-SDK', # 请替换为您的仓库URL
-    packages=find_packages(exclude=['tests*', 'examples*']), # 自动查找 alicia_duo_sdk 包
+    packages=find_packages(exclude=['tests*', 'examples*']),  # 自动查找 alicia_d_sdk 包
     install_requires=read_requirements(),
     classifiers=[
         'Development Status :: 3 - Alpha', # 或者 4 - Beta, 5 - Production/Stable

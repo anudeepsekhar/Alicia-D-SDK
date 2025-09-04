@@ -4,10 +4,10 @@
 
 ---
 
-## ✅ 控制接口：`alicia_duo_sdk.controller.control_api.ControlApi`
+## ✅ 控制接口：`alicia_d_sdk.controller.control_api.ControlApi`
 
 ```python
-from alicia_duo_sdk.controller import ControlApi, get_default_session
+from alicia_d_sdk.controller import ControlApi, get_default_session
 
 session = get_default_session()
 controller = ControlApi(session=session)
@@ -55,7 +55,7 @@ controller = ControlApi(session=session)
 构建 SDK 操作所需的会话上下文，包含模型、IK控制器、执行器和底层控制器。
 
 ```python
-from alicia_duo_sdk.controller import get_default_session
+from alicia_d_sdk.controller import get_default_session
 session = get_default_session()
 ```
 

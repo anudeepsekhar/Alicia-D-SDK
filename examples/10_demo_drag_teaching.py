@@ -30,8 +30,8 @@ import argparse
 from typing import List, Dict, Any
 from datetime import datetime
 
-from alicia_duo_sdk.controller import get_default_session, ControlApi
-from alicia_duo_sdk.controller.drag_teaching_controller import DragTeachingController
+from alicia_d_sdk.controller import get_default_session, ControlApi
+from alicia_d_sdk.controller.drag_teaching_controller import DragTeachingController
 
 
 class DragTeachingDemo:

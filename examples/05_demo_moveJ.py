@@ -2,7 +2,7 @@
 Demo: 使用 moveJ 控制机械臂移动到目标关节位置，已包含关节角线性插值
 """
 
-from alicia_duo_sdk.controller import get_default_session, ControlApi
+from alicia_d_sdk.controller import get_default_session, ControlApi
 
 def main(args):
     # 创建会话和控制器

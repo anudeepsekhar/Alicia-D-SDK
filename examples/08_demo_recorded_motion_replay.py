@@ -9,7 +9,7 @@
 """
 import os, json, time, argparse
 from typing import List, Dict, Any, Tuple
-from alicia_duo_sdk.controller import get_default_session, ControlApi
+from alicia_d_sdk.controller import get_default_session, ControlApi
 
 # ===== 可按需微调 =====
 SEG_HZ = 30.0             # 设置目标更新频率（20~40 推荐）

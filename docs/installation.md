@@ -22,8 +22,8 @@ cd Alicia-D-SDK
 ### 2. 创建 Python 环境并安装依赖
 使用 Conda 环境（推荐）：
 ```bash
-conda create -n alicia_duo_sdk python=3.8
-conda activate alicia_duo_sdk
+conda create -n alicia_d_sdk python=3.8
+conda activate alicia_d_sdk
 ```
 
 安装依赖与 SDK：

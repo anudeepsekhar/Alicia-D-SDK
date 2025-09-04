@@ -2,7 +2,7 @@
 Demo: 调零程序
 '''
 
-from alicia_duo_sdk.controller import get_default_session, ControlApi
+from alicia_d_sdk.controller import get_default_session, ControlApi
 
 def main(args):
     # 创建会话和控制器

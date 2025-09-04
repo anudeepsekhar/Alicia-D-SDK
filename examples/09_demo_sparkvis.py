@@ -26,7 +26,7 @@ except Exception as e:
     print("请先安装 websockets: pip install websockets==13.1")
     raise
 
-from alicia_duo_sdk.controller import get_default_session, ControlApi
+from alicia_d_sdk.controller import get_default_session, ControlApi
 
 
 class SparkVisBridge:
