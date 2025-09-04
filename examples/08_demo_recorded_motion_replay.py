@@ -9,7 +9,7 @@
 """
 import os, json, time, argparse
 from typing import List, Dict, Any, Tuple
-from alicia_d_sdk.controller import get_default_session, ControlApi
+from alicia_d_sdk.controller import create_session, SynriaRobotAPI
 
 # ===== 可按需微调 =====
 SEG_HZ = 30.0             # 设置目标更新频率（20~40 推荐）
@@ -185,8 +185,8 @@ def main(args):
     print(f"[resample] {len(traj)} -> {len(kf)} keyframes @ {SEG_HZ} Hz, play ~{est:.2f}s")
 
     # 创建会话和控制器
-    session = get_default_session(baudrate=args.baudrate, port=args.port)
-    ctl     = ControlApi(session=session)
+    session = create_session(baudrate=args.baudrate, port=args.port)
+    ctl = SynriaRobotAPI(session=session)
     arm     = session.joint_controller
 
     try:

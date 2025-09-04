@@ -8,7 +8,16 @@ from ..utils.logger import logger
 
 # logger = BeautyLogger(log_dir="./logs", log_name="session.log", verbose=True)
 
+
 def get_default_session(
+    port: str = '',
+    baudrate: int = 1000000,
+    debug: bool = False,
+    connect_timeout: float = 5.0
+) -> MotionSession:
+    return create_session(port=port, baudrate=baudrate, debug=debug, connect_timeout=connect_timeout)
+
+def create_session(
     port: str = '',        
     baudrate: int = 1000000,
     debug: bool = False,

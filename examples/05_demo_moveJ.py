@@ -2,12 +2,12 @@
 Demo: 使用 moveJ 控制机械臂移动到目标关节位置，已包含关节角线性插值
 """
 
-from alicia_d_sdk.controller import get_default_session, ControlApi
+from alicia_d_sdk.controller import create_session, SynriaRobotAPI
 
 def main(args):
     # 创建会话和控制器
-    session = get_default_session(baudrate=args.baudrate, port=args.port)
-    controller = ControlApi(session=session)
+    session = create_session(baudrate=args.baudrate, port=args.port)
+    controller = SynriaRobotAPI(session=session)
 
     try:
         # 设置目标角度（以 degree 为例)

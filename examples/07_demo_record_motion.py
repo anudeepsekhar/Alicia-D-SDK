@@ -17,12 +17,13 @@ import numpy as np
 from typing import List, Dict, Any
 from datetime import datetime
 
-from alicia_d_sdk.controller import get_default_session, ControlApi
+from alicia_d_sdk.controller import create_session, SynriaRobotAPI
 
 
 class TrajectoryRecorder:
     """后台定频采样关节角，生成可重放的时间序列。"""
-    def __init__(self, controller: ControlApi, rate_hz: float = 100.0):
+
+    def __init__(self, controller: SynriaRobotAPI, rate_hz: float = 100.0):
         self.controller = controller
         self.rate_hz = float(rate_hz)
         self._stop = threading.Event()
@@ -72,8 +73,8 @@ class TrajectoryRecorder:
 def teaching_demo_cartesian(args):
     # === 初始化会话 ===
     # 创建会话和控制器
-    session = get_default_session(baudrate=args.baudrate, port=args.port)
-    controller = ControlApi(session=session)
+    session = create_session(baudrate=args.baudrate, port=args.port)
+    controller = SynriaRobotAPI(session=session)
 
     # === 交互式教学 ===
     print(

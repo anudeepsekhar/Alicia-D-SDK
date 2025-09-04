@@ -1,6 +1,6 @@
 # motion_api.py (in controller/)
 # from ..planning.planner_registry import get_planner
-from ..utils.coord.validation import validate_joint_list, validate_waypoints 
+from ..utils.coord.validation import validate_joint_list, validate_waypoints
 from ..utils.logger import BeautyLogger
 from ..utils.coord import check_and_clip_joint_limits, compute_steps_and_delay
 from ..planning.planners import *
@@ -10,14 +10,17 @@ from .online_interpolator import OnlineJointInterpolator
 
 from typing import List, Union
 import numpy as np
-import time, sys, select
+import time
+import sys
+import select
 import platform
 
 
 logger = BeautyLogger(log_dir="./logs", log_name="move.log", verbose=True)
 
-class ControlApi():
-    def __init__(self, session:MotionSession):
+
+class SynriaRobotAPI():
+    def __init__(self, session: MotionSession):
         # 控制器
         self.session = session
         self.joint_controller = session.joint_controller
@@ -103,7 +106,7 @@ class ControlApi():
 
     def moveCartesian(
         self,
-        waypoints: Union[List[List[float]], List[float]], 
+        waypoints: Union[List[List[float]], List[float]],
         planner_name: str = "cartesian",
         visualize: bool = False,
         show_ori: bool = False,
@@ -144,7 +147,7 @@ class ControlApi():
             logger.info("[moveCartesian] 已启用反向模式，从末尾路径点开始进行轨迹规划")
             waypoints = waypoints[::-1]
 
-        logger.info("[moveCartesian] 开始插值末端姿态轨迹，求解关节轨迹并执行") 
+        logger.info("[moveCartesian] 开始插值末端姿态轨迹，求解关节轨迹并执行")
 
         # 插值末端姿态轨迹（支持可选夹爪通道）
         gripper_waypoints = any(len(wp) == 8 for wp in waypoints)
@@ -172,13 +175,13 @@ class ControlApi():
             waypoints.insert(0, p0)
             pose_plan = planner.plan(
                 via_points=waypoints,
-                nbdata= 200
+                nbdata=200
             )
             if isinstance(pose_plan, tuple):
                 pose_traj, gripper_traj = pose_plan
             else:
                 pose_traj, gripper_traj = pose_plan, None
-        
+
         # 判断并选择 IK 解算方式
         joint_traj = self.ik_controller.solve_ik(
             pose_traj=pose_traj,
@@ -191,7 +194,7 @@ class ControlApi():
         t = min(self.max_cartesian_time, move_time)
         computed_delay = t / total_steps
         delay = min(max(computed_delay, self.min_cartesian_delay),
-                     self.max_cartesian_delay)
+                    self.max_cartesian_delay)
 
         self.executor.delay = delay
         self.executor.execute(
@@ -209,7 +212,7 @@ class ControlApi():
         T_default: float = 4.0,
         n_steps_ref: int = 200,
         visualize: bool = False
-        ):
+    ):
         """
         控制机械臂从当前位置平滑移动至目标关节角度，使用 cubic 插值与速度控制
 
@@ -228,7 +231,7 @@ class ControlApi():
             raise ValueError("[moveJ] 请提供 target_joints 参数")
 
         joint_format = joint_format.lower()
-        if joint_format not in ['rad', 'deg']:  
+        if joint_format not in ['rad', 'deg']:
             raise ValueError(f"[moveJ] 不支持的 joint_format: '{joint_format}'，"
                              "应为 'rad' 或 'deg'")
 
@@ -262,17 +265,17 @@ class ControlApi():
 
         # 插值轨迹生成
         planner = JointPlanner()
-        
+
         joint_traj = planner.plan(
             start_angles=cur_angles,
             target_angles=target_joints,
             steps=steps
-            )
+        )
 
         if joint_format == 'deg':
-            display_cur = [round(a * self.joint_controller.RAD_TO_DEG, 1) 
+            display_cur = [round(a * self.joint_controller.RAD_TO_DEG, 1)
                            for a in cur_angles]
-            display_target = [round(a * self.joint_controller.RAD_TO_DEG, 1) 
+            display_target = [round(a * self.joint_controller.RAD_TO_DEG, 1)
                               for a in target_joints]
             unit = "°"
         else:
@@ -300,7 +303,6 @@ class ControlApi():
         logger.module("[moveHome] 开始移动到初始位置")
         self.moveJ(target_joints=self.home_angles)
 
-   
     def get_joints(self) -> List[float]:
         """
         获取当前关节角度（单位：弧度）
@@ -328,9 +330,9 @@ class ControlApi():
         """
         state = self.joint_controller.get_joint_state()
         return state.gripper if state else None
-    
+
     def gripper_control(self, command: str = None, angle_deg: float = None,
-                        wait_for_completion: bool=True,
+                        wait_for_completion: bool = True,
                         timeout: float = 5.0, tolerance: float = 1.0) -> None:
         """
         控制夹爪开合或设置角度，并阻塞等待夹爪到达目标位置
@@ -384,7 +386,6 @@ class ControlApi():
                     logger.warning("[gripper_control]夹爪运动等待超时,"
                                    f"当前角度{gripper_deg: 2f}°")
 
-
     def print_state(self, continous_printing: bool = False, output_format: str = "deg") -> None:
         """
         打印当前机械臂关节角度和夹爪状态
@@ -405,28 +406,28 @@ class ControlApi():
                 joint_deg = [round(a * self.joint_controller.RAD_TO_DEG, 1) for a in joint_rad]
                 gripper_deg = round(gripper_rad * self.joint_controller.RAD_TO_DEG, 1)
                 pose = self.get_pose()
-                pos = [round(p,3) for p in pose[:3]]
-                quat = [round(q,3) for q in pose[3:]]
+                pos = [round(p, 3) for p in pose[:3]]
+                quat = [round(q, 3) for q in pose[3:]]
 
                 logger.module("[print_state] 开始打印机械臂信息")
                 logger.info(f"[print_state] 关节角度（单位：度）: {joint_deg}")
                 logger.info(f"[print_state] 机械臂位置: {pos}")
                 logger.info(f"[print_state] 机械臂四元角: {quat}")
                 logger.info(f"[print_state] 夹爪角度（单位：度）: {gripper_deg}")
-            
+
             elif output_format == 'rad':
                 joint_rad_round = [round(joint, 3) for joint in joint_rad]
                 gripper_rad_round = round(gripper_rad, 2)
                 pose = self.get_pose()
-                pos = [round(p,3) for p in pose[:3]]
-                quat = [round(q,3) for q in pose[3:]]
+                pos = [round(p, 3) for p in pose[:3]]
+                quat = [round(q, 3) for q in pose[3:]]
 
                 logger.module("[print_state] 开始打印机械臂信息")
                 logger.info(f"[print_state] 关节角度（单位：弧度）: {joint_rad_round}")
                 logger.info(f"[print_state] 机械臂位置: {pos}")
                 logger.info(f"[print_state] 机械臂四元角: {quat}")
                 logger.info(f"[print_state] 夹爪角度（单位：弧度）: {gripper_rad_round}")
-            
+
             else:
                 logger.warning(f"[print_state] 不支持的输出格式：{output_format}")
 
@@ -437,7 +438,7 @@ class ControlApi():
                 while True:
                     _print_once()
                     time.sleep(0.5)  # 打印间隔（可调）
-                    
+
                     # 跨平台兼容的输入检测
                     if platform.system() == "Windows":
                         # Windows系统使用msvcrt模块检测按键
@@ -464,15 +465,12 @@ class ControlApi():
                             break
             except KeyboardInterrupt:
                 logger.module("[print_state] 持续打印已停止")
-                
 
         else:
 
             _print_once()
 
-
-
-    def torque_control(self, command: str=None) -> bool:
+    def torque_control(self, command: str = None) -> bool:
         """
         控制机械臂扭矩开关（可选择开启或关闭）
 
@@ -540,4 +538,8 @@ class ControlApi():
             logger.info("[zero_calibration] 零位校准成功")
         else:
             logger.warning("[zero_calibration] 零位校准失败，请重试")
-    
+
+
+class ControlApi(SynriaRobotAPI):
+    def __init__(self, session: MotionSession):
+        super().__init__(session=session)

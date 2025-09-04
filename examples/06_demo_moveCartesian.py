@@ -9,13 +9,13 @@ Demo: Teaching 模式下记录末端姿态轨迹并回放
 
 import time
 import numpy as np
-from alicia_d_sdk.controller import get_default_session, ControlApi
+from alicia_d_sdk.controller import create_session, SynriaRobotAPI
 
 def teaching_demo_cartesian(args):
     # === 初始化机器人会话 ===
     # 创建会话和控制器
-    session = get_default_session(baudrate=args.baudrate, port=args.port)
-    controller = ControlApi(session=session)
+    session = create_session(baudrate=args.baudrate, port=args.port)
+    controller = SynriaRobotAPI(session=session)
 
     print(">>> 关闭扭矩，请手动拖动机械臂到若干目标位置")
     input("按 Enter 开始记录教学 Waypoint，输入 q 可提前结束")

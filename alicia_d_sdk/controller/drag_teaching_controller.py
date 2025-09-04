@@ -14,7 +14,7 @@ import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 
-from .control_api import ControlApi
+from .control_api import SynriaRobotAPI
 from ..utils.logger import BeautyLogger
 
 logger = BeautyLogger(log_dir="./logs", log_name="drag_teaching.log", verbose=True)
@@ -23,7 +23,7 @@ logger = BeautyLogger(log_dir="./logs", log_name="drag_teaching.log", verbose=Tr
 class TrajectoryRecorder:
     """轨迹记录器 - 负责以固定频率记录机械臂轨迹"""
     
-    def __init__(self, controller: ControlApi, sample_hz: float = 50.0):
+    def __init__(self, controller: SynriaRobotAPI, sample_hz: float = 50.0):
         self.controller = controller          # 机械臂控制器
         self.sample_hz = float(sample_hz)    # 采样频率（Hz）
         self._stop = threading.Event()       # 停止信号
@@ -203,7 +203,7 @@ class SafetyChecker:
     """安全检查器 - 提供轨迹回放的安全检查功能"""
     
     @staticmethod
-    def check_start_position_safety(controller: ControlApi, trajectory_data: List[Dict[str, Any]]) -> Tuple[bool, float, bool]:
+    def check_start_position_safety(controller: SynriaRobotAPI, trajectory_data: List[Dict[str, Any]]) -> Tuple[bool, float, bool]:
         """
         检查当前位置与轨迹起点的安全性
         
@@ -236,7 +236,7 @@ class SafetyChecker:
 class DragTeachingController:
     """拖动示教控制器 - 整合所有拖动示教功能"""
     
-    def __init__(self, controller: ControlApi):
+    def __init__(self, controller: SynriaRobotAPI):
         self.controller = controller
         self.recorder = TrajectoryRecorder(controller)
         self.interpolator = TrajectoryInterpolator()

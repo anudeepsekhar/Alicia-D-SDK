@@ -30,7 +30,7 @@ import argparse
 from typing import List, Dict, Any
 from datetime import datetime
 
-from alicia_d_sdk.controller import get_default_session, ControlApi
+from alicia_d_sdk.controller import create_session, SynriaRobotAPI
 from alicia_d_sdk.controller.drag_teaching_controller import DragTeachingController
 
 
@@ -50,8 +50,8 @@ class DragTeachingDemo:
         print(f"保存动作名: {self.args.save_motion}")
         
         # 创建会话和控制器
-        session = get_default_session(baudrate=self.args.baudrate, port=self.args.port)
-        self.controller = ControlApi(session=session)
+        session = create_session(baudrate=self.args.baudrate, port=self.args.port)
+        self.controller = SynriaRobotAPI(session=session)
         
         # 创建拖动示教控制器（包含所有核心功能）
         self.drag_teaching_controller = DragTeachingController(self.controller)

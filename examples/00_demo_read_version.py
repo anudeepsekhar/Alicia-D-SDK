@@ -2,14 +2,14 @@
 Demo: 打印机械臂信息（关节角度，夹爪角度，以及末端位姿）
 '''
 
-from alicia_d_sdk.controller import get_default_session, ControlApi
+from alicia_d_sdk.controller import create_session, SynriaRobotAPI
 import time
 
 
 def main(args):
     # 创建会话和控制器
-    session = get_default_session(baudrate=args.baudrate, port=args.port)
-    controller = ControlApi(session=session)
+    session = create_session(baudrate=args.baudrate, port=args.port)
+    controller = SynriaRobotAPI(session=session)
     try:
         # 单次打印机械臂状态， 关节输出为弧度值
         controller.joint_controller.serial_comm.send_data([0xAA, 0x12, 0x01, 0x00, 0x00, 0xFF])

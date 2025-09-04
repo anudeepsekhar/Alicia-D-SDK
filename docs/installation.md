@@ -70,7 +70,7 @@ python3 demo_read_state.py
 - **手动指定串口**
   如自动连接失败，可手动指定：
   ```python
-  session = get_default_session(port="/dev/ttyUSB0")
+  session = create_session(port="/dev/ttyUSB0")
   ```
 
 - **权限错误 (Permission denied)**
@@ -78,4 +78,4 @@ python3 demo_read_state.py
 
 ---
 
-安装成功后，即可通过 `ControlApi` 接口控制机械臂完成各种动作。
+安装成功后，即可通过 `SynriaRobotAPI` 接口控制机械臂完成各种动作。

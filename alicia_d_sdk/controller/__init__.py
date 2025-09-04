@@ -4,12 +4,14 @@
 Controller module for motion planning and execution
 """
 
-from .session_factory import get_default_session
-from .control_api import ControlApi
+from .session_factory import create_session, get_default_session
+from .control_api import SynriaRobotAPI, ControlApi
 from .motion_session import MotionSession
 
 __all__ = [
-    "get_default_session",
+    "create_session",
+    "SynriaRobotAPI",
     "ControlApi",
+    "get_default_session",
     "MotionSession"
 ]
