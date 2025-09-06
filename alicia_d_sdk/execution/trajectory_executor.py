@@ -1,12 +1,12 @@
 import time
 from typing import List
 import numpy as np
-from ..utils import *
-from ..kinematics import AliciaFollower
-from ..driver import ArmController
+from alicia_d_sdk.utils import *
+from alicia_d_sdk.kinematics import AliciaFollower
+from alicia_d_sdk.driver import ArmController
 from scipy.spatial.transform import Rotation as R
 
-logger = BeautyLogger(log_dir="./logs", log_name="execution.log", verbose=True)
+from alicia_d_sdk.utils.logger import logger
 
 class TrajectoryExecutor:
     def __init__(self,

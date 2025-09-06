@@ -8,20 +8,20 @@ from typing import List, Optional, Tuple
 import threading
 from datetime import datetime
 
-# 配置日志
-logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger("SerialComm")
+# 使用统一的日志器
+from alicia_d_sdk.utils.logger import logger
 READ_LENGTH = 50
 DEFAULT_LENGTH = 5
+
+
 class SerialComm:
     """机械臂串口通信模块 - 简化版"""
-    
+
     def __init__(self, lock: threading.Lock, port: str = "", baudrate: int = 1000000,
-                timeout: float = 1.0, debug_mode: bool = False):
+                 timeout: float = 1.0, debug_mode: bool = False):
         """
         初始化串口通信模块
-        
+
         Args:
             port: 串口名称，留空则自动搜索
             baudrate: 波特率
@@ -34,7 +34,7 @@ class SerialComm:
         self.baudrate_macOS = 1000000
         self.timeout = timeout
         self.debug_mode = debug_mode
-        
+
         self.serial_port = None
         self.last_log_time = 0
         self._last_print_time = 0
@@ -43,33 +43,33 @@ class SerialComm:
         self._rx_buffer = bytearray()
         logger.info(f"初始化串口通信模块: 端口={port or '自动'}, 波特率={baudrate}")
         logger.info(f"调试模式: {'启用' if debug_mode else '禁用'}")
-    
+
     def __del__(self):
         """析构函数，确保关闭串口"""
         self.disconnect()
-    
+
     def connect(self) -> bool:
         """
         连接到串口设备
-        
+
         Returns:
             bool: 连接是否成功
         """
         try:
             # 查找可用串口
             port = self.find_serial_port()
-            
+
             # 没有找到可用串口
             if not port:
                 logger.warning("未找到可用串口")
                 return False
-            
+
             logger.info(f"正在连接端口: {port}")
-            
+
             # 关闭已有连接
             if self.serial_port and self.serial_port.is_open:
                 self.serial_port.close()
-            
+
             # macOS: Prefer /dev/cu.* (callout) over /dev/tty.* to avoid write blocking
             if '/dev/tty.' in port:
                 cu_candidate = port.replace('/dev/tty.', '/dev/cu.')
@@ -106,28 +106,27 @@ class SerialComm:
                     pass
             except Exception:
                 pass
-            
+
             if self.serial_port.is_open:
                 logger.info("串口连接成功")
                 return True
-            
+
             return False
-            
+
         except Exception as e:
             logger.error(f"连接串口异常: {str(e)}")
             return False
-    
+
     def disconnect(self):
         """断开串口连接"""
         if self.serial_port and self.serial_port.is_open:
             self.serial_port.close()
             logger.info("串口已关闭")
-    
 
     def find_serial_port(self) -> str:
         """
         查找可用的串口设备
-        
+
         Returns:
             str: 可用串口的路径，未找到则返回空字符串
         """
@@ -146,7 +145,7 @@ class SerialComm:
                             logger.info(f"Windows COM端口号大于9，添加前缀: {device_name}")
                 except ValueError:
                     pass  # 如果端口号解析失败，使用原始名称
-            
+
             if os.access(device_name, os.R_OK | os.W_OK):
                 logger.info(f"使用指定的端口: {device_name}")
                 return device_name
@@ -160,13 +159,13 @@ class SerialComm:
                 logger.error(f"列出端口时异常: {str(e)}")
                 self.last_log_time = current_time
             return ""
-        
+
         # 如果有端口且应该打印日志
         if ports and should_log:
             port_names = [port.device for port in ports]
             logger.info(f"找到 {len(ports)} 个串口设备: {' '.join(port_names)}")
             self.last_log_time = current_time
-        
+
         # 如果没有端口
         if not ports:
             return ""
@@ -205,7 +204,7 @@ class SerialComm:
                                     logger.info(f"Windows COM端口号大于9，添加前缀: {device_name}")
                         except ValueError:
                             pass  # 如果端口号解析失败，使用原始名称
-                    
+
                     # 检查处理后的设备名称是否可访问
                     # Windows COM端口不需要文件系统访问检查
                     if platform.system() == "Windows" and device_name.startswith(("COM", "\\\\.\\COM")):
@@ -231,14 +230,14 @@ class SerialComm:
         if should_log:
             logger.warning("未找到可用的串口设备（支持 ttyUSB/ttyACM/cu.usbserial/cu.usbmodem/COM）")
         return ""
-    
+
     def send_data(self, data: List[int]) -> bool:
         """
         发送数据到串口
-        
+
         Args:
             data: 要发送的字节数据列表
-            
+
         Returns:
             bool: 是否发送成功
         """
@@ -249,34 +248,34 @@ class SerialComm:
                     if not self.connect():
                         logger.error("无法连接到串口")
                         return False
-                
+
                 # 转换为字节数组
                 data_bytes = bytes(data)
-                
+
                 # 写入数据
                 bytes_written = self.serial_port.write(data_bytes)
                 try:
                     self.serial_port.flush()
                 except Exception:
                     pass
-                
+
                 if bytes_written != len(data):
                     logger.warning(f"只写入了 {bytes_written} 字节，应为 {len(data)} 字节")
                     return False
-                
+
                 if self.debug_mode:
                     self._print_hex_frame(data, 0)
-    
+
                 return True
-                    
+
             except Exception as e:
                 logger.error(f"发送数据时异常: {str(e)}")
                 return False
-    
+
     def read_frame(self) -> Optional[List[int]]:
         """
         读取一帧数据（非阻塞，如果没有完整帧则返回None）
-        
+
         Returns:
             Optional[List[int]]: 完整的数据帧，如果没有则返回None
         """
@@ -284,11 +283,11 @@ class SerialComm:
             if not self.serial_port or not self.serial_port.is_open:
                 if not self.connect():
                     return None
-            
+
             # 检查是否有数据可读
             if self.serial_port.in_waiting == 0:
                 return None
-            
+
             # 导入串口缓存数据
             self._rx_buffer += self.serial_port.read(self.serial_port.in_waiting)
 
@@ -306,12 +305,12 @@ class SerialComm:
                 valid_checksum = self._serial_data_check(candidate)
 
                 parsed = {
-                "timestamp": datetime.now().isoformat(),
-                "raw": ' '.join(f"{b:02X}" for b in candidate),
-                "raw_decimal": list(candidate),
-                "valid": valid_tail and valid_checksum
-            }
-            
+                    "timestamp": datetime.now().isoformat(),
+                    "raw": ' '.join(f"{b:02X}" for b in candidate),
+                    "raw_decimal": list(candidate),
+                    "valid": valid_tail and valid_checksum
+                }
+
                 if self.debug_mode:
                     now = time.time()
                     if self.debug_mode and now - self._last_print_time > 1.0:
@@ -320,7 +319,7 @@ class SerialComm:
 
                 self._rx_buffer = self._rx_buffer[frame_length:]
 
-                 # Step 4: 若缓存过大，强制同步（防炸）
+                # Step 4: 若缓存过大，强制同步（防炸）
                 if len(self._rx_buffer) > 1000:
                     aa_index = self._rx_buffer.find(0xAA)
                     if aa_index == -1:
@@ -330,19 +329,19 @@ class SerialComm:
 
                 if parsed["valid"]:
                     self._rx_buffer.clear()
-                    return candidate    
-                
+                    return candidate
+
         except Exception as e:
             logger.error(f"读取数据异常: {str(e)}")
             return 9999999
-    
+
     def _serial_data_check(self, frame: bytearray) -> bool:
         """
         验证数据的校验和
-        
+
         Args:
             data: 数据帧
-            
+
         Returns:
             bool: 校验是否通过
         """
@@ -353,14 +352,14 @@ class SerialComm:
         payload = frame[3:3 + data_len]
         checksum = frame[3 + data_len]
         return checksum == self._calculate_checksum(payload)
-    
-    def _calculate_checksum(self,data) -> int:
+
+    def _calculate_checksum(self, data) -> int:
         """
         计算数据的校验和
-        
+
         Args:
             data: 数据帧
-            
+
         Returns:
             int: 校验和
         """
@@ -368,24 +367,23 @@ class SerialComm:
         for i in range(len(data)):
             sum_value += data[i]
         return sum_value % 2
-    
+
     def _print_hex_frame(self, data: List[int], type_code: int):
         """
         打印十六进制数据
-        
+
         Args:
             data: 数据帧
             type_code: 0=发送数据, 1=接收数据, 其他=部分数据
         """
         if not self.debug_mode:
             return
-        
+
         prefix = {
             0: "发送数据: ",
             1: "数据接收: ",
             2: "部分数据: "
         }.get(type_code, "未知数据: ")
-        
+
         hex_str = " ".join([f"{byte:02X}" for byte in data])
         logger.info(f"{prefix}{hex_str}")
-

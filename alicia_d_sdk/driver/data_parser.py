@@ -6,10 +6,7 @@ import threading
 import copy
 from ..utils.logger import logger
 
-# # 配置日志
-# logging.basicConfig(level=logging.INFO, 
-#                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-# logger = logging.getLogger("DataParser")
+# 使用统一的日志器
 
 class JointState(NamedTuple):
     """关节状态数据结构"""

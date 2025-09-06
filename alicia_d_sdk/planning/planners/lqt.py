@@ -3,15 +3,13 @@
 import numpy as np
 from typing import List, Tuple
 from math import factorial
-from alicia_d_sdk.utils.logger import BeautyLogger
+from alicia_d_sdk.utils.logger import logger
 import copy 
 import time 
 
 class LQT:
     def __init__(self, verbose: bool=False):
-        self.logger = BeautyLogger(log_dir="./logs", 
-                                   log_name="lqt_planner.log", 
-                                   verbose=verbose)
+        self.logger = logger  # 使用统一的日志器
         # 参数
         self.nbData= 200
         self.nbDeriv= 2

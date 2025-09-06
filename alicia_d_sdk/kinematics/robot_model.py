@@ -1,7 +1,7 @@
 # kinematics.py
 import numpy as np
 from typing import Dict, Tuple, List, Union
-from ..utils import *
+from alicia_d_sdk.utils import *
 
 class AliciaFollower:
     def __init__(self, robot_model: str = 'alicia_5_4'):

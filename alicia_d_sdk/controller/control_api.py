@@ -1,12 +1,10 @@
-# motion_api.py (in controller/)
-# from ..planning.planner_registry import get_planner
-from ..utils.coord.validation import validate_joint_list, validate_waypoints
-from ..utils.logger import BeautyLogger
-from ..utils.coord import check_and_clip_joint_limits, compute_steps_and_delay
-from ..planning.planners import *
-
-from .motion_session import MotionSession
-from .online_interpolator import OnlineJointInterpolator
+from alicia_d_sdk.utils.coord.validation import validate_joint_list, validate_waypoints
+from alicia_d_sdk.utils.logger import BeautyLogger
+from alicia_d_sdk.utils.coord import check_and_clip_joint_limits, compute_steps_and_delay
+from alicia_d_sdk.planning.planners import *
+from alicia_d_sdk.controller.motion_session import MotionSession
+from alicia_d_sdk.controller.online_interpolator import OnlineJointInterpolator
+from alicia_d_sdk.utils.logger import logger
 
 from typing import List, Union
 import numpy as np
@@ -16,13 +14,11 @@ import select
 import platform
 
 
-logger = BeautyLogger(log_dir="./logs", log_name="move.log", verbose=True)
-
-
 class SynriaRobotAPI():
     def __init__(self, session: MotionSession):
         # 控制器
         self.session = session
+        self.logger = logger
         self.joint_controller = session.joint_controller
         self.robot_model = session.robot_model
         self.ik_controller = session.ik_controller
@@ -138,16 +134,16 @@ class SynriaRobotAPI():
 
         start_joint_angles = self.joint_controller.get_joint_angles()
 
-        logger.module("[moveCartesian] 开始调用moveCartesian API")
-        logger.info(f"[moveCartesian] 一共有 {len(waypoints)} 个途经点")
-        logger.info(f"[moveCartesian] 当前规划器为 {planner_name}")
+        self.logger.module("[moveCartesian] 开始调用moveCartesian API")
+        self.logger.info(f"[moveCartesian] 一共有 {len(waypoints)} 个途经点")
+        self.logger.info(f"[moveCartesian] 当前规划器为 {planner_name}")
 
         # 反转路径方向
         if reverse:
-            logger.info("[moveCartesian] 已启用反向模式，从末尾路径点开始进行轨迹规划")
+            self.logger.info("[moveCartesian] 已启用反向模式，从末尾路径点开始进行轨迹规划")
             waypoints = waypoints[::-1]
 
-        logger.info("[moveCartesian] 开始插值末端姿态轨迹，求解关节轨迹并执行")
+        self.logger.info("[moveCartesian] 开始插值末端姿态轨迹，求解关节轨迹并执行")
 
         # 插值末端姿态轨迹（支持可选夹爪通道）
         gripper_waypoints = any(len(wp) == 8 for wp in waypoints)
@@ -225,7 +221,7 @@ class SynriaRobotAPI():
             visualize (bool): 是否可视化轨迹
             show_ori (bool): 是否可视化末端姿态
         """
-        logger.module("[moveJ] 开始执行关节空间插值移动")
+        self.logger.module("[moveJ] 开始执行关节空间插值移动")
 
         if target_joints is None:
             raise ValueError("[moveJ] 请提供 target_joints 参数")
@@ -237,7 +233,7 @@ class SynriaRobotAPI():
 
         # 支持角度制输入
         if joint_format == 'deg':
-            logger.info("[moveJ] 输入角度单位为 degree，将转换为 rad")
+            self.logger.info("[moveJ] 输入角度单位为 degree，将转换为 rad")
             target_joints = [a * self.joint_controller.DEG_TO_RAD for a in target_joints]
 
         validate_joint_list(target_joints)
@@ -249,7 +245,7 @@ class SynriaRobotAPI():
         )
 
         for joint_name, original, clipped in violations:
-            logger.warning(
+            self.logger.warning(
                 f"[moveJ] {joint_name} 超出限制：{original:.2f} -> 已截断为 {clipped:.2f}"
             )
 
@@ -284,10 +280,10 @@ class SynriaRobotAPI():
             unit = "rad"
 
         # 日志输出
-        logger.info(f"[moveJ] 起始角度 ({unit}): {display_cur}")
-        logger.info(f"[moveJ] 目标角度 ({unit}): {display_target}")
-        logger.info(f"[moveJ] 插值步数: {steps}，单步延迟: {delay:.3f}s，"
-                    f"预计总耗时: {steps * delay:.0f}s")
+        self.logger.info(f"[moveJ] 起始角度 ({unit}): {display_cur}")
+        self.logger.info(f"[moveJ] 目标角度 ({unit}): {display_target}")
+        self.logger.info(f"[moveJ] 插值步数: {steps}，单步延迟: {delay:.3f}s，"
+                         f"预计总耗时: {steps * delay:.0f}s")
 
         # 执行轨迹
         self.executor.delay = delay
@@ -300,7 +296,7 @@ class SynriaRobotAPI():
         '''
         控制机械臂返回默认位置
         '''
-        logger.module("[moveHome] 开始移动到初始位置")
+        self.logger.module("[moveHome] 开始移动到初始位置")
         self.moveJ(target_joints=self.home_angles)
 
     def get_joints(self) -> List[float]:
@@ -352,10 +348,10 @@ class SynriaRobotAPI():
         if command is not None:
             if command == "open":
                 angle_deg = 0.0
-                logger.module("[gripper_control] 正在打开夹爪")
+                self.logger.module("[gripper_control] 正在打开夹爪")
             elif command == "close":
                 angle_deg = 100.0
-                logger.module("[gripper_control] 正在关闭夹爪")
+                self.logger.module("[gripper_control] 正在关闭夹爪")
             else:
                 raise ValueError("command 参数必须是 'open' 或 'close'")
 
@@ -366,25 +362,25 @@ class SynriaRobotAPI():
         angle_rad = angle_deg * self.joint_controller.DEG_TO_RAD
 
         # 发送夹爪指令
-        logger.module(f"[gripper_control]正在设置夹爪到{angle_deg}°")
+        self.logger.module(f"[gripper_control]正在设置夹爪到{angle_deg}°")
         result = self.joint_controller.set_gripper(angle_rad)
 
         if result:
-            logger.info("[gripper_control]夹爪数据发送成功")
+            self.logger.info("[gripper_control]夹爪数据发送成功")
             if wait_for_completion:
                 start_time = time.time()
                 success = False
                 while time.time() - start_time < timeout:
                     gripper_deg = self.get_gripper() * self.joint_controller.RAD_TO_DEG
                     if gripper_deg and abs(gripper_deg - angle_deg) <= tolerance:
-                        logger.info(f"[gripper_control] 夹爪已到达目标角度：{angle_deg:.1f}°，"
-                                    f"实际角度：{gripper_deg:.1f}°，误差：{gripper_deg - angle_deg:.2f}°")
+                        self.logger.info(f"[gripper_control] 夹爪已到达目标角度：{angle_deg:.1f}°，"
+                                         f"实际角度：{gripper_deg:.1f}°，误差：{gripper_deg - angle_deg:.2f}°")
                         success = True
                         break
                     time.sleep(0.1)
                 if not success:
-                    logger.warning("[gripper_control]夹爪运动等待超时,"
-                                   f"当前角度{gripper_deg: 2f}°")
+                    self.logger.warning("[gripper_control]夹爪运动等待超时,"
+                                        f"当前角度{gripper_deg: 2f}°")
 
     def print_state(self, continous_printing: bool = False, output_format: str = "deg") -> None:
         """
@@ -399,7 +395,7 @@ class SynriaRobotAPI():
             gripper_rad = self.get_gripper()
 
             if joint_rad is None or gripper_rad is None:
-                logger.warning("[print_state] 当前没有有效的状态信息")
+                self.logger.warning("[print_state] 当前没有有效的状态信息")
                 return
 
             if output_format == 'deg':
@@ -409,11 +405,11 @@ class SynriaRobotAPI():
                 pos = [round(p, 3) for p in pose[:3]]
                 quat = [round(q, 3) for q in pose[3:]]
 
-                logger.module("[print_state] 开始打印机械臂信息")
-                logger.info(f"[print_state] 关节角度（单位：度）: {joint_deg}")
-                logger.info(f"[print_state] 机械臂位置: {pos}")
-                logger.info(f"[print_state] 机械臂四元角: {quat}")
-                logger.info(f"[print_state] 夹爪角度（单位：度）: {gripper_deg}")
+                self.logger.module("[print_state] 开始打印机械臂信息")
+                self.logger.info(f"[print_state] 关节角度（单位：度）: {joint_deg}")
+                self.logger.info(f"[print_state] 机械臂位置: {pos}")
+                self.logger.info(f"[print_state] 机械臂四元角: {quat}")
+                self.logger.info(f"[print_state] 夹爪角度（单位：度）: {gripper_deg}")
 
             elif output_format == 'rad':
                 joint_rad_round = [round(joint, 3) for joint in joint_rad]
@@ -422,17 +418,17 @@ class SynriaRobotAPI():
                 pos = [round(p, 3) for p in pose[:3]]
                 quat = [round(q, 3) for q in pose[3:]]
 
-                logger.module("[print_state] 开始打印机械臂信息")
-                logger.info(f"[print_state] 关节角度（单位：弧度）: {joint_rad_round}")
-                logger.info(f"[print_state] 机械臂位置: {pos}")
-                logger.info(f"[print_state] 机械臂四元角: {quat}")
-                logger.info(f"[print_state] 夹爪角度（单位：弧度）: {gripper_rad_round}")
+                self.logger.module("[print_state] 开始打印机械臂信息")
+                self.logger.info(f"[print_state] 关节角度（单位：弧度）: {joint_rad_round}")
+                self.logger.info(f"[print_state] 机械臂位置: {pos}")
+                self.logger.info(f"[print_state] 机械臂四元角: {quat}")
+                self.logger.info(f"[print_state] 夹爪角度（单位：弧度）: {gripper_rad_round}")
 
             else:
-                logger.warning(f"[print_state] 不支持的输出格式：{output_format}")
+                self.logger.warning(f"[print_state] 不支持的输出格式：{output_format}")
 
         if continous_printing:
-            logger.module("[print_state] 开启持续状态打印，按 Enter 停止")
+            self.logger.module("[print_state] 开启持续状态打印，按 Enter 停止")
             time.sleep(1)
             try:
                 while True:
@@ -447,13 +443,13 @@ class SynriaRobotAPI():
                             if msvcrt.kbhit():
                                 key = msvcrt.getch()
                                 if key == b'\r' or key == b'\n':  # Enter键
-                                    logger.module("[print_state] 持续打印已停止")
+                                    self.logger.module("[print_state] 持续打印已停止")
                                     break
                         except ImportError:
                             # 如果msvcrt不可用，使用简单的input()等待
                             try:
                                 input("按Enter键停止打印: ")
-                                logger.module("[print_state] 持续打印已停止")
+                                self.logger.module("[print_state] 持续打印已停止")
                                 break
                             except:
                                 pass
@@ -461,10 +457,10 @@ class SynriaRobotAPI():
                         # Unix/Linux系统使用select
                         if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
                             input()  # 停止读取
-                            logger.module("[print_state] 持续打印已停止")
+                            self.logger.module("[print_state] 持续打印已停止")
                             break
             except KeyboardInterrupt:
-                logger.module("[print_state] 持续打印已停止")
+                self.logger.module("[print_state] 持续打印已停止")
 
         else:
 
@@ -478,27 +474,27 @@ class SynriaRobotAPI():
             command (str): on 开启扭矩， off 关闭扭矩
         """
         if command == "on":
-            logger.module("[torque_control]正在开启扭矩")
+            self.logger.module("[torque_control]正在开启扭矩")
             result = self.joint_controller.enable_torque()
             if result:
-                logger.info("[torque_control]扭矩成功开启")
+                self.logger.info("[torque_control]扭矩成功开启")
             else:
-                logger.warning("[torque_control]扭矩开启失败，请重试")
+                self.logger.warning("[torque_control]扭矩开启失败，请重试")
 
         elif command == "off":
-            logger.module("[torque_control]正在关闭扭矩")
-            logger.info("[torque_control]按下回车关闭扭矩，请固定好机械臂")
+            self.logger.module("[torque_control]正在关闭扭矩")
+            self.logger.info("[torque_control]按下回车关闭扭矩，请固定好机械臂")
             input()
             result = self.joint_controller.disable_torque()
             if result:
-                logger.info("[torque_control]扭矩成功关闭")
+                self.logger.info("[torque_control]扭矩成功关闭")
             else:
-                logger.warning("[torque_control]扭矩关闭失败，请重试")
+                self.logger.warning("[torque_control]扭矩关闭失败，请重试")
 
         else:
-            logger.warning("[torque_control]command指令错误， "
-                           "command只接受 'on' 或者 'off', "
-                           f"当前指令为 {command}")
+            self.logger.warning("[torque_control]command指令错误， "
+                                "command只接受 'on' 或者 'off', "
+                                f"当前指令为 {command}")
             result = False
 
         return result
@@ -513,31 +509,31 @@ class SynriaRobotAPI():
         3. 重新打开扭矩
         4. 执行零位标定函数
         """
-        logger.module("[zero_calibration] 准备执行归零操作")
+        self.logger.module("[zero_calibration] 准备执行归零操作")
 
         # 关闭扭矩
         if not self.torque_control('off'):
-            logger.warning("[zero_calibration] 扭矩关闭失败，终止归零操作")
+            self.logger.warning("[zero_calibration] 扭矩关闭失败，终止归零操作")
             return
 
-        logger.info("[zero_calibration] 扭矩已关闭，可手动拖动机械臂到零点位置")
-        logger.info("[zero_calibration] 拖动完成后按下回车继续")
+        self.logger.info("[zero_calibration] 扭矩已关闭，可手动拖动机械臂到零点位置")
+        self.logger.info("[zero_calibration] 拖动完成后按下回车继续")
         input()
 
         # 重新开启扭矩
-        logger.module("[zero_calibration] 正在重新开启扭矩")
+        self.logger.module("[zero_calibration] 正在重新开启扭矩")
         if not self.torque_control('on'):
-            logger.warning("[zero_calibration] 扭矩开启失败，终止归零操作")
+            self.logger.warning("[zero_calibration] 扭矩开启失败，终止归零操作")
             return
 
         # 执行零点校准
-        logger.module("[zero_calibration] 正在执行零位校准")
+        self.logger.module("[zero_calibration] 正在执行零位校准")
         result = self.joint_controller.set_zero_position()
 
         if result:
-            logger.info("[zero_calibration] 零位校准成功")
+            self.logger.info("[zero_calibration] 零位校准成功")
         else:
-            logger.warning("[zero_calibration] 零位校准失败，请重试")
+            self.logger.warning("[zero_calibration] 零位校准失败，请重试")
 
 
 class ControlApi(SynriaRobotAPI):

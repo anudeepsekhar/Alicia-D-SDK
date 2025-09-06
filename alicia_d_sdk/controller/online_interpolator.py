@@ -2,7 +2,7 @@ import time
 import threading
 from typing import List, Optional
 
-from ..driver import ArmController
+from alicia_d_sdk.driver import ArmController
 
 
 class OnlineJointInterpolator:

@@ -2,14 +2,12 @@ from typing import List, Union, Optional, Tuple
 import numpy as np
 from scipy.spatial.transform import Rotation as R, Slerp
 from alicia_d_sdk.kinematics import AliciaFollower
-from ...utils.logger import BeautyLogger
+from alicia_d_sdk.utils.logger import logger
 import time
 
 class CartesianPlanner:
     def __init__(self, verbose: bool=False):
-        self.logger = BeautyLogger(log_dir="./logs", 
-                                   log_name="cartesian_planner.log", 
-                                   verbose=verbose)
+        self.logger = logger  # 使用统一的日志器
 
     def plan(
             self,

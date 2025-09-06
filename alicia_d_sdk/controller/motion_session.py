@@ -1,7 +1,6 @@
-# motion_session.py (in controller/)
-from ..kinematics import IKController, AliciaFollower
-from ..driver import ArmController
-from ..execution import TrajectoryExecutor
+from alicia_d_sdk.kinematics import IKController, AliciaFollower
+from alicia_d_sdk.driver import ArmController
+from alicia_d_sdk.execution import TrajectoryExecutor
 
 class MotionSession:
     def __init__(self, ik_controller: IKController, 

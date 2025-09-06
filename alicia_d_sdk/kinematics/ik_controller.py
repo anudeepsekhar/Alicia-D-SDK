@@ -1,12 +1,10 @@
 # ik_controller.py
 import numpy as np
 from typing import Dict, List, Union
-from .advanced_ik_solver import Advanced6DOFIKSolver
-from .robot_model import AliciaFollower
-from ..utils.logger import BeautyLogger
+from alicia_d_sdk.kinematics.advanced_ik_solver import Advanced6DOFIKSolver
+from alicia_d_sdk.kinematics.robot_model import AliciaFollower
+from alicia_d_sdk.utils.logger import logger
 import time
-
-logger = BeautyLogger(log_dir="./logs", log_name="ik_controller.log", verbose=True)
 
 JointInput = Union[List[float], np.ndarray, Dict[str, float]]
 PoseInput = Union[List[float], List[List[float]]]

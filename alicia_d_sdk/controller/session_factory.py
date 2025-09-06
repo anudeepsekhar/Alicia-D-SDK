@@ -1,10 +1,10 @@
 # controller/session_factory.py
 
-from ..driver.servo_driver import ArmController
-from ..kinematics import AliciaFollower, IKController
-from ..execution import TrajectoryExecutor
-from .motion_session import MotionSession
-from ..utils.logger import logger
+from alicia_d_sdk.driver.servo_driver import ArmController
+from alicia_d_sdk.kinematics import AliciaFollower, IKController
+from alicia_d_sdk.execution import TrajectoryExecutor
+from alicia_d_sdk.controller.motion_session import MotionSession
+from alicia_d_sdk.utils.logger import logger
 
 # logger = BeautyLogger(log_dir="./logs", log_name="session.log", verbose=True)
 
@@ -36,7 +36,7 @@ def create_session(
         MotionSession: 构建完成的控制上下文
     """
     logger.module("[session] 开始构建默认会话")
-    logger.info("[session] 初始化 AliciaFollower 模型")
+    logger.info("[session] 初始化 Alicia-D 模型")
     robot_model = AliciaFollower()
 
     logger.info("[session] 初始化 IK 控制器")

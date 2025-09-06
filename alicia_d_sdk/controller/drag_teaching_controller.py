@@ -14,10 +14,8 @@ import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 
-from .control_api import SynriaRobotAPI
-from ..utils.logger import BeautyLogger
-
-logger = BeautyLogger(log_dir="./logs", log_name="drag_teaching.log", verbose=True)
+from alicia_d_sdk.controller.control_api import SynriaRobotAPI
+from alicia_d_sdk.utils.logger import logger
 
 
 class TrajectoryRecorder:

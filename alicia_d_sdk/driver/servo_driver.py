@@ -5,16 +5,11 @@ import threading
 from typing import List, Optional, Union, Tuple, Dict
 import numpy as np
 
-from .serial_comm import SerialComm
-from .data_parser import DataParser, JointState
-from ..utils.logger import logger
+from alicia_d_sdk.driver.serial_comm import SerialComm
+from alicia_d_sdk.driver.data_parser import DataParser, JointState
+from alicia_d_sdk.utils.logger import logger
 
-# # 配置日志
-# logging.basicConfig(level=logging.INFO, 
-#                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-# logger = logging.getLogger("Controller")
-
-# logger = BeautyLogger(log_dir="./logs", log_name="session.log", verbose=True)
+# 使用统一的日志器
 
 class ArmController:
     """机械臂控制模块"""
