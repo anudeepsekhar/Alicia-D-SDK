@@ -36,10 +36,9 @@ class ArmController:
         """
         初始化机械臂控制器
         
-        Args:
-            port: 串口名称，留空则自动搜索
-            baudrate: 波特率
-            debug_mode: 是否启用调试模式
+        :param port: 串口名称，留空则自动搜索
+        :param baudrate: 波特率
+        :param debug_mode: 是否启用调试模式
         """
         self.debug_mode = debug_mode
         self._lock = threading.Lock()
@@ -79,14 +78,10 @@ class ArmController:
     
     def wait_for_valid_state(self, timeout: float = 5.0) -> bool:
         """
-        等待指定机械臂的状态变为有效（不为全零）
+        等待机械臂状态变为有效
 
-        Args:
-            arm (str): "left_arm"、"right_arm" 或 "both"
-            timeout (float): 最大等待时间（秒）
-
-        Returns:
-            bool: 如果在超时时间内收到有效状态，返回 True；否则返回 False
+        :param timeout: 最大等待时间（秒）
+        :return: 是否在超时时间内收到有效状态
         """
         start_time = time.time()
         while time.time() - start_time < timeout:
@@ -112,8 +107,7 @@ class ArmController:
         """
         连接到机械臂
         
-        Returns:
-            bool: 连接是否成功
+        :return: 连接是否成功
         """
         result = self.serial_comm.connect()
         if result:

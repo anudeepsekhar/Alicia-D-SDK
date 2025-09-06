@@ -5,13 +5,9 @@ from typing import List, Union, Tuple, Dict
 
 def validate_pose(pose: List[float]):
     """
-    验证目标位姿是否合法（长度 7 + 数值 + 四元数归一化）
+    验证目标位姿是否合法
 
-    Args:
-        pose: [x, y, z, qx, qy, qz, qw]
-
-    Raises:
-        TypeError, ValueError
+    :param pose: [x, y, z, qx, qy, qz, qw]
     """
     if not isinstance(pose, list):
         raise TypeError("目标位姿必须是 list")
@@ -32,12 +28,7 @@ def validate_waypoints(waypoints: List[List[float]]):
     """
     验证路径点序列是否合法
 
-    Args:
-        waypoints: List of pose vectors，每个为 [x, y, z, qx, qy, qz, qw]，
-                   或包含夹爪的 [x, y, z, qx, qy, qz, qw, gripper]
-
-    Raises:
-        TypeError, ValueError
+    :param waypoints: 路径点列表，每个为 [x, y, z, qx, qy, qz, qw] 或包含夹爪的 [x, y, z, qx, qy, qz, qw, gripper]
     """
     if not isinstance(waypoints, list):
         raise TypeError("waypoints 应为 List[List[float]] 或 List[float]")

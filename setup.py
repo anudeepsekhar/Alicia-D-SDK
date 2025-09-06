@@ -34,7 +34,7 @@ def get_version():
 
 setup(
     name='alicia_d_sdk',
-    version='5.5.0',
+    version=get_version(),
     author='Synria Robotics',
     author_email='tech@xuanyatech.com', 
     description='Python SDK for controlling the Alicia Duo robotic arm',

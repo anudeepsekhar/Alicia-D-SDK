@@ -1,10 +1,9 @@
 from alicia_d_sdk.utils.coord.validation import validate_joint_list, validate_waypoints
-from alicia_d_sdk.utils.logger import BeautyLogger
+from alicia_d_sdk.utils.logger import logger
 from alicia_d_sdk.utils.coord import check_and_clip_joint_limits, compute_steps_and_delay
 from alicia_d_sdk.planning.planners import *
 from alicia_d_sdk.controller.motion_session import MotionSession
 from alicia_d_sdk.controller.online_interpolator import OnlineJointInterpolator
-from alicia_d_sdk.utils.logger import logger
 
 from typing import List, Union
 import numpy as np
@@ -52,14 +51,13 @@ class SynriaRobotAPI():
                              max_gripper_velocity_rad_s: float = 1.5,
                              max_gripper_accel_rad_s2: float = 10.0):
         """
-        启动后台在线插值线程（ROS风格梯形速度剖面），用于稀疏目标（如30Hz）平滑执行。
+        启动后台在线插值线程
 
-        :param command_rate_hz, float: 后台控制频率
-        :param max_joint_velocity_rad_s, float: 关节最大速度
-        :param max_joint_accel_rad_s2, float: 关节最大加速度
-        :param max_gripper_velocity_rad_s, float: 夹爪最大速度
-        :param max_gripper_accel_rad_s2, float: 夹爪最大加速度
-        :return: None
+        :param command_rate_hz: 后台控制频率
+        :param max_joint_velocity_rad_s: 关节最大速度
+        :param max_joint_accel_rad_s2: 关节最大加速度
+        :param max_gripper_velocity_rad_s: 夹爪最大速度
+        :param max_gripper_accel_rad_s2: 夹爪最大加速度
         """
         self._online.update_params(
             command_rate_hz=command_rate_hz,
