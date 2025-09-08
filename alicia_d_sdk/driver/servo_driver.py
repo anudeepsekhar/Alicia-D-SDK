@@ -76,7 +76,7 @@ class ArmController:
 
         self.disconnect()
     
-    def wait_for_valid_state(self, timeout: float = 5.0) -> bool:
+    def wait_for_valid_state(self, timeout: float = 1.5) -> bool:
         """
         等待机械臂状态变为有效
 
