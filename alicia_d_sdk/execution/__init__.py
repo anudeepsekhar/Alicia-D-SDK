@@ -1,5 +1,7 @@
-from .trajectory_executor import TrajectoryExecutor
+from .hardware_executor import HardwareExecutor, JointPlanner, CartesianWaypointController
 
 __all__ = [
-    "TrajectoryExecutor"
+    "HardwareExecutor",
+    "JointPlanner",
+    "CartesianWaypointController"
 ]

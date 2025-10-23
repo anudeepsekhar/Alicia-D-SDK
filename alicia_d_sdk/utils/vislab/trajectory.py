@@ -3,7 +3,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import List, Optional
-from alicia_d_sdk.utils.coord import quaternion_to_matrix
+from robocore.transform.so3 import quaternion_to_matrix
 from alicia_d_sdk.utils.logger import logger
 
 def plot_joint_angles(joint_traj: np.ndarray, title: str = "Joint Trajectory"):
