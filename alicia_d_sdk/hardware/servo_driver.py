@@ -326,7 +326,7 @@ class ServoDriver:
         # 构造加速度设置帧
         hardware_value = 254
         data_list = [0x29]
-        for i in range(9):
+        for i in range(9*2):
             data_list.append(hardware_value)
         frame = self._build_command_frame(self.CMD_ACCELERATION, data_list)
         # def _build_command_frame(self, cmd_id: int, data: List[int]) -> List[int]:
