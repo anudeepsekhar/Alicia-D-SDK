@@ -23,8 +23,12 @@ class DataParser:
     RAD_TO_DEG = 180.0 / math.pi  # 弧度转角度系数
     
     # 指令ID
+    CMD_GRIPPER_V5 = 0x02     # 夹爪控制与行程反馈
+    CMD_GRIPPER_V6 = 0x12     # 夹爪控制与行程反馈
     CMD_GRIPPER = 0x12     # 夹爪控制与行程反馈
-    CMD_ZERO_POS = 0x03    # 机械臂以当前位置为零点  
+    CMD_ZERO_POS = 0x03    # 机械臂以当前位置为零点
+    CMD_JOINT_V5 = 0x04       # 机械臂角度反馈与控制  
+    CMD_JOINT_V6 = 0x14       # 机械臂角度反馈与控制
     CMD_JOINT = 0x14       # 机械臂角度反馈与控制
     CMD_MULTI_ARM = 0x06   # 四机械臂角度反馈与控制
     CMD_VERSION = 0x0A     # 机械臂固件版本反馈
@@ -35,7 +39,7 @@ class DataParser:
     # 数据长度
     JOINT_DATA_SIZE = 18
     
-    def __init__(self, lock: threading.Lock, debug_mode: bool = False, gripper_type: str = "50mm"):
+    def __init__(self, lock: threading.Lock, debug_mode: bool = False, gripper_type: str = "50mm", firmware_new: bool = False):
         """
         初始化数据解析器
         
@@ -47,6 +51,8 @@ class DataParser:
             self.servo_value_limit = self.GRI_MAX_50MM
         else:
             self.servo_value_limit = self.GRI_MAX_100MM
+
+        self.firmware_new = firmware_new
         # 存储最新数据
         self._joint_states = JointState([0.0]*6, 0.0, 0.0,
                                         False, False)  # 六个关节角度(弧度)
@@ -67,7 +73,8 @@ class DataParser:
         Returns:
             Dict: 解析结果，如果解析失败则返回None
         """
-
+        self.CMD_GRIPPER = self.CMD_GRIPPER_V6 if self.firmware_new else self.CMD_GRIPPER_V5
+        self.CMD_JOINT = self.CMD_JOINT_V6 if self.firmware_new else self.CMD_JOINT_V5
         cmd_id = frame[1]
         # print("cmd_id:", cmd_id)
         # 根据指令ID解析数据
@@ -250,8 +257,6 @@ class DataParser:
         # 从字节4-5提取夹爪角度
         else:
             gripper_raw = frame[4] | (frame[5] << 8)
-        # 范围检查
-        # servo_value_limit = 3290
 
         if gripper_raw < 2048 or gripper_raw > self.servo_value_limit:
             gripper_raw = max(2048, min(gripper_raw, self.servo_value_limit))
@@ -261,14 +266,8 @@ class DataParser:
         # 反向映射：2048(硬件打开) → 100, servo_value_limit(硬件关闭) → 0
         ratio = (self.servo_value_limit - 2048) / 100
         gripper_value = 100 - ((gripper_raw - 2048) / ratio)
-        # print("raw value:", gripper_raw)
-        # print("value:", gripper_value)
-        # # 转换为角度 (0-100度)
-        # ratio = (self.servo_value_limit - 2048) / 100
-        # angle_deg = (gripper_raw - 2048) / ratio
-        
-        # 转换为弧度
-        # gripper_rad = angle_deg * self.DEG_TO_RAD
+
+
         
         # 更新存储的数据
         self._update_joint_state(gripper=gripper_value, button1=button1,

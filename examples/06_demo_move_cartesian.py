@@ -2,9 +2,7 @@
 Demo: Multi-Point Cartesian Trajectory Planning
 
 展示如何在笛卡尔空间进行多点轨迹规划
-支持两种模式：
-1. manual模式：手动拖动机械臂记录多个路径点
-2. auto 模式：程序预定义多个路径点
+支持手动拖动机械臂记录多个路径点
 """
 
 import argparse
@@ -39,18 +37,8 @@ def main(cmd_args):
         logger.info("\n1. 移动到初始位置...")
         robot.set_joint_target([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         
-        # 选择模式并记录路径点
-        mode = input("\n选择轨迹规划模式:\n"
-                    "1. manual模式 (手动拖动记录路径点)\n"
-                    "2. auto模式 (预定义路径点)\n"
-                    "请输入选择 (1/2): ").strip()
-        
-        if mode == "1":
-            waypoints = controller.record_teaching_waypoints()
-        else:
-            waypoints = controller.generate_rectangle_waypoints(
-                dx=0.10, dy=0.10, dz=0.05
-            )
+        # 记录路径点（手动拖动模式）
+        waypoints = controller.record_teaching_waypoints()
         
         if not waypoints:
             logger.error("没有记录到路径点，退出演示")
@@ -88,7 +76,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Multi-Point Cartesian Trajectory Demo")
     
     # Robot configuration
-    parser.add_argument('--port', type=str, default="/dev/ttyCH343USB0", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
+    parser.add_argument('--port', type=str, default="/dev/ttyUSB0", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
     parser.add_argument('--baudrate', type=int, default=1000000,  help="波特率 (默认: 1000000)")
     parser.add_argument('--version', type=str, default="v5_6",  help="机器人版本 (默认: v5_6)")
     parser.add_argument('--gripper_type', type=str, default="50mm",  help="夹爪型号 (默认: 50mm)")

@@ -22,7 +22,7 @@ def main(args):
         port=args.port,
         baudrate=args.baudrate,
         robot_version=args.version,
-        gripper_type=args.gripper_type
+        gripper_type=args.gripper_type    
     )
     
     try:
@@ -35,12 +35,13 @@ def main(args):
         logger.info(f"Gripper value: {gripper_value:.1f}")
         
         # # Test 1: Open gripper
-        # robot.set_gripper_target(command='open', wait_for_completion=True)
-        # time.sleep(1)
-        # robot.set_gripper_target(command='close', wait_for_completion=True)
-        # time.sleep(1)
-        # # # Test 3: Half open
-        # robot.set_gripper_target(value=50.0, wait_for_completion=True)
+        robot.set_gripper_target(command='open', wait_for_completion=True)
+        time.sleep(1)
+        robot.set_gripper_target(command='close', wait_for_completion=True)
+        time.sleep(1)
+        # Test 3: Partially open
+        robot.set_gripper_target(value=80.0, wait_for_completion=True)
+        time.sleep(2)
 
         
     except KeyboardInterrupt:
@@ -59,7 +60,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Gripper Control Demo")
     
     # Serial port settings
-    parser.add_argument('--port', type=str, default="/dev/ttyCH343USB0", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
+    parser.add_argument('--port', type=str, default="/dev/ttyUSB0", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
     parser.add_argument('--baudrate', type=int, default=1000000,  help="波特率 (默认: 1000000)")
     parser.add_argument('--version', type=str, default="v5_6",  help="机器人版本 (默认: v5_6)")
     parser.add_argument('--gripper_type', type=str, default="50mm",  help="夹爪型号 (默认: 50mm)")

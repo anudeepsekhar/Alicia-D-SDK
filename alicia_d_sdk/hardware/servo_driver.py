@@ -23,6 +23,7 @@ class ServoDriver:
     FRAME_FOOTER = 0xFF
     FRAME_MINIMAL_SIZE = 5
     ARM_DATA_SIZE = 18
+    GRIPPER_FRAME_SIZE_V5 = 8
     GRIPPER_FRAME_SIZE = 11
     
     # 指令ID
@@ -37,8 +38,9 @@ class ServoDriver:
     GRI_MAX_100MM = 3600
 
     CMD_ACCELERATION = 0x05 # 加速度设置
-    
-    def __init__(self, port: str = "", baudrate: int = 1000000, debug_mode: bool = False, gripper_type: str = "50mm"):
+    CMD_SPEED = 0x05 # 速度设置
+
+    def __init__(self, port: str = "", baudrate: int = 1000000, debug_mode: bool = False, gripper_type: str = "50mm", firmware_version: str = "6.0.0"):
         """
         初始化机械臂控制器
         
@@ -49,10 +51,13 @@ class ServoDriver:
         self.debug_mode = debug_mode
         self._lock = threading.Lock()
         self.gripper_type = gripper_type
-        
+        self.firmware_new = True if firmware_version and firmware_version.startswith("6.") else False
+
+
+
         # 创建串口通信模块和数据解析器
         self.serial_comm = SerialComm(lock=self._lock, port=port, baudrate=baudrate, debug_mode=debug_mode)
-        self.data_parser = DataParser(lock=self._lock, debug_mode=debug_mode)
+        self.data_parser = DataParser(lock=self._lock, debug_mode=debug_mode, firmware_new=self.firmware_new)
         
         # 舵机数量
         self.servo_count = 9
@@ -97,7 +102,7 @@ class ServoDriver:
             if js and max(abs(a) for a in js.angles) > 1e-3:
                 return True
             time.sleep(0.05)
-        print(f"[超时] 未收到有效关节状态")
+        # print(f"[超时] 未收到有效关节状态")
         return False
 
     def __del__(self):
@@ -291,12 +296,18 @@ class ServoDriver:
             bool: 命令是否成功发送
         """
         # 构造夹爪控制帧
-        frame = self._build_gripper_frame(value, type=self.gripper_type)
-        # 最多发送两次
-        
+
+        if self.firmware_new:
+            frame = self._build_gripper_frame_new(value, type=self.gripper_type)
+        else:
+            self.GRIPPER_FRAME_SIZE = self.GRIPPER_FRAME_SIZE_V5
+            frame = self._build_gripper_frame_old(value, type=self.gripper_type)
+
         for i in range(2):
             result = self.serial_comm.send_data(frame)
-
+        if self.debug_mode:
+            logger.info(f"firmware_new: {self.firmware_new}")
+            logger.info(f"发送夹爪控制帧: {frame}")
         return result 
     
     
@@ -332,6 +343,29 @@ class ServoDriver:
         # def _build_command_frame(self, cmd_id: int, data: List[int]) -> List[int]:
         # 发送加速度设置命令
         print(frame)
+        return self.serial_comm.send_data(frame)
+    
+
+    def set_speed(self, speed: int = 1) -> bool:
+        """
+        设置速度
+        
+        Args:
+            speed: 速度
+            
+        Returns:
+            bool: 命令是否成功发送
+        """
+        # 构造速度设置帧
+
+        data_list = [0x2E]
+        speed_value = self._value_to_hardware_value_speed(speed)
+        speed_list = [speed_value & 0xFF, (speed_value >> 8) & 0xFF]
+        # append speed_list to data_list for 10 servos
+        for i in range(10):
+            data_list.append(speed_list[0])
+            data_list.append(speed_list[1])
+        frame = self._build_command_frame(self.CMD_SPEED, data_list)
         return self.serial_comm.send_data(frame)
     
     def enable_torque(self) -> bool:
@@ -411,7 +445,7 @@ class ServoDriver:
             
         return frame
     
-    def _build_gripper_frame(self, value: float, type: str="50mm") -> List[int]:
+    def _build_gripper_frame_new(self, value: float, type: str="50mm") -> List[int]:
         """
         构建夹爪控制帧
         
@@ -430,7 +464,7 @@ class ServoDriver:
         frame[-1] = self.FRAME_FOOTER
         
         # 转换为硬件值
-        gripper_value = self._rad_to_hardware_value_grip(value, type=type)
+        gripper_value = self._value_to_hardware_value_grip(value, type=type)
         # 写入夹爪角度
         frame[4] = 3400 & 0xFF  # 低字节
         frame[5] = (3400 >> 8) & 0xFF  # 高字节
@@ -446,6 +480,34 @@ class ServoDriver:
 
         return frame
     
+
+    def _build_gripper_frame_old(self, value: float, type: str="50mm") -> List[int]:
+        """
+        :param value: Gripper value in 0-100
+        :param type: Gripper type
+        :return: Control frame bytes
+        """
+        # 创建夹爪控制帧 (固定长度)
+        frame = [0] * self.GRIPPER_FRAME_SIZE
+        frame[0] = self.FRAME_HEADER
+        frame[1] = self.CMD_GRIPPER
+        frame[2] = 3  # 数据长度
+        frame[3] = 1  # 夹爪ID
+        frame[-1] = self.FRAME_FOOTER
+        
+        # 转换为硬件值
+        gripper_value = self._value_to_hardware_value_grip(value, type=type)
+        # 写入夹爪值
+        frame[4] = gripper_value & 0xFF  # 低字节
+        frame[5] = (gripper_value >> 8) & 0xFF  # 高字节
+        
+        # 计算并设置校验和
+        frame[6] = self._calculate_checksum(frame)
+        if self.debug_mode:
+            logger.debug(f"发送夹爪开合度: {value:.1f} (0=关闭, 100=打开)")
+            
+        return frame
+
     def _build_command_frame(self, cmd_id: int, data: List[int]) -> List[int]:
         """
         构建命令帧
@@ -502,7 +564,7 @@ class ServoDriver:
         # 范围限制
         return max(0, min(4095, value))
     
-    def _rad_to_hardware_value_grip(self, value: float, type: str="50mm") -> int:
+    def _value_to_hardware_value_grip(self, value: float, type: str="50mm") -> int:
         """
         :param value: Gripper value in 0-100
         :return: Hardware value
@@ -544,6 +606,21 @@ class ServoDriver:
         return max(2048, min(servo_value_limit, hw_value))
         # return max(2048, min(servo_value_limit, value))
     
+    def _value_to_hardware_value_speed(self, speed_rad_s: int) -> int:
+        """
+        Converts angular velocity (rad/s) to a raw integer speed value for the servo driver.
+        
+        :param speed_rad_s: The desired speed in radians per second.
+        :return: A corresponding raw integer speed value (1-3400).
+        """
+        # Calculate the proportional speed based on the maximum possible speed
+        max_angle_rad_per_sec = np.pi * 2
+        max_speed_value = 3400
+        raw_speed = (speed_rad_s / max_angle_rad_per_sec) * max_speed_value
+        # Clip the value to the valid hardware range [1, 3400] and convert to an integer
+        raw_speed = int(np.clip(raw_speed, 1, max_speed_value))
+        return raw_speed
+
     def _calculate_checksum(self, frame: List[int]) -> int:
         """
         计算校验和

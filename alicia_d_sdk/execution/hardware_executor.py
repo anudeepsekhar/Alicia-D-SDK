@@ -16,7 +16,8 @@ class HardwareExecutor:
                 joint_traj: List[List[float]], 
                 visualize: bool = False,
                 gripper_traj: List[float] = None,
-                interaction: bool = False
+                interaction: bool = False,
+                firmware_new: bool = True
                 ):
         """
         :param joint_traj: Joint trajectory as a list of joint angle lists
@@ -130,46 +131,6 @@ class CartesianWaypointController:
         
         return waypoints
     
-    def generate_rectangle_waypoints(self, 
-                                     dx: float = 0.10, 
-                                     dy: float = 0.10, 
-                                     dz: float = 0.05) -> List[List[float]]:
-        """
-        :param dx: Rectangle size along X
-        :param dy: Rectangle size along Y
-        :param dz: Rectangle size along Z
-        :return: Waypoints as [x, y, z, qx, qy, qz, qw, gripper]
-        """
-        logger.info("\n=== 编程模式：预定义矩形路径点 ===")
-        
-        waypoint = self.get_current_waypoint()
-        if not waypoint:
-            logger.error("无法获取当前位姿")
-            return []
-        
-        pos, quat, gripper = waypoint[:3], waypoint[3:7], waypoint[7]
-        
-        # 定义矩形轨迹的相对位移
-        offsets = [
-            (0.0, 0.0, 0.0),     # 起始点
-            (dx, 0.0, 0.0),      # +X
-            (dx, dy, 0.0),       # +Y
-            (dx, dy, dz),        # +Z
-            (0.0, dy, dz),       # -X
-            (0.0, 0.0, dz),      # -Y
-            (0.0, 0.0, 0.0),     # -Z (回到起点)
-        ]
-        
-        waypoints = [
-            [pos[0]+ox, pos[1]+oy, pos[2]+oz] + quat + [gripper]
-            for ox, oy, oz in offsets
-        ]
-        
-        logger.info(f"预定义了 {len(waypoints)} 个路径点")
-        for i, wp in enumerate(waypoints):
-            logger.info(f"路径点 {i+1}: 位置={[round(p, 4) for p in wp[:3]]}")
-        
-        return waypoints
     
     def execute_trajectory(self,
                           waypoints: List[List[float]],
@@ -213,6 +174,7 @@ class CartesianWaypointController:
             )
             
             # 设置夹爪
+            
             self.robot.set_gripper_target(value=gripper, wait_for_completion=False)
             time.sleep(step_delay)
             

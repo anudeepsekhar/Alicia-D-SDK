@@ -1,5 +1,5 @@
 """
-Alicia-D SDK v5.6.0 - 与 RoboCore 桥接
+Alicia-D SDK v6.0.0 - 与 RoboCore 桥接
 
 架构层次：
 - 用户层: SynriaRobotAPI (统一用户接口)
@@ -30,7 +30,7 @@ from robocore.planning import (
     trapezoidal_velocity_profile
 )
 
-__version__ = "5.6.0"
+__version__ = "6.0.0"
 __author__ = "Alicia-D Team"
 __description__ = "Alicia-D机械臂SDK v6.0.0 - Bridged with RoboCore"
 
@@ -70,7 +70,9 @@ def create_robot(
         baudrate: int = 1000000, 
         robot_version: str = "v5_6",
         gripper_type: str = "50mm",
-        debug_mode: bool = False
+        firmware_version: None = None,
+        debug_mode: bool = False,
+        speed_deg_s: float = 20.0
     ) -> SynriaRobotAPI:
     """
     :param port: Serial port
@@ -81,7 +83,7 @@ def create_robot(
     :return: Robot API instance
     """
     # 创建硬件层
-    servo_driver = ServoDriver(port=port, baudrate=baudrate, debug_mode=debug_mode)
+    servo_driver = ServoDriver(port=port, baudrate=baudrate, debug_mode=debug_mode, firmware_version=firmware_version)
     
     # 创建运动学层 (使用 RoboCore)
     try:
@@ -102,7 +104,9 @@ def create_robot(
     # 创建用户层 (不再需要 ik_controller，直接使用 robocore.kinematics 函数)
     robot = SynriaRobotAPI(
         servo_driver=servo_driver,
-        robot_model=robot_model
+        robot_model=robot_model, 
+        firmware_version=firmware_version,
+        speed_deg_s = speed_deg_s
     )
     
     return robot

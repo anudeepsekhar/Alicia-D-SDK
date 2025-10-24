@@ -287,14 +287,11 @@ class SimpleDragTeaching:
             print("[回放] 使用插值运动模式（平滑）")
             for i, point in enumerate(data):
                 try:
-                    # 使用 set_joint_target 进行插值运动，提供更平滑的回放
-                    self.controller.set_joint_target(
-                        target_joints=point["q"],
-                        joint_format='rad',
-                        speed_factor=1.0,  # 可以调整速度
-                        T_default=0.5,    # 每个点间移动时间0.5秒
-                        n_steps_ref=50    # 插值步数，影响平滑度
-                    )
+                    firmware_new = self.controller.firmware_new
+                    if firmware_new:
+                        self.controller.set_joint_target(point["q"])
+                    else:
+                        self.controller.set_joint_target_interplotation(point["q"], joint_format='rad', speed_factor=1.0, T_default=0.5, n_steps_ref=50)
                     
                     # 设置夹爪
                     gripper_value = point.get("grip", 0.0)

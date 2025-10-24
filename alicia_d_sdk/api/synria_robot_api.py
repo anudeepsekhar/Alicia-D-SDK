@@ -12,7 +12,8 @@ SynriaRobotAPI - 用户层API
 import time
 from typing import List, Optional, Dict, Union
 import numpy as np
-
+import json
+import os
 # Import from robocore for kinematics and planning
 from robocore.kinematics import inverse_kinematics
 from robocore.modeling import RobotModel
@@ -31,6 +32,7 @@ from ..hardware import ServoDriver
 from ..execution import HardwareExecutor, JointPlanner
 from ..utils.logger import logger
 from robocore.utils.control_utils import compute_steps_and_delay, validate_joint_list, check_and_clip_joint_limits
+from ..utils.calculate import calculate_movement_duration
 
 
 class SynriaRobotAPI:
@@ -39,7 +41,8 @@ class SynriaRobotAPI:
     def __init__(self,
                  servo_driver: ServoDriver,
                  robot_model: RobotModel,
-                 acceleration: int = 1):
+                 firmware_version: None,
+                 speed_deg_s: float = 20.0):
         """
         :param servo_driver: Servo driver
         :param robot_model: Robot model from RoboCore
@@ -48,11 +51,12 @@ class SynriaRobotAPI:
         # 核心组件
         self.servo_driver = servo_driver
         self.robot_model = robot_model
-        self.acceleration = acceleration
-        
+        self.speed_deg_s = speed_deg_s
+        self.firmware_version = firmware_version
+        self.firmware_new = False
+
         # 创建各层组件
         self.hardware_executor = HardwareExecutor(servo_driver)
-        
         # 默认参数
         self.home_angles = [0.0] * 6
 
@@ -65,9 +69,22 @@ class SynriaRobotAPI:
         :return: True if connected
         """
         result = self.servo_driver.connect()
+        # self.set_speed(self.speed)
         if result:
-            # Set acceleration to be maximum value
-            self.set_acceleration(self.acceleration)
+            if not self.firmware_version:
+                self.firmware_version = self.get_firmware_version(timeout=2.0)
+                # print the info by logger
+                logger.info(f"Detected firmware version: {self.firmware_version}")
+                logger.info(f"固件版本：{self.firmware_version}")
+
+            # set speed if firmware is start with 6.
+            if self.firmware_version and self.firmware_version.startswith("6."):
+                # change the initial value of firmware_new in servo_driver
+                self.set_speed(self.speed_deg_s)
+                self.servo_driver.firmware_new = True
+                self.servo_driver.data_parser.firmware_new = True
+                self.firmware_new = True
+
         return result
     
     def disconnect(self):
@@ -80,9 +97,41 @@ class SynriaRobotAPI:
         """
         return self.servo_driver.serial_comm.is_connected()
     
-    # ==================== Robot Control ====================
+    # ==================== Robot Control ====================                         
+    
+    
+    def set_home(self, speed_factor: float = 1):
+        """
+        :param speed_factor: Speed multiplier
+        """
+        if self.firmware_new:
+            self.set_joint_target(self.home_angles, joint_format='rad')
+        else:
+            self.set_joint_target_interplotation(self.home_angles, joint_format='rad', speed_factor=speed_factor)
+
+
 
     def set_joint_target(self,
+                        target_joints: List[float],
+                        joint_format: str = 'rad') -> bool:
+        """
+        :param target_joints: Target joint angles
+        :param joint_format: 'rad' or 'deg'
+        """
+        if joint_format == 'deg':
+            target_joints = [a * np.pi / 180.0 for a in target_joints]
+        sucess = self.servo_driver.set_joint_angles(target_joints)
+
+        # calculate the delay for the next movement
+        current_joints = self.get_joints()
+        delay = calculate_movement_duration(current_joints, target_joints, self.speed_deg_s)
+        if sucess:
+            time.sleep(delay)
+        return sucess
+    
+
+    
+    def set_joint_target_interplotation(self,
               target_joints: List[float],
               joint_format: str = 'rad',
               speed_factor: float = 1.0,
@@ -205,10 +254,6 @@ class SynriaRobotAPI:
             logger.error("必须提供 command 或 value 参数")
             return False
         
-        # Convert 0-100 value to radians for hardware layer
-        # Hardware layer will multiply by RAD_TO_DEG to get back 0-100 range
-        # value_rad = value * np.pi / 180.0
-        
         # 发送夹爪命令
         success = self.servo_driver.set_gripper(value)
         if not success:
@@ -229,13 +274,6 @@ class SynriaRobotAPI:
             return False
         
         return True
-
-    def set_home(self, speed_factor: float = 1):
-        """
-        :param speed_factor: Speed multiplier
-        """
-        self.set_joint_target(self.home_angles, joint_format='rad', speed_factor=speed_factor)
-
 
 
     def set_pose_target(self, 
@@ -314,11 +352,14 @@ class SynriaRobotAPI:
             
             # Execute motion if requested
             if execute:
-                result = self.set_joint_target(
-                    ik_result['q'], 
-                    joint_format='rad',
-                    speed_factor=speed_factor
-                )
+                if self.firmware_new:
+                    result = self.set_joint_target(ik_result['q'], joint_format='rad')
+                else:
+                    result = self.set_joint_target_interplotation(
+                        ik_result['q'], 
+                        joint_format='rad',
+                        speed_factor=speed_factor
+                    )
                 ik_result['motion_executed'] = result
             else:
                 ik_result['motion_executed'] = False
@@ -384,24 +425,46 @@ class SynriaRobotAPI:
         :return: Gripper value in 0-100
         """
         return self.servo_driver.get_gripper_data()
-        # gripper_data = self.servo_driver.get_gripper_data()
-        # if gripper_data:
-        #     # get_gripper_data returns (gripper_rad, button1, button2)
-        #     # Convert from radians to 0-100 range
-        #     gripper_rad = gripper_data[0]
-        #     gripper_value = gripper_rad * 180.0 / np.pi
-        #     return gripper_value
-        # return None
-    
-    def get_firmware_version(self) -> Optional[str]:
-        """
-        :return: Firmware version string
-        """
-        # print("get_firmware_version")
-        # print(self.servo_driver.get_firmware_version())
-        return self.servo_driver.get_firmware_version()
-    
 
+    
+    def get_firmware_version(self, timeout=5.0, send_interval=0.2):
+        """
+        :param timeout: Total time in seconds to keep trying.
+        :param send_interval: Time in seconds between each attempt.
+        :return: The firmware version string if successful, otherwise None.
+        """
+        command = [0xAA, 0x0A, 0x01, 0x00, 0x00, 0xFF]
+        start_time = time.time()
+        
+        # Check if the firmware version is already in the json file
+        if os.path.exists(os.path.join(os.path.dirname(__file__), "firmware_version.json")):
+            with open(os.path.join(os.path.dirname(__file__), "firmware_version.json"), "r") as f:
+                firmware_version = json.load(f)["firmware_version"]
+                self.firmware_version = firmware_version
+        else:
+            firmware_version = None
+        
+        if firmware_version:
+            return firmware_version
+
+
+        while (time.time() - start_time) < timeout:
+            try:
+                self.servo_driver.serial_comm.send_data(command)
+                time.sleep(0.1)
+                version = self.servo_driver.get_firmware_version()
+                if version and version != "未知版本":
+                    # Save it into a json file
+                    with open(os.path.join(os.path.dirname(__file__), "firmware_version.json"), "w") as f:
+                        json.dump({"firmware_version": version}, f)
+                    return version  # Success, return the version immediately
+
+            except Exception as e:
+                logger.error(f"An error occurred during a read attempt: {e}")
+
+            time.sleep(send_interval)
+
+        return None
     
     # ==================== Advanced Trajectory Methods ====================
     
@@ -525,152 +588,12 @@ class SynriaRobotAPI:
 
         result = self.hardware_executor.execute(
             joint_traj=q.tolist(),
-            visualize=visualize
+            visualize=visualize, 
         )
         
         return result if result is not None else True
     
-    def move_cartesian_circular(self,
-                               center: List[float],
-                               normal: List[float],
-                               radius: float,
-                               start_angle: float,
-                               end_angle: float,
-                               duration: float = 3.0,
-                               num_points: int = 50,
-                               orientation: str = 'constant',
-                               ik_method: str = 'dls',
-                               visualize: bool = False) -> bool:
-        """
-        :param center: [x, y, z]
-        :param normal: [nx, ny, nz]
-        :param radius: Radius in meters
-        :param start_angle: Start angle in radians
-        :param end_angle: End angle in radians
-        :param duration: Duration in seconds
-        :param num_points: Number of trajectory points
-        :param orientation: 'constant' or 'tangent'
-        :param ik_method: IK method
-        :param visualize: Whether to visualize
-        :return: True if successful
-        """
-        # 获取当前关节角度作为IK初始猜测
-        q_init = self.get_joints()
-        if q_init is None:
-            logger.error("无法获取当前关节角度")
-            return False
-        q_init = np.array(q_init)
-        
-        center_array = np.array(center)
-        normal_array = np.array(normal)
-        
-        logger.info(f"生成笛卡尔圆弧轨迹 (半径: {radius}m, 角度: {np.rad2deg(start_angle):.1f}° -> {np.rad2deg(end_angle):.1f}°)")
-        
-        # 生成轨迹
-        try:
-            _, _, q = circular_cartesian_trajectory(
-                self.robot_model,
-                center_array,
-                normal_array,
-                radius,
-                start_angle,
-                end_angle,
-                duration,
-                num_points=num_points,
-                orientation=orientation,
-                q_init=q_init,
-                ik_backend='numpy',
-                ik_method=ik_method,
-                max_iters=100,
-                pos_tol=1e-2,
-                ori_tol=1e-2
-            )
-        except Exception as e:
-            logger.error(f"圆弧轨迹规划失败: {e}")
-            return False
-        
-        # 执行轨迹
-        delay = duration / num_points
-        self.hardware_executor.delay = delay
-        
-        logger.info(f"执行圆弧轨迹 (总点数: {len(q)})")
-        print("trajectory:", q)
-        result = self.hardware_executor.execute(
-            joint_traj=q.tolist(),
-            visualize=visualize
-        )
-        
-        return result if result is not None else True
-    
-    def move_cartesian_waypoints(self,
-                                waypoint_poses: List[List[float]],
-                                durations: Union[float, List[float]] = 2.0,
-                                num_points_per_segment: int = 50,
-                                ik_method: str = 'dls',
-                                visualize: bool = False) -> bool:
-        """
-        :param waypoint_poses: List of poses [x, y, z, qx, qy, qz, qw]
-        :param durations: Segment duration(s) in seconds
-        :param num_points_per_segment: Points per segment
-        :param ik_method: IK method
-        :param visualize: Whether to visualize
-        :return: True if successful
-        """
-        if len(waypoint_poses) < 2:
-            logger.error("至少需要2个路径点")
-            return False
-        
-        # 转换路径点为变换矩阵
-        pose_matrices = []
-        for pose in waypoint_poses:
-            position = np.array(pose[:3])
-            quaternion = np.array(pose[3:])
-            rotation_matrix = quaternion_to_matrix(quaternion)
-            T = make_transform(rotation_matrix, position)
-            pose_matrices.append(T)
-        
-        pose_matrices = np.array(pose_matrices)
-        
-        # 获取当前关节角度作为IK初始猜测
-        q_init = self.get_joints()
-        if q_init is None:
-            logger.error("无法获取当前关节角度")
-            return False
-        q_init = np.array(q_init)
-        
-        logger.info(f"生成笛卡尔多路径点轨迹 ({len(waypoint_poses)}个路径点)")
-        
-        # 生成轨迹
-        try:
-            t, _, q = cartesian_waypoint_trajectory(
-                self.robot_model,
-                pose_matrices,
-                durations,
-                num_points_per_segment=num_points_per_segment,
-                q_init=q_init,
-                ik_backend='numpy',
-                ik_method=ik_method,
-                max_iters=100,
-                pos_tol=1e-3,
-                ori_tol=1e-3
-            )
-        except Exception as e:
-            logger.error(f"多路径点轨迹规划失败: {e}")
-            return False
-        
-        # 执行轨迹
-        total_duration = t[-1]
-        delay = total_duration / len(q)
-        self.hardware_executor.delay = delay
-        
-        logger.info(f"执行笛卡尔轨迹 (总时长: {total_duration:.2f}s, 总点数: {len(q)})")
-        
-        result = self.hardware_executor.execute(
-            joint_traj=q.tolist(),
-            visualize=visualize
-        )
-        
-        return result if result is not None else True
+
     
     # ==================== 系统控制 ====================
     def set_acceleration(self, acceleration: int = 1) -> bool:
@@ -680,6 +603,15 @@ class SynriaRobotAPI:
         """
         return self.servo_driver.set_acceleration(acceleration)
 
+    def set_speed(self, speed_deg_s: float) -> bool:
+        """
+        :param speed: 速度
+        :return: True if successful
+        """
+        speed_rad_s = np.deg2rad(speed_deg_s)
+        return self.servo_driver.set_speed(speed_rad_s)
+    
+    
     def torque_control(self, command: str) -> bool:
         """
         :param command: 'on' or 'off'
@@ -723,21 +655,8 @@ class SynriaRobotAPI:
         
         return result
     
-    def emergency_stop(self) -> bool:
-        """
-        :return: True if successful
-        """
-        logger.warning("执行紧急停止")
-        return self.motion_controller.emergency_stop()
-    
-    def clear_emergency_stop(self) -> bool:
-        """
-        :return: True if successful
-        """
-        logger.info("清除紧急停止状态")
-        return self.motion_controller.clear_emergency_stop()
-    
 
+    
 
     
     def print_state(self, continuous: bool = False, output_format: str = "deg"):
