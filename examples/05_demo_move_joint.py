@@ -22,7 +22,7 @@ def main(args):
     robot = alicia_d_sdk.create_robot(
         port=args.port,
         baudrate=args.baudrate,
-        robot_version=args.version,
+        robot_version=args.robot_version,
         gripper_type=args.gripper_type
     )
 
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     
     parser.add_argument('--port', type=str, default="/dev/ttyUSB0", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
     parser.add_argument('--baudrate', type=int, default=1000000,  help="波特率 (默认: 1000000)")
-    parser.add_argument('--version', type=str, default="v5_6",  help="机器人版本 (默认: v5_6)")
+    parser.add_argument('--robot_version', type=str, default="v5_6",  help="机器人版本 (默认: v5_6)")
     parser.add_argument('--gripper_type', type=str, default="50mm",  help="夹爪型号 (默认: 50mm)")
     parser.add_argument('--interplotation_speed', type=float, default=1,  help="运动速度因子 (0.0 ~ 1.0, 默认: 0.5)")
     

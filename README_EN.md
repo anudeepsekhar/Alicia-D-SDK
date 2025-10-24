@@ -48,7 +48,7 @@ The **Alicia-D SDK** is a Python toolkit for controlling the "Alicia-D" series o
 ## Key Features
 
 *   **Joint Control**: Supports setting and reading the angles of the six joints, with smooth interpolation for execution.
-*   **End-Effector Trajectory**: Cartesian end-effector pose-based trajectories.
+*   **End-Effector Trajectory**: Cartesian end-effector pose-based trajectory planning and execution.
 *   **Gripper Control**: Supports precise angle control or one-click open/close.
 *   **Torque Control**: Enable or disable joint motor torque for free-drag teaching.
 *   **Zero-Point Setting**: Set the current position as the new zero point.
@@ -56,33 +56,40 @@ The **Alicia-D SDK** is a Python toolkit for controlling the "Alicia-D" series o
 *   **Automatic Serial Connection**: Automatically searches for serial ports or allows manual specification.
 *   **Teaching Mode**: Record pose points by dragging and execute the trajectory.
 *   **Smart Logging System**: Supports log level filtering to control console output verbosity.
+*   **RoboCore Integration**: Integrated high-performance kinematics and trajectory planning library.
 
 ## Project Structure
 
 ```
 ├── alicia_d_sdk
 │   ├── api
+│   │   └── synria_robot_api.py      # User-level API
 │   ├── execution
+│   │   └── hardware_executor.py     # Execution layer
 │   ├── hardware
+│   │   ├── serial_comm.py           # Serial communication
+│   │   ├── data_parser.py           # Data parser
+│   │   └── servo_driver.py          # Servo driver
 │   ├── __init__.py
 │   └── utils
+│       ├── calculate.py             # Calculation utilities
+│       └── logger/                  # Logging system
 ├── docs
-│   ├── api_reference.md
-│   ├── examples.md
-│   ├── installation.md
-│   └── logger_levels.md
+│   ├── api_reference.md             # API reference
+│   ├── examples.md                  # Examples guide
+│   ├── installation.md              # Installation guide
+│   └── logger_levels.md             # Logger levels
 ├── examples
-│   ├── 00_demo_read_version.py
-│   ├── 01_torque_switch.py
-│   ├── 02_demo_zero_calibration.py
-│   ├── 03_demo_read_state.py
-│   ├── 04_demo_move_gripper.py
-│   ├── 05_demo_move_joint.py
-│   ├── 06_demo_move_cartesian.py
-│   ├── 07_demo_forward_kinematics.py
-│   ├── 08_demo_inverse_kinematics.py
-│   ├── 09_demo_drag_teaching.py
-│   ├── 10_demo_sparkvis.py
+│   ├── 00_demo_read_version.py      # Read firmware version
+│   ├── 01_torque_switch.py          # Torque switch
+│   ├── 02_demo_zero_calibration.py  # Zero calibration
+│   ├── 03_demo_read_state.py        # Read state
+│   ├── 04_demo_move_gripper.py      # Gripper control
+│   ├── 05_demo_move_joint.py        # Joint motion
+│   ├── 06_demo_move_cartesian.py    # Cartesian motion
+│   ├── 07_demo_forward_kinematics.py  # Forward kinematics
+│   ├── 08_demo_inverse_kinematics.py  # Inverse kinematics
+│   └── 09_demo_drag_teaching.py     # Drag teaching
 ```
 
 ## Quick Start
@@ -91,10 +98,10 @@ The **Alicia-D SDK** is a Python toolkit for controlling the "Alicia-D" series o
 2.  Run examples:
 ```bash
 cd examples
-python3 02_demo_read_state.py      # Read status
-python3 03_demo_gripper.py         # Gripper control
-python3 04_demo_move_joint.py      # Joint movement
-
+python3 00_demo_read_version.py    # Read firmware version
+python3 03_demo_read_state.py      # Read status
+python3 04_demo_move_gripper.py    # Gripper control
+python3 05_demo_move_joint.py      # Joint movement
 ```
 
 ## Documentation

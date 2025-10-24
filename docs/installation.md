@@ -32,6 +32,45 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
+---
+
+## ✅ 快速开始
+
+### 基本使用示例
+
+```python
+from alicia_d_sdk import create_robot
+
+# 创建机器人实例（自动搜索串口）
+robot = create_robot()
+
+# 连接机械臂
+if robot.connect():
+    print("连接成功！")
+    
+    # 打印当前状态
+    robot.print_state()
+    
+    # 移动到初始位置
+    robot.set_home()
+    
+    # 断开连接
+    robot.disconnect()
+else:
+    print("连接失败，请检查串口")
+```
+
+### 手动指定串口
+
+如果自动连接失败，可手动指定串口：
+
+```python
+# Linux
+robot = create_robot(port="/dev/ttyUSB0")
+
+# Windows
+robot = create_robot(port="COM3")
+```
 
 ---
 
@@ -50,31 +89,53 @@ pip install -e .
 执行以下命令测试连接和读取状态：
 ```bash
 cd examples
-python3 demo_read_state.py
+python3 00_demo_read_version.py   # 读取固件版本
+python3 03_demo_read_state.py     # 读取机械臂状态
 ```
 
-若连接成功，终端将输出当前关节角度、末端位姿与夹爪状态。
+若连接成功，终端将输出固件版本、当前关节角度、末端位姿与夹爪状态。
 
 ---
 
 ## ⚠️ 故障排查
 
-- **找不到串口/连接失败**
-  - 检查 USB 线与电源
-  - Linux 用户需确保在 `dialout` 用户组中：
-    ```bash
-    sudo usermod -a -G dialout $USER
-    # 然后重新登录
-    ```
-
-- **手动指定串口**
-  如自动连接失败，可手动指定：
-  ```python
-  session = create_session(port="/dev/ttyUSB0")
+### 找不到串口/连接失败
+- 检查 USB 线与电源
+- Linux 用户需确保在 `dialout` 用户组中：
+  ```bash
+  sudo usermod -a -G dialout $USER
+  # 然后重新登录
   ```
+- 运行 `00_demo_read_version.py` 检测固件版本
 
-- **权限错误 (Permission denied)**
-  - 可尝试以 sudo 运行或检查用户串口权限
+### 波特率问题
+- 新固件（6.x.x）：默认波特率 1000000
+- 旧固件（<6.x.x）：可能需要使用波特率 921600
+
+手动指定波特率：
+```python
+robot = create_robot(port="/dev/ttyUSB0", baudrate=921600)
+```
+
+### 权限错误 (Permission denied)
+- 可尝试以 sudo 运行或检查用户串口权限
+- Linux: 确保用户在 dialout 组中
+- 检查串口是否被其他程序占用
+
+### 固件版本检测失败
+- 多次运行 `00_demo_read_version.py`
+- 尝试不同的波特率（1000000 或 921600）
+- 检查串口连接是否稳定
+
+---
+
+## 📦 依赖包说明
+
+主要依赖：
+- `pyserial`: 串口通信
+- `numpy`: 数值计算
+- `matplotlib`: 可视化（可选）
+- `robocore`: 运动学和轨迹规划（自动安装）
 
 ---
 
