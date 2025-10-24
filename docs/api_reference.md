@@ -4,7 +4,7 @@
 
 ---
 
-## ✅ 初始化接口：`create_robot`
+##  初始化接口：`create_robot`
 
 ```python
 from alicia_d_sdk import create_robot
@@ -12,17 +12,17 @@ from alicia_d_sdk import create_robot
 robot = create_robot(
     port="",                    # 串口（留空自动查找）
     baudrate=1000000,           # 波特率
-    robot_version="v5_6",       # 机器人版本
+    robot_version="v5_6",       # 机械臂结构版本
     gripper_type="50mm",        # 夹爪类型
     firmware_version=None,      # 固件版本（自动检测）
     debug_mode=False,           # 调试模式
-    speed_deg_s=20.0           # 默认速度（度/秒）
+    speed_deg_s=20.0           # 默认速度（度/秒），建议使用默认值
 )
 ```
 
 ---
 
-## ✅ 控制接口：`alicia_d_sdk.api.synria_robot_api.SynriaRobotAPI`
+##  控制接口：`alicia_d_sdk.api.synria_robot_api.SynriaRobotAPI`
 
 ```python
 from alicia_d_sdk import create_robot
@@ -96,7 +96,7 @@ robot = create_robot()
 
 ---
 
-## ✅ 硬件层接口：`alicia_d_sdk.hardware.ServoDriver`
+##  硬件层接口：`alicia_d_sdk.hardware.ServoDriver`
 
 提供底层串口通信、数据解析和电机控制功能。
 
@@ -111,18 +111,10 @@ robot = create_robot()
 
 不推荐用户直接使用此类，建议通过 `SynriaRobotAPI` 高级接口操作。
 
----
-
-## ✅ 执行层接口：`alicia_d_sdk.execution.HardwareExecutor`
-
-负责轨迹执行和可视化。
-
-主要方法：
-- `execute(joint_traj, pose_traj=None, visualize=False, gripper_traj=None, show_ori=False)`
 
 ---
 
-## ✅ RoboCore 集成
+##  RoboCore 集成
 
 SDK 集成了 [RoboCore](https://github.com/Synria-Robotics/RoboCore) 库，提供高性能运动学和轨迹规划功能：
 

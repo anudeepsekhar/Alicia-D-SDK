@@ -68,10 +68,10 @@
 │   ├── hardware
 │   │   ├── serial_comm.py           # 串口通信
 │   │   ├── data_parser.py           # 数据解析
-│   │   └── servo_driver.py          # 电机驱动
+│   │   └── servo_driver.py          # 舵机数据发送
 │   ├── __init__.py
 │   └── utils
-│       ├── calculate.py             # 计算工具
+│       ├── calculate.py             # 控制计算函数
 │       └── logger/                  # 日志系统
 ├── docs
 │   ├── api_reference.md             # API参考

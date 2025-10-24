@@ -1,40 +1,40 @@
 # 安装指南
 
-本指南将引导您完成 Alicia Duo SDK 的安装与运行环境配置。
+本指南将引导您完成 Alicia D SDK 的安装与运行环境配置。
 
 ---
 
-## ✅ 环境要求
+##  环境要求
 
 - Python 3.6 及以上版本（推荐 Python 3.8）
 - 支持串口的计算机（USB 转串口芯片已集成在机械臂）
 
 ---
 
-## ✅ 安装步骤
+##  安装步骤
 
 ### 1. 克隆或下载项目
 ```bash
-git clone https://github.com/Xuanya-Robotics/Alicia-D-SDK.git
+git clone https://github.com/Xuanya-Robotics/Alicia-D-SDK.git -v6.0.0
 cd Alicia-D-SDK
 ```
 
 ### 2. 创建 Python 环境并安装依赖
 使用 Conda 环境（推荐）：
 ```bash
-conda create -n alicia_d_sdk python=3.8
-conda activate alicia_d_sdk
+conda create -n alicia python=3.8
+conda activate alicia
 ```
 
 安装依赖与 SDK：
 ```bash
-pip install -r requirements.txt
+# pip install -r requirements.txt
 pip install -e .
 ```
 
 ---
 
-## ✅ 快速开始
+##  快速开始
 
 ### 基本使用示例
 
@@ -74,7 +74,7 @@ robot = create_robot(port="COM3")
 
 ---
 
-## ✅ 连接硬件
+##  连接硬件
 
 - 将机械臂通过 USB 连接到计算机
 - 确保电源打开
@@ -84,7 +84,7 @@ robot = create_robot(port="COM3")
 
 ---
 
-## ✅ 示例验证
+##  示例验证
 
 执行以下命令测试连接和读取状态：
 ```bash
