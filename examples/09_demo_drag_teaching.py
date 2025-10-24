@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Demo: 拖动示教 - 
+Demo: Drag teaching
 
-功能特点：
-- 关闭扭矩后拖动机械臂，直接记录关节角度
-- 支持手动、自动和仅回放三种模式
-- 根据记录模式使用不同的回放策略
+Copyright (c) 2025 Synria Robotics Co., Ltd.
+Licensed under GPL v3.0
 
+Features:
+- Disable torque and drag robot arm to record joint angles
+- Support manual, auto, and replay-only modes
+- Use different replay strategies based on recording mode
+
+Usage examples:
 # See what motions are available
 python 09_demo_drag_teaching.py --list-motions
 
@@ -43,12 +47,12 @@ def main(args):
     :param args: Command line arguments containing port, baudrate, version, gripper_type, mode, sample_hz, save_motion, and list_motions
     """
     
-    # 如果用户请求列出动作，直接显示并退出
+    # If the user requests to list motions, display and exit
     if args.list_motions:
         print_available_motions()
         return
     
-    # 验证参数
+    # Validate parameters
     if args.mode in ['manual', 'auto'] and not args.save_motion:
         print(f"[错误] {args.mode} 模式需要指定 --save-motion 参数")
         print("使用 --help 查看帮助信息")
@@ -67,7 +71,7 @@ def main(args):
     )
 
     if not robot.connect():
-        print("无法连接到机器人")
+        print("Unable to connect to the robot")
         return
 
     drag_teaching = SimpleDragTeaching(args, robot)

@@ -1,10 +1,10 @@
 """
-Demo: 读取机械臂固件版本号
+Demo: Read robot firmware version
 
-Updated for Alicia-D SDK v6.0.0 with RoboCore bridge
+Copyright (c) 2025 Synria Robotics Co., Ltd.
+Licensed under GPL v3.0
 """
 
-import time
 import alicia_d_sdk
 from alicia_d_sdk.utils.logger import logger
 

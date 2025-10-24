@@ -1,12 +1,13 @@
 """
-Demo: 夹爪控制示例
+Demo: Gripper control
 
-Updated for Alicia-D SDK v6.0.0 with RoboCore bridge
+Copyright (c) 2025 Synria Robotics Co., Ltd.
+Licensed under GPL v3.0
 
-功能:
-- 打开/关闭夹爪
-- 控制夹爪到指定角度
-- 等待夹爪运动完成
+Features:
+- Open/close gripper
+- Control gripper to specific angle
+- Wait for gripper motion completion
 """
 
 import alicia_d_sdk
@@ -14,7 +15,8 @@ import time
 from alicia_d_sdk.utils.logger import logger
 
 def main(args):
-    """
+    """Demonstrate gripper control.
+    
     :param args: Command line arguments
     """
     # Initialize robot instance

@@ -1,17 +1,21 @@
 """
-Demo: 使用 move_to_joint_state 控制机械臂移动到目标关节位置
+Demo: Control robot to move to target joint positions using move_to_joint_state
 
-功能:
-- 支持角度和弧度输入
-- 自动关节角度插值
-- 可调节运动速度
+Copyright (c) 2025 Synria Robotics Co., Ltd.
+Licensed under GPL v3.0
+
+Features:
+- Support degree and radian input
+- Automatic joint angle interpolation
+- Adjustable motion speed
 """
 
 import alicia_d_sdk
 import time
 
 def main(args):
-    """
+    """Control robot joint movements.
+    
     :param args: Command line arguments
     """
     # Initialize robot instance

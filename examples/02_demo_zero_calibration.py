@@ -1,11 +1,12 @@
 """
-Demo: 机械臂零点校准程序
+Demo: Robot zero calibration
 
-Updated for Alicia-D SDK v6.0.0 with RoboCore bridge
+Copyright (c) 2025 Synria Robotics Co., Ltd.
+Licensed under GPL v3.0
 
-警告: 
-- 校准前请确保机械臂周围无障碍物
-- 校准时会关闭扭矩，请手动支撑机械臂
+Warning: 
+- Ensure no obstacles around the robot arm before calibration
+- When torque is disabled, manually support the robot arm
 """
 
 import alicia_d_sdk

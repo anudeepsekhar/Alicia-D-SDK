@@ -1,15 +1,13 @@
 """
-Demo: 正向运动学 (Forward Kinematics) 示例
-
-Updated for Alicia-D SDK v6.0.0 with RoboCore bridge
+Demo: Forward kinematics
 
 Copyright (c) 2025 Synria Robotics Co., Ltd.
 Licensed under GPL v3.0
 
-功能:
-- 读取当前关节角度
-- 计算末端执行器位姿
-- 显示位置、旋转矩阵、欧拉角、四元数
+Features:
+- Read current joint angles
+- Calculate end-effector pose
+- Display position, rotation matrix, Euler angles, quaternion
 """
 
 import numpy as np

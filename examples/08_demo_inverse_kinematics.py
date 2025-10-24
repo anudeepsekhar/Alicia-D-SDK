@@ -1,15 +1,13 @@
 """
-Demo: 逆向运动学 (Inverse Kinematics) 示例
-
-Updated for Alicia-D SDK v6.0.0 with RoboCore bridge
+Demo: Inverse kinematics
 
 Copyright (c) 2025 Synria Robotics Co., Ltd.
 Licensed under GPL v3.0
 
-功能:
-- 指定目标末端位姿
-- 求解关节角度
-- 移动到目标位置
+Features:
+- Specify target end-effector pose
+- Solve for joint angles
+- Move to target position
 """
 
 import numpy as np
@@ -52,7 +50,7 @@ def main(args):
     beauty_print("详细求解结果:")
     print(f"  成功: {ik_result['success']}")
     if ik_result['success']:
-        print(f"  迭代次数: {ik_result['iters']}")
+        print(f"   迭代次数: {ik_result['iters']}")
         print(f"  位置误差: {ik_result['pos_err']:.6e} m")
         print(f"  姿态误差: {ik_result['ori_err']:.6e} rad")
         beauty_print("关节角度 (弧度):")

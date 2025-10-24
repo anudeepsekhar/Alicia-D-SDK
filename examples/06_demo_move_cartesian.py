@@ -1,8 +1,11 @@
 """
-Demo: Multi-Point Cartesian Trajectory Planning
+Demo: Multi-point Cartesian trajectory planning
 
-展示如何在笛卡尔空间进行多点轨迹规划
-支持手动拖动机械臂记录多个路径点
+Copyright (c) 2025 Synria Robotics Co., Ltd.
+Licensed under GPL v3.0
+
+Demonstrates how to perform multi-point trajectory planning in Cartesian space.
+Supports manual drag teaching to record multiple waypoints.
 """
 
 import argparse
@@ -12,12 +15,13 @@ from alicia_d_sdk.execution import CartesianWaypointController
 
 
 def main(cmd_args):
-    """
+    """Demonstrate multi-point Cartesian trajectory planning.
+    
     :param cmd_args: Command line arguments
     """
-    logger.info("=== 多点笛卡尔轨迹规划演示 ===")
+    logger.info("=== Multi-point Cartesian trajectory planning demo ===")
     
-    # 初始化并连接机器人
+    # Initialize and connect to the robot
     robot = alicia_d_sdk.create_robot(
         port=cmd_args.port,
         baudrate=cmd_args.baudrate,
@@ -26,22 +30,22 @@ def main(cmd_args):
     )
     
     if not robot.connect():
-        logger.error("无法连接到机器人")
+        logger.error("Unable to connect to the robot")
         return
     
     try:
-        # 创建笛卡尔路径点控制器
+        # Create Cartesian waypoint controller
         controller = CartesianWaypointController(robot)
         
-        # 移动到初始位置
-        logger.info("\n1. 移动到初始位置...")
+        # Move to initial position
+        logger.info("\n1. Moving to initial position...")
         robot.set_joint_target([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         
-        # 记录路径点（手动拖动模式）
+        # Record waypoints (manual drag mode)
         waypoints = controller.record_teaching_waypoints()
         
         if not waypoints:
-            logger.error("没有记录到路径点，退出演示")
+            logger.error("No waypoints recorded, exiting demo")
             return
         
         # 选择执行模式
@@ -50,7 +54,7 @@ def main(cmd_args):
                             "2. 逐步执行\n"
                             "请输入选择 (1/2): ").strip() == "2"
         
-        # 执行轨迹
+        # Execute trajectory
         controller.execute_trajectory(
             waypoints=waypoints,
             move_duration=cmd_args.move_duration,
@@ -61,12 +65,12 @@ def main(cmd_args):
             step_delay=0.5 if step_by_step else 0.2
         )
         
-        logger.info("\n✓ 演示完成!")
+        logger.info("\n✓ Demo completed!")
         
     except KeyboardInterrupt:
-        logger.info("\n用户中断")
+        logger.info("\nUser interrupted")
     except Exception as e:
-        logger.error(f"发生错误: {e}")
+        logger.error(f"An error occurred: {e}")
         import traceback
         traceback.print_exc()
     finally:

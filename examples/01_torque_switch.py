@@ -1,18 +1,19 @@
 """
-Demo: 机械臂力矩开关程序
+Demo: Robot torque control
 
-Updated for Alicia-D SDK v6.0.0 with RoboCore bridge
+Copyright (c) 2025 Synria Robotics Co., Ltd.
+Licensed under GPL v3.0
 
-警告: 
-- 校准前请确保机械臂周围无障碍物
-- 校准时会关闭扭矩，请手动支撑机械臂
+Warning: 
+- Ensure no obstacles around the robot arm before calibration
+- When torque is disabled, manually support the robot arm
 """
 
 import alicia_d_sdk
 from alicia_d_sdk.utils.logger import logger
 
 def main(args):
-    """Execute robot zero calibration.
+    """Execute robot torque control.
     
     :param args: Command line arguments containing port, baudrate, version, and gripper_type
     """

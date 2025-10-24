@@ -1,12 +1,12 @@
 """
-SynriaRobotAPI - 用户层API
+SynriaRobotAPI - User-level API
 
-职责：
-- 提供简洁统一的用户接口
-- 高级运动命令封装
-- 状态查询接口
-- 系统控制功能
-- 参数验证和错误处理
+Responsibilities:
+- Provide concise unified user interface
+- High-level motion command encapsulation
+- State query interface
+- System control functions
+- Parameter validation and error handling
 """
 
 import time
@@ -36,17 +36,19 @@ from ..utils.calculate import calculate_movement_duration
 
 
 class SynriaRobotAPI:
-    """Synria机械臂API - 提供统一的用户接口"""
+    """Synria robot arm API - provides unified user interface"""
     
     def __init__(self,
                  servo_driver: ServoDriver,
                  robot_model: RobotModel,
                  firmware_version: None,
                  speed_deg_s: float = 20.0):
-        """
-        :param servo_driver: Servo driver
+        """Initialize robot API.
+
+        :param servo_driver: Servo driver instance
         :param robot_model: Robot model from RoboCore
-        :param acceleration: Acceleration
+        :param firmware_version: Firmware version string
+        :param speed_deg_s: Default speed in degrees per second
         """
         # 核心组件
         self.servo_driver = servo_driver
@@ -62,11 +64,12 @@ class SynriaRobotAPI:
 
 
     
-    # ==================== 连接管理 ====================
+    # ==================== Connection Management ====================
     
     def connect(self) -> bool:
-        """
-        :return: True if connected
+        """Connect to robot and detect firmware version.
+
+        :return: True if connection successful
         """
         result = self.servo_driver.connect()
         # self.set_speed(self.speed)
@@ -88,11 +91,13 @@ class SynriaRobotAPI:
         return result
     
     def disconnect(self):
+        """Disconnect from robot and stop update threads."""
         self.servo_driver.stop_update_thread()
         self.servo_driver.disconnect()
     
     def is_connected(self) -> bool:
-        """
+        """Check if robot is connected.
+
         :return: True if connection is active
         """
         return self.servo_driver.serial_comm.is_connected()
@@ -101,8 +106,9 @@ class SynriaRobotAPI:
     
     
     def set_home(self, speed_factor: float = 1):
-        """
-        :param speed_factor: Speed multiplier
+        """Move robot to home position.
+
+        :param speed_factor: Speed multiplier for motion
         """
         if self.firmware_new:
             self.set_joint_target(self.home_angles, joint_format='rad')
@@ -114,9 +120,11 @@ class SynriaRobotAPI:
     def set_joint_target(self,
                         target_joints: List[float],
                         joint_format: str = 'rad') -> bool:
-        """
+        """Move robot to target joint angles.
+
         :param target_joints: Target joint angles
-        :param joint_format: 'rad' or 'deg'
+        :param joint_format: Unit format, 'rad' or 'deg'
+        :return: True if command sent successfully
         """
         if joint_format == 'deg':
             target_joints = [a * np.pi / 180.0 for a in target_joints]
@@ -138,14 +146,15 @@ class SynriaRobotAPI:
               T_default: float = 4.0,
               n_steps_ref: int = 200,
               visualize: bool = False) -> bool:
-        """
+        """Move robot to target joint angles with interpolation.
+
         :param target_joints: Target joint angles
-        :param joint_format: 'rad' or 'deg'
+        :param joint_format: Unit format, 'rad' or 'deg'
         :param speed_factor: Speed multiplier
         :param T_default: Default interpolation duration in seconds
-        :param n_steps_ref: Reference interpolation steps
-        :param visualize: Whether to visualize trajectory
-        :return: True if motion started
+        :param n_steps_ref: Reference number of interpolation steps
+        :param visualize: Enable trajectory visualization
+        :return: True if motion started successfully
         """
         logger.info("[moveJ] 开始执行关节空间插值移动")
         
@@ -221,7 +230,7 @@ class SynriaRobotAPI:
         return result if result is not None else True
     
 
-    # ==================== 夹爪控制 ====================
+    # ==================== Gripper Control ====================
     
     def set_gripper_target(self,
                        command: Optional[str] = None,
@@ -229,12 +238,13 @@ class SynriaRobotAPI:
                        wait_for_completion: bool = True,
                        timeout: float = 5.0,
                        tolerance: float = 1.0) -> bool:
-        """
-        :param command: 'open' or 'close'
-        :param value: Gripper value in 0-100
-        :param wait_for_completion: Whether to wait until reached
+        """Control gripper position.
+
+        :param command: Command string, 'open' or 'close'
+        :param value: Gripper value, 0 (closed) to 100 (open)
+        :param wait_for_completion: Wait until gripper reaches target
         :param timeout: Maximum wait time in seconds
-        :param tolerance: Acceptable difference to target
+        :param tolerance: Acceptable difference to target value
         :return: True if successful
         """
         if command is not None and value is not None:
@@ -287,18 +297,19 @@ class SynriaRobotAPI:
                        use_random_init: bool = False,
                        speed_factor: float = 1.0,
                        execute: bool = True) -> Dict:
-        """
-        :param target_pose: [x, y, z, qx, qy, qz, qw]
-        :param backend: 'numpy' or 'torch'
-        :param method: IK method: 'dls', 'pinv', 'transpose'
-        :param display: Whether to display details
+        """Move end-effector to target pose using inverse kinematics.
+
+        :param target_pose: Target pose as [x, y, z, qx, qy, qz, qw]
+        :param backend: Computation backend, 'numpy' or 'torch'
+        :param method: IK solver method, 'dls', 'pinv', or 'transpose'
+        :param display: Display solution details
         :param tolerance: Position and orientation tolerance
-        :param max_iters: Max number of iterations
-        :param multi_start: Multi-start attempts (0 to disable)
-        :param use_random_init: Use random initial guess
+        :param max_iters: Maximum number of iterations
+        :param multi_start: Number of multi-start attempts, 0 to disable
+        :param use_random_init: Use random initial guess instead of current pose
         :param speed_factor: Motion speed multiplier
         :param execute: Execute motion if True
-        :return: Dict with success, q, iters, pos_err, ori_err, message
+        :return: Dictionary with success, q, iters, pos_err, ori_err, message
         """
         # Convert pose to transformation matrix
         position = np.array(target_pose[:3])
@@ -380,8 +391,9 @@ class SynriaRobotAPI:
 
 
     def get_joints(self) -> Optional[List[float]]:
-        """
-        :return: Current joint angles in radians
+        """Get current joint angles.
+
+        :return: Joint angles in radians, or None if unavailable
         """
         joint_state = self.servo_driver.get_joint_state()
         if joint_state:
@@ -390,8 +402,9 @@ class SynriaRobotAPI:
             return self.servo_driver.get_joint_angles()
         
     def get_pose(self) -> Optional[Union[List[float], Dict]]:
-        """
-        :return: Dict with position, rotation, euler_xyz, quaternion_xyzw, transform
+        """Get current end-effector pose.
+
+        :return: Dictionary with position, rotation, euler_xyz, quaternion_xyzw, transform
         """
 
         joint_angles = self.get_joints()
@@ -421,17 +434,19 @@ class SynriaRobotAPI:
 
     
     def get_gripper(self) -> Optional[float]:
-        """
-        :return: Gripper value in 0-100
+        """Get current gripper position.
+
+        :return: Gripper value from 0 (closed) to 100 (open)
         """
         return self.servo_driver.get_gripper_data()
 
     
     def get_firmware_version(self, timeout=5.0, send_interval=0.2):
-        """
-        :param timeout: Total time in seconds to keep trying.
-        :param send_interval: Time in seconds between each attempt.
-        :return: The firmware version string if successful, otherwise None.
+        """Query robot firmware version.
+
+        :param timeout: Total time in seconds to keep trying
+        :param send_interval: Time in seconds between each attempt
+        :return: Firmware version string, or None if query fails
         """
         command = [0xAA, 0x0A, 0x01, 0x00, 0x00, 0xFF]
         start_time = time.time()
@@ -474,12 +489,13 @@ class SynriaRobotAPI:
                              method: str = 'cubic',
                              num_points: int = 100,
                              visualize: bool = False) -> bool:
-        """
+        """Execute smooth joint trajectory to target position.
+
         :param q_end: Target joint angles in radians
-        :param duration: Duration in seconds
-        :param method: 'linear', 'cubic', or 'quintic'
-        :param num_points: Number of trajectory points
-        :param visualize: Whether to visualize
+        :param duration: Trajectory duration in seconds
+        :param method: Interpolation method, 'linear', 'cubic', or 'quintic'
+        :param num_points: Number of trajectory waypoints
+        :param visualize: Enable trajectory visualization
         :return: True if successful
         """
         q_start = self.get_joints()
@@ -530,12 +546,13 @@ class SynriaRobotAPI:
                              num_points: int = 50,
                              ik_method: str = 'dls',
                              visualize: bool = False) -> bool:
-        """
-        :param target_pose: [x, y, z, qx, qy, qz, qw]
-        :param duration: Duration in seconds
-        :param num_points: Number of trajectory points
-        :param ik_method: IK method
-        :param visualize: Whether to visualize
+        """Execute linear Cartesian trajectory to target pose.
+
+        :param target_pose: Target pose as [x, y, z, qx, qy, qz, qw]
+        :param duration: Trajectory duration in seconds
+        :param num_points: Number of trajectory waypoints
+        :param ik_method: IK solver method
+        :param visualize: Enable trajectory visualization
         :return: True if successful
         """
         # 获取当前位姿
@@ -595,17 +612,19 @@ class SynriaRobotAPI:
     
 
     
-    # ==================== 系统控制 ====================
+    # ==================== System Control ====================
     def set_acceleration(self, acceleration: int = 1) -> bool:
-        """
-        :param acceleration: 加速度
+        """Set robot acceleration.
+
+        :param acceleration: Acceleration value
         :return: True if successful
         """
         return self.servo_driver.set_acceleration(acceleration)
 
     def set_speed(self, speed_deg_s: float) -> bool:
-        """
-        :param speed: 速度
+        """Set robot motion speed.
+
+        :param speed_deg_s: Speed in degrees per second
         :return: True if successful
         """
         speed_rad_s = np.deg2rad(speed_deg_s)
@@ -613,8 +632,9 @@ class SynriaRobotAPI:
     
     
     def torque_control(self, command: str) -> bool:
-        """
-        :param command: 'on' or 'off'
+        """Enable or disable robot torque.
+
+        :param command: Command string, 'on' or 'off'
         :return: True if successful
         """
         if command == "on":
@@ -628,8 +648,9 @@ class SynriaRobotAPI:
             return False
     
     def zero_calibration(self) -> bool:
-        """
-        :return: True if successful
+        """Execute zero position calibration procedure.
+
+        :return: True if calibration successful
         """
         logger.info("开始归零校准,机械臂将失去扭矩")
         logger.info("按下回车继续")
@@ -660,9 +681,10 @@ class SynriaRobotAPI:
 
     
     def print_state(self, continuous: bool = False, output_format: str = "deg"):
-        """
-        :param continuous: Whether to print continuously
-        :param output_format: 'deg' or 'rad'
+        """Print current robot state.
+
+        :param continuous: Print continuously if True, once if False
+        :param output_format: Angle format, 'deg' or 'rad'
         """
         def _print_once():
             joints = self.get_joints()
@@ -701,9 +723,10 @@ class SynriaRobotAPI:
     
 
     def _generate_random_q(self, scale: float = 0.5) -> List[float]:
-        """
-        :param scale: Range scale within joint limits
-        :return: Random joint configuration
+        """Generate random joint configuration within limits.
+
+        :param scale: Range scale factor within joint limits
+        :return: Random joint angles in radians
         """
         rng = np.random.default_rng()
         q = [0.0] * self.robot_model.num_dof()
@@ -726,4 +749,4 @@ class SynriaRobotAPI:
         try:
             self.disconnect()
         except Exception as e:
-            logger.error(f"SynriaRobotAPI析构异常: {e}")
+            logger.error(f"SynriaRobotAPI destructor exception: {e}")

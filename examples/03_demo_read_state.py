@@ -1,20 +1,22 @@
 """
-Demo: 读取并打印机械臂状态
+Demo: Read and print robot state
 
-Updated for Alicia-D SDK v6.0.0 with RoboCore bridge
+Copyright (c) 2025 Synria Robotics Co., Ltd.
+Licensed under GPL v3.0
 
-功能:
-- 读取关节角度（弧度或角度）
-- 读取末端位姿
-- 读取夹爪状态
-- 支持单次或连续打印
+Features:
+- Read joint angles (radians or degrees)
+- Read end-effector pose
+- Read gripper state
+- Support single or continuous printing
 """
 
 import alicia_d_sdk
 
 
 def main(args):
-    """
+    """Read and print robot state.
+    
     :param args: Command line arguments
     """
     # Initialize robot instance
