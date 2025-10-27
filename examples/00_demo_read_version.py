@@ -27,8 +27,6 @@ def main(args):
             logger.error("Connection failed, please check serial port settings")
             return
         firmware_version = robot.get_firmware_version(timeout=2)
-        if not firmware_version:
-                logger.info("Firmware version 5.0.0.")
 
     except KeyboardInterrupt:
         logger.info("\nOperation interrupted by user")
