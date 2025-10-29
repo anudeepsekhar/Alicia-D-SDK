@@ -122,6 +122,14 @@ class SerialComm:
             self.serial_port.close()
             logger.info("串口已关闭")
 
+    def is_connected(self) -> bool:
+        """Check if serial port is connected and open.
+
+        Returns:
+            bool: True if serial port is connected and open
+        """
+        return self.serial_port is not None and self.serial_port.is_open
+
     def find_serial_port(self) -> str:
         """
         查找可用的串口设备
