@@ -72,7 +72,7 @@ def create_robot(
         gripper_type: str = "50mm",
         firmware_version: None = None,
         debug_mode: bool = False,
-        speed_deg_s: float = 20.0
+        speed_deg_s: float = 10.0
     ) -> SynriaRobotAPI:
     """
     :param port: Serial port

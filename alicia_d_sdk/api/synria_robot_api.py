@@ -104,26 +104,66 @@ class SynriaRobotAPI:
     
     # ==================== Robot Control ====================                         
     
-    
-    def set_home(self, speed_factor: float = 1):
-        """Move robot to home position.
+    def _wait_for_joint_target(self,
+                               target_joints: List[float],
+                               tolerance: float,
+                               timeout: float,
+                               log_prefix: str = "等待关节接近目标") -> bool:
+        """Wait until all joints reach target angles.
+
+        :param target_joints: Target joint angles in radians
+        :param tolerance: Rad, acceptable abs distance to target for all joints
+        :param timeout: Seconds, maximum wait time
+        :param log_prefix: Log message prefix
+        :return: True if target reached, False if timeout
+        """
+        start_time = time.time()
+        logger.info(f"{log_prefix}...")
+
+        while time.time() - start_time < timeout:
+            current_joints = self.get_joints()
+            if current_joints is not None:
+                if all(abs(a - b) <= tolerance for a, b in zip(current_joints, target_joints)):
+                    logger.info("已到达目标位置")
+                    return True
+            time.sleep(0.05)
+
+        logger.warning("等待关节到目标附近超时")
+        return False
+
+    def set_home(self, speed_factor: float = 1, tolerance: float = 0.03, timeout: float = 10.0):
+        """Move robot to home position and wait until near zero.
 
         :param speed_factor: Speed multiplier for motion
+        :param tolerance: Rad, acceptable abs distance to zero for all joints
+        :param timeout: Seconds, maximum wait time
         """
+        time.sleep(0.1)
+
         if self.firmware_new:
-            self.set_joint_target(self.home_angles, joint_format='rad')
+            self.set_joint_target(self.home_angles, joint_format='rad', tolerance=tolerance, timeout=timeout)
         else:
             self.set_joint_target_interplotation(self.home_angles, joint_format='rad', speed_factor=speed_factor)
-
+            # Active feedback: block until joints are near zero
+        return self._wait_for_joint_target(
+                target_joints=self.home_angles,
+                tolerance=tolerance,
+                timeout=timeout,
+                log_prefix="等待关节接近零位"
+            )
 
 
     def set_joint_target(self,
-                        target_joints: List[float],
-                        joint_format: str = 'rad') -> bool:
-        """Move robot to target joint angles.
+                         target_joints: List[float],
+                         joint_format: str = 'rad',
+                         tolerance: float = 0.03,
+                         timeout: Optional[float] = None) -> bool:
+        """Move robot to target joint angles and wait until near target.
 
         :param target_joints: Target joint angles
         :param joint_format: Unit format, 'rad' or 'deg'
+        :param tolerance: Rad, acceptable abs distance to target for all joints
+        :param timeout: Seconds, maximum wait time; default derived from distance and speed
         :return: True if command sent successfully
         """
         if joint_format == 'deg':
@@ -133,9 +173,18 @@ class SynriaRobotAPI:
         # calculate the delay for the next movement
         current_joints = self.get_joints()
         delay = calculate_movement_duration(current_joints, target_joints, self.speed_deg_s)
-        if sucess:
-            time.sleep(delay)
-        return sucess
+
+        if not sucess:
+            return False
+
+        # Active feedback wait until close to target (or timeout)
+        max_wait = timeout if timeout is not None else max(1.0, delay * 1.5)
+        return self._wait_for_joint_target(
+            target_joints=target_joints,
+            tolerance=tolerance,
+            timeout=max_wait,
+            log_prefix="等待关节接近目标"
+        )
     
 
     
@@ -586,10 +635,10 @@ class SynriaRobotAPI:
                 pose_end,
                 duration,
                 num_points=num_points,
-                q_init=q_init,
+                q_init=None,
                 ik_backend='numpy',
                 ik_method=ik_method,
-                max_iters=100,
+                max_iters=500,
                 pos_tol=1e-3,
                 ori_tol=1e-3
             )

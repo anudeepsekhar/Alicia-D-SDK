@@ -39,7 +39,7 @@ def main(cmd_args):
         
         # Move to initial position
         logger.info("\n1. Moving to initial position...")
-        robot.set_joint_target([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        robot.set_home()
         
         # Record waypoints (manual drag mode)
         waypoints = controller.record_teaching_waypoints()
@@ -88,8 +88,8 @@ if __name__ == "__main__":
     
     
     # Trajectory planning settings
-    parser.add_argument('--move_duration', type=float, default=3.0, help="每个路径点的移动时间 (秒, 默认: 3.0)")
-    parser.add_argument('--num_points', type=int, default=150, help="轨迹插值点数 (默认: 150)")
+    parser.add_argument('--move_duration', type=float, default=1.0, help="每个路径点的移动时间 (秒, 默认: 3.0)")
+    parser.add_argument('--num_points', type=int, default=200, help="轨迹插值点数 (默认: 150)")
     parser.add_argument('--ik_method', type=str, default='dls',
                        choices=['dls', 'pinv', 'lm'], help="逆运动学求解方法 (默认: dls)")
     parser.add_argument('--visualize', action='store_true', help="启用轨迹可视化")

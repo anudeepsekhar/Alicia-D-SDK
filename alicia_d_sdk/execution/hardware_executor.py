@@ -174,7 +174,6 @@ class CartesianWaypointController:
             )
             
             # 设置夹爪
-            
             self.robot.set_gripper_target(value=gripper, wait_for_completion=False)
             time.sleep(step_delay)
             
