@@ -10,17 +10,15 @@
 **Alicia-D SDK** 是一个用于控制【灵动 Alicia-D】系列六轴机械臂（带夹爪）的 Python 工具包。它基于 `RoboCore` 库构建，提供通过串口通信控制机械臂运动、操作夹爪、读取姿态与状态数据等功能。
 
 
-## RoboCore: 统一化高性能机器人库
+## RoboCore: Unified High-Throughput Robotics Library 
 
+![](./imgs/logo.jpeg)
 
-
-<p align="center"><img src="./imgs/logo.jpeg" width="400" /></p>
+本SDK由[Synria Robotics Co., Ltd.](https://synriarobotics.ai) 开发的 [RoboCore (Unified High-Throughput Robotics Library)](https://github.com/Synria-Robotics/RoboCore) 支持。
 
 
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
-
-**由 [Synria Robotics Co., Ltd.](https://synriarobotics.ai) 开发** 🤖
 
 
 ---
