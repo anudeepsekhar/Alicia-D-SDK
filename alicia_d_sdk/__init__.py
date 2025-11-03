@@ -31,7 +31,7 @@ from robocore.planning import (
 )
 
 __version__ = "6.0.0"
-__author__ = "Alicia-D Team"
+__author__ = "Synria Robotics"
 __description__ = "Alicia-D机械臂SDK v6.0.0 - Bridged with RoboCore"
 
 # Re-export RoboCore components for convenience
