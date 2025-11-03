@@ -40,6 +40,8 @@ class SerialComm:
 
         self._lock = lock
         self._rx_buffer = bytearray()
+        self._frames_processed = 0
+        self._frames_dropped = 0
         logger.info(f"初始化串口通信模块: 端口={port or '自动'}, 波特率={baudrate}")
         logger.info(f"调试模式: {'启用' if debug_mode else '禁用'}")
 
@@ -260,6 +262,7 @@ class SerialComm:
                 data_bytes = bytes(data)
 
                 # 写入数据
+
                 bytes_written = self.serial_port.write(data_bytes)
                 try:
                     self.serial_port.flush()
@@ -295,17 +298,65 @@ class SerialComm:
             if self.serial_port.in_waiting == 0:
                 return None
 
-            # 导入串口缓存数据
-            self._rx_buffer += self.serial_port.read(self.serial_port.in_waiting)
-            
-            # 循环处理缓冲区中的所有完整帧
-            # 至少需要3字节才能读取帧头: [0xAA] [CMD] [DATA_LEN]
+            # 限制一次读取的数据量，避免缓冲区过大
+            available_bytes = self.serial_port.in_waiting
+            max_read_size = 100 
+            read_size = min(available_bytes, max_read_size)
+
+            self._rx_buffer += self.serial_port.read(read_size)
+
+            # Minimal frame structure [0xAA] [CMD] [DATA_LEN]
             frames_processed = 0
-            max_frames_per_call = 10  # 限制每次调用最多处理10帧，防止阻塞
+            max_frames_per_call = 20 
             
             while len(self._rx_buffer) >= 3 and frames_processed < max_frames_per_call:
-                if len(self._rx_buffer) > 200:
-                    self._rx_buffer.clear()
+                if len(self._rx_buffer) > 600:
+                    # print(f" Warning: rx_buffer large ({len(self._rx_buffer)} bytes)")
+                    
+                    quick_processed = 0
+                    max_quick_process = 50  # 最多快速处理50帧
+                    
+                    temp_buffer = self._rx_buffer[:]
+                    temp_pos = 0
+                    
+                    while temp_pos < len(temp_buffer) - 3 and quick_processed < max_quick_process:
+                        if temp_buffer[temp_pos] != 0xAA:
+                            temp_pos += 1
+                            continue
+                            
+                        if temp_pos + 2 >= len(temp_buffer):
+                            break
+                            
+                        data_len = temp_buffer[temp_pos + 2]
+                        if data_len > 200:  
+                            temp_pos += 1
+                            continue
+                            
+                        frame_len = data_len + DEFAULT_LENGTH
+                        
+                        if temp_pos + frame_len > len(temp_buffer):
+                            break
+                            
+                        frame_candidate = temp_buffer[temp_pos:temp_pos + frame_len]
+                        
+                        if frame_candidate[-1] == 0xFF:
+                            # 移除这个帧从缓冲区开始
+                            if temp_pos == 0:
+                                self._rx_buffer = self._rx_buffer[frame_len:]
+                                quick_processed += 1
+                                break
+                            else:
+                                # 如果不在开始位置，移除到这个位置的所有数据
+                                self._rx_buffer = self._rx_buffer[temp_pos:]
+                                break
+                        else:
+                            temp_pos += 1                    
+                    if len(self._rx_buffer) > 800:
+                        self._rx_buffer = self._rx_buffer[200:]
+                    
+                    if len(self._rx_buffer) < 3:
+                        break
+                        
                     continue
                 
                 # Step 2: 同步到帧头 0xAA
@@ -358,18 +409,19 @@ class SerialComm:
                 if parsed["valid"]:
                     self._rx_buffer = self._rx_buffer[frame_length:]
                     frames_processed += 1
+                    self._frames_processed += 1
                     
                     if self.debug_mode:
                         print(f"Valid frame processed! ({frames_processed}/{max_frames_per_call}) Remaining: {len(self._rx_buffer)} bytes")
-                        if len(self._rx_buffer) >= 3:
-                            print(f"   Next frame preview: {self._rx_buffer[:min(12, len(self._rx_buffer))]}\n")
-                        else:
-                            print()
-                    
+
                     return list(candidate)
                 else:
+                    self._frames_dropped += 1
                     if self.debug_mode:
-                        logger.warning(f"Invalid frame, resyncing. Frame: {parsed['raw']}")
+                        logger.warning(f"Invalid frame, resyncing. Frame: {parsed['raw']} (dropped: {self._frames_dropped})")
+                    else:
+                        if self._frames_dropped % 100 == 0:  # 每丢弃100帧打印一次
+                            print(f"⚠ Dropped {self._frames_dropped} invalid frames")
                     self._rx_buffer.pop(0)
                     continue
             
@@ -431,3 +483,16 @@ class SerialComm:
 
         hex_str = " ".join([f"{byte:02X}" for byte in data])
         logger.info(f"{prefix}{hex_str}")
+    
+    def get_processing_stats(self) -> dict:
+        """
+        获取帧处理统计信息
+        
+        Returns:
+            dict: 包含处理和丢弃帧数的统计信息
+        """
+        return {
+            "frames_processed": self._frames_processed,
+            "frames_dropped": self._frames_dropped,
+            "buffer_size": len(self._rx_buffer)
+        }

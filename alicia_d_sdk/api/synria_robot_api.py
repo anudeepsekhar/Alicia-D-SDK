@@ -78,7 +78,7 @@ class SynriaRobotAPI:
                 self.firmware_version = self.get_firmware_version(timeout=2.0)
                 # print the info by logger
                 logger.info(f"Detected firmware version: {self.firmware_version}")
-                logger.info(f"固件版本：{self.firmware_version}")
+                # logger.info(f"固件版本：{self.firmware_version}")
 
             # set speed if firmware is start with 6.
             if self.firmware_version and self.firmware_version.startswith("6."):

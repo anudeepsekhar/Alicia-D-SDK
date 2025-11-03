@@ -335,7 +335,6 @@ class DataParser:
         """
         # 提取版本信息
         version_str = f"{frame[3]}.{frame[4]}.{frame[5]}"
-        logger.info(f"固件版本: {version_str}")
         
         # 存储版本信息
         with self._lock:
