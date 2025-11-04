@@ -1,7 +1,6 @@
 import math
 import time
-import logging
-from typing import List, Dict, Tuple, Optional, Union, NamedTuple
+from typing import List, Dict, Optional, NamedTuple
 import threading
 import copy
 from alicia_d_sdk.utils.logger import logger
@@ -91,12 +90,12 @@ class DataParser:
                 logger.debug(f"未处理的指令ID: 0x{cmd_id:02X}")
             return None
     
-    def get_joint_state(self) -> JointState:
+    def get_joint_state(self) -> Optional[JointState]:
         """
         获取关节状态
         
         Returns:
-            JointState: 当前关节状态
+            Optional[JointState]: 当前关节状态，如果尚未更新则返回None
         """
         with self._lock:
             js = self._joint_states
@@ -105,12 +104,12 @@ class DataParser:
                 return None
             return copy.deepcopy(self._joint_states)
         
-    def get_firmware_version(self) -> str:
+    def get_firmware_version(self) -> Optional[str]:
         """
         获取固件版本信息
         
         Returns:
-            str: 固件版本字符串
+            Optional[str]: 固件版本字符串，如果尚未获取则返回None
         """
         with self._lock:
             # print("firmware in data_parser:", self._firmware_version)

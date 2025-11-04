@@ -98,7 +98,7 @@ class ServoDriver:
         """
         start_time = time.time()
         while time.time() - start_time < timeout:
-            js = self.get_joint_state()
+            js = self.data_parser.get_joint_state()
             if js and max(abs(a) for a in js.angles) > 1e-3:
                 return True
             time.sleep(0.05)
@@ -204,8 +204,6 @@ class ServoDriver:
                     logger.error("检测到严重的串口通信异常，机械臂可能已断开连接")
                     break
                 if frame:
-                    # print("frame", frame)
-                    # print("result:", self.data_parser.parse_frame(frame))
                     self.data_parser.parse_frame(frame)
         
             except Exception as e:
@@ -215,48 +213,7 @@ class ServoDriver:
                 break
         self._thread_running = False
         logger.info("状态更新线程已结束运行")
-    
-    def get_joint_angles(self) -> Optional[List[float]]:
-        """
-        读取关节角度（弧度）
-        
-        Returns:
-            Optional[List[float]]: 6个关节的角度列表（弧度），读取失败则返回None
-        """
-        # 直接返回当前状态，不需要额外读取数据
-        return self.data_parser.get_joint_state().angles
-    
-    def get_gripper_data(self) -> Tuple[float, bool, bool]:
-        """
-        读取夹爪数据
-        
-        Returns:
-            Tuple[float, bool, bool]: 夹爪角度（弧度）、按钮1状态、按钮2状态
-        """
-        # 直接返回当前状态，不需要额外读取数据
-        state = self.data_parser.get_joint_state()
-        return state.gripper
-        # return state.gripper, state.button1, state.button2
-    
-    
-    def get_joint_state(self) -> JointState:
-        """
-        读取完整的机械臂状态。
-        由于已有后台线程持续更新，所以直接返回当前状态。
-        """
-        # 直接返回当前状态，不需要额外读取数据
-        return self.data_parser.get_joint_state()
-    
 
-    def get_firmware_version(self) -> Optional[str]:
-        """
-        读取机械臂固件版本号
-        
-        Returns:
-            Optional[str]: 固件版本字符串，读取失败则返回None
-        """
-        # 直接返回当前状态，不需要额外读取数据
-        return self.data_parser.get_firmware_version()
 
 
 
