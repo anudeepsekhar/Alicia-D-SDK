@@ -24,7 +24,7 @@ from robocore.planning.trajectory import (
     cubic_polynomial_trajectory,
     quintic_polynomial_trajectory,
     linear_joint_trajectory,
-    linear_cartesian_trajectory
+    linear_cartesian_trajectory,
 )
 from ..hardware import ServoDriver
 from ..execution import HardwareExecutor, JointPlanner
@@ -71,12 +71,15 @@ class SynriaRobotAPI:
         :return: True if connection successful
         """
         result = self.servo_driver.connect()
+        # self.set_speed(self.speed)
         if result:
             if not self.firmware_version:
                 self.firmware_version = self.get_firmware_version(timeout=2.0)
                 # print the info by logger
                 logger.info(f"Detected firmware version: {self.firmware_version}")
+                # logger.info(f"固件版本：{self.firmware_version}")
 
+            # set speed if firmware is start with 6.
             if self.firmware_version and self.firmware_version.startswith("6."):
                 # change the initial value of firmware_new in servo_driver
                 self.set_speed(self.speed_deg_s)
@@ -99,6 +102,7 @@ class SynriaRobotAPI:
         return self.servo_driver.serial_comm.is_connected()
     
     # ==================== Robot Control ====================                         
+    
 
     def set_home(self, speed_factor: float = 1, tolerance: float = 0.03, timeout: float = 10.0):
         """Move robot to home position and wait until near zero.
@@ -205,8 +209,9 @@ class SynriaRobotAPI:
                 f"[moveJ] {joint_name} 超出限制：{original:.2f} -> 已截断为 {clipped:.2f}"
             )
         
-
+        # 获取当前状态（直接从servo_driver获取，带重试机制）
         cur_angles = self.get_joints()
+        
         # 插值步数与延迟
         steps, delay = compute_steps_and_delay(
             speed_factor=speed_factor,
@@ -246,6 +251,8 @@ class SynriaRobotAPI:
         
         return result if result is not None else True
     
+
+    # ==================== Gripper Control ====================
     
     def set_gripper_target(self,
                        command: Optional[str] = None,
@@ -403,11 +410,10 @@ class SynriaRobotAPI:
             
             return ik_result
     
-    # ==================== Get State ====================
+
 
     def get_joints(self, type: str = "follower") -> Optional[Union[List[float], Tuple[List[float], bool, bool]]]:
         """Get current joint angles.
-
         :param type: 'follower' -> return angles only; other values -> (angles, button1, button2)
         :return: Angles list, or (angles, button1, button2) if requested; None if unavailable
         """
@@ -417,7 +423,7 @@ class SynriaRobotAPI:
                 return joint_state.angles
             return (joint_state.angles, joint_state.button1, joint_state.button2)
         return None
-        
+    
     def get_pose(self) -> Optional[Union[List[float], Dict]]:
         """Get current end-effector pose.
 
@@ -455,6 +461,7 @@ class SynriaRobotAPI:
 
         :return: Gripper value from 0 (closed) to 100 (open)
         """
+
         joint_state = self.data_parser.get_joint_state()
         if joint_state:
             return joint_state.gripper
@@ -697,7 +704,8 @@ class SynriaRobotAPI:
         return result
     
 
-    # ==================== Additional Functions ====================
+    
+
     
     def print_state(self, continuous: bool = False, output_format: str = "deg", robot_type: str = "follower"):
         """Print current robot state.
@@ -705,14 +713,21 @@ class SynriaRobotAPI:
         :param continuous: Print continuously if True, once if False
         :param output_format: Angle format, 'deg' or 'rad'
         """
-        def _print_once(robot_type):
-            joints_raw = self.get_joints(robot_type)
-            gripper = self.get_gripper()
-            pose = None
-            if joints_raw is None:
-                logger.warning("无法获取关节状态")
-                return
 
+        def _print_once(robot_type):
+
+
+            joints_raw = self.get_joints(robot_type)
+
+            gripper = self.get_gripper()
+
+            pose = None
+
+            if joints_raw is None:
+
+                logger.warning("无法获取关节状态")
+
+                return
             # Normalize angles and (optionally) buttons depending on robot_type
             if robot_type == "follower":
                 joints = joints_raw
@@ -730,20 +745,15 @@ class SynriaRobotAPI:
             else:
                 joint_out = [round(angle, 3) for angle in joints]
                 unit = "rad"
-
-            # Build base message
-            # base_msg = f"关节角度 ({unit}): {joint_out}"
             logger.info(f"关节角度（{unit}）：{joint_out} 夹爪开合度：{gripper}")
-            # For leader, buttons may be None when not pressed; treat None as not pressed
             if robot_type != "follower":
                 logger.info(f"同步键：{button1}, 锁定键：{button2}")
-            # Print pose only for follower
+
             if pose is not None:
                 quaternion = pose['quaternion_xyzw']
                 position = pose['position']
                 logger.info(f"位置(xyz /m): {[round(p, 3) for p in position]}, 四元数(qx, qy, qz, qw): {[round(q, 3) for q in quaternion]}")
                 print("\n")
-
         if continuous:
             logger.info("开始连续状态打印，按 Ctrl+C 停止")
             try:
@@ -777,7 +787,8 @@ class SynriaRobotAPI:
             q[js.index] = float(rng.uniform(mid - span, mid + span))
         
         return q
-        
+
+
     def _wait_for_joint_target(self,
                                target_joints: List[float],
                                tolerance: float,
@@ -804,6 +815,7 @@ class SynriaRobotAPI:
 
         logger.warning("等待关节到目标附近超时")
         return False
+    
 
     def __del__(self):
         try:
