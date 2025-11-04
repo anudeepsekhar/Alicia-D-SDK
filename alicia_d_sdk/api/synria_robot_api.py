@@ -27,7 +27,7 @@ from robocore.planning.trajectory import (
     linear_cartesian_trajectory,
 )
 from ..hardware import ServoDriver
-from ..execution import HardwareExecutor, JointPlanner
+from ..execution import HardwareExecutor, JointInterpolator
 from ..utils.logger import logger
 from robocore.utils.control_utils import compute_steps_and_delay, validate_joint_list, check_and_clip_joint_limits
 from ..utils.calculate import calculate_movement_duration
@@ -218,14 +218,13 @@ class SynriaRobotAPI:
             T_default=T_default,
             n_steps_ref=n_steps_ref
         )
-        planner = JointPlanner()
+        interploter = JointInterpolator()
         # 规划轨迹
-        joint_traj = planner.plan(
+        joint_traj = interploter.plan(
             start_angles=cur_angles,
             target_angles=target_joints,
             steps=steps
         )
-        
         
         # 显示起始和目标角度
         if joint_format == 'deg':

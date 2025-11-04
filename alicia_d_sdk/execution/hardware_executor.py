@@ -48,7 +48,9 @@ class HardwareExecutor:
             time.sleep(self.delay)
         
 
-class JointPlanner:
+class JointInterpolator:
+    """Joint space interpolator ( Deprecated, only used for old firmware )
+    """
     def plan(
         self,
         start_angles: List[float],
@@ -81,8 +83,8 @@ class JointPlanner:
         return 4 * x**3 if x < 0.5 else 1 - pow(-2 * x + 2, 3) / 2
 
 
-class CartesianWaypointController:
-    """Cartesian waypoint controller for recording and executing paths"""
+class CartesianWaypointPlanner:
+    """Cartesian waypoint planner for recording and executing paths"""
     
     def __init__(self, robot):
         """

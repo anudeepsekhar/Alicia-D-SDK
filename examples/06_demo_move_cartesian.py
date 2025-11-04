@@ -11,7 +11,7 @@ Supports manual drag teaching to record multiple waypoints.
 import argparse
 import alicia_d_sdk
 from alicia_d_sdk.utils.logger import logger
-from alicia_d_sdk.execution import CartesianWaypointController
+from alicia_d_sdk.execution import CartesianWaypointPlanner
 
 
 def main(cmd_args):
@@ -35,14 +35,14 @@ def main(cmd_args):
     
     try:
         # Create Cartesian waypoint controller
-        controller = CartesianWaypointController(robot)
+        planner = CartesianWaypointPlanner(robot)
         
         # Move to initial position
         logger.info("\n1. Moving to initial position...")
         robot.set_home()
         
         # Record waypoints (manual drag mode)
-        waypoints = controller.record_teaching_waypoints()
+        waypoints = planner.record_teaching_waypoints()
         
         if not waypoints:
             logger.error("No waypoints recorded, exiting demo")
@@ -55,7 +55,7 @@ def main(cmd_args):
                             "请输入选择 (1/2): ").strip() == "2"
         
         # Execute trajectory
-        controller.execute_trajectory(
+        planner.execute_trajectory(
             waypoints=waypoints,
             move_duration=cmd_args.move_duration,
             num_points=cmd_args.num_points,
