@@ -300,15 +300,11 @@ class SerialComm:
 
             # 限制一次读取的数据量，避免缓冲区过大
             available_bytes = self.serial_port.in_waiting
-            max_read_size = 10
+            max_read_size = 100 
             read_size = min(available_bytes, max_read_size)
 
             self._rx_buffer += self.serial_port.read(read_size)
-            # try:
-            #     hex_buf = ' '.join(f"{b:02X}" for b in self._rx_buffer)
-            #     logger.info(f"self._rx_buffer: {hex_buf}")
-            # except Exception:
-            #     pass
+
             # Minimal frame structure [0xAA] [CMD] [DATA_LEN]
             frames_processed = 0
             max_frames_per_call = 20 
@@ -389,14 +385,8 @@ class SerialComm:
                     break
                 
                 candidate = self._rx_buffer[:frame_length]
-                # Always print candidate frame in hex
-                # try:
-                #     hex_cand = ' '.join(f"{b:02X}" for b in candidate)
-                #     logger.info(f"candidate: {hex_cand}")
-                # except Exception:
-                #     pass
-                # if self.debug_mode:
-                #     print(f" Candidate ({frame_length} bytes): {candidate}")
+                if self.debug_mode:
+                    print(f" Candidate ({frame_length} bytes): {candidate}")
                 
                 # Step 5: 验证帧尾和校验
                 valid_tail = candidate[-1] == 0xFF
