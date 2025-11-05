@@ -67,7 +67,8 @@ def main(args):
         port=args.port,
         baudrate=args.baudrate,
         robot_version=args.robot_version,
-        gripper_type=args.gripper_type
+        gripper_type=args.gripper_type, 
+        speed_deg_s = 30.0
     )
 
     if not robot.connect():
