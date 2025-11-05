@@ -257,7 +257,7 @@ class SynriaRobotAPI:
                        command: Optional[str] = None,
                        value: Optional[float] = None,
                        wait_for_completion: bool = True,
-                       timeout: float = 5.0,
+                       timeout: float = 4.0,
                        tolerance: float = 1.0) -> bool:
         """Control gripper position.
 
@@ -302,7 +302,7 @@ class SynriaRobotAPI:
                 self.servo_driver.set_gripper(value)
                 time.sleep(0.1)
             
-            logger.warning("夹爪运动等待超时")
+            # logger.warning("夹爪运动等待超时")
             return False
         
         return True

@@ -300,7 +300,7 @@ class SerialComm:
 
             # 限制一次读取的数据量，避免缓冲区过大
             available_bytes = self.serial_port.in_waiting
-            max_read_size = 10
+            max_read_size = 20
             read_size = min(available_bytes, max_read_size)
 
             self._rx_buffer += self.serial_port.read(read_size)
