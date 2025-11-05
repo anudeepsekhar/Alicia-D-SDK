@@ -43,7 +43,7 @@ def main(args):
         time.sleep(1)
         # Test 3: Partially open
         robot.set_gripper_target(value=80.0, wait_for_completion=True)
-        time.sleep(2)
+        time.sleep(1)
 
         
     except KeyboardInterrupt:

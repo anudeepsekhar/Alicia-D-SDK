@@ -299,6 +299,7 @@ class SynriaRobotAPI:
                     if abs(current_gripper - value) <= tolerance:
                         logger.info(f"夹爪已到达目标开合度: {value:.1f}")
                         return True
+                self.servo_driver.set_gripper(value)
                 time.sleep(0.1)
             
             logger.warning("夹爪运动等待超时")
