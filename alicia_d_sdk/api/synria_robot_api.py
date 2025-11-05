@@ -803,7 +803,7 @@ class SynriaRobotAPI:
         :return: True if target reached, False if timeout
         """
         start_time = time.time()
-        logger.info(f"{log_prefix}...")
+        # logger.info(f"{log_prefix}...")
 
         while time.time() - start_time < timeout:
             current_joints = self.get_joints()
