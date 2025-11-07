@@ -297,7 +297,7 @@ class SynriaRobotAPI:
                 current_gripper = self.get_gripper()
                 if current_gripper is not None:
                     if abs(current_gripper - value) <= tolerance:
-                        logger.info(f"夹爪已到达目标开合度: {value:.1f}")
+                        # logger.info(f"夹爪已到达目标开合度: {value:.1f}")
                         return True
                 self.servo_driver.set_gripper(value)
                 time.sleep(0.1)
@@ -809,7 +809,7 @@ class SynriaRobotAPI:
             current_joints = self.get_joints()
             if current_joints is not None:
                 if all(abs(a - b) <= tolerance for a, b in zip(current_joints, target_joints)):
-                    logger.info("已到达目标位置")
+                    # logger.info("已到达目标位置")
                     return True
             time.sleep(0.05)
 

@@ -71,7 +71,6 @@ class SerialComm:
             if self.serial_port and self.serial_port.is_open:
                 self.serial_port.close()
 
-            # macOS: Prefer /dev/cu.* (callout) over /dev/tty.* to avoid write blocking
             if '/dev/tty.' in port:
                 cu_candidate = port.replace('/dev/tty.', '/dev/cu.')
                 if os.path.exists(cu_candidate) and os.access(cu_candidate, os.R_OK | os.W_OK):
@@ -189,7 +188,7 @@ class SerialComm:
         elif platform.system() == "Linux":  # Ubuntu/Linux
             # Linux: prefer ttyUSB devices
             candidates_priority = [
-                "ttyUSB", "ttyACM", "cu.wchusbserial", "cu.SLAB_USBtoUART",
+                "ttyUSB", "ttyACM", "ttyCH343USB", "cu.wchusbserial", "cu.SLAB_USBtoUART",
                 "cu.usbserial", "cu.usbmodem", "COM"
             ]
         else:  # Windows and others
@@ -237,7 +236,7 @@ class SerialComm:
                         return cu_candidate
 
         if should_log:
-            logger.warning("未找到可用的串口设备（支持 ttyUSB/ttyACM/cu.usbserial/cu.usbmodem/COM）")
+            logger.warning("未找到可用的串口设备（支持 ttyUSB/ttyACM/ttyCH343USB/cu.usbserial/cu.usbmodem/COM）")
         return ""
 
     def send_data(self, data: List[int]) -> bool:
@@ -300,7 +299,7 @@ class SerialComm:
 
             # 限制一次读取的数据量，避免缓冲区过大
             available_bytes = self.serial_port.in_waiting
-            max_read_size = 20
+            max_read_size = 100
             read_size = min(available_bytes, max_read_size)
 
             self._rx_buffer += self.serial_port.read(read_size)
@@ -311,57 +310,14 @@ class SerialComm:
             #     pass
             # Minimal frame structure [0xAA] [CMD] [DATA_LEN]
             frames_processed = 0
-            max_frames_per_call = 20 
+            max_frames_per_call = 10 
             
             while len(self._rx_buffer) >= 3 and frames_processed < max_frames_per_call:
-                if len(self._rx_buffer) > 600:
+                if len(self._rx_buffer) > 200:
                     # print(f" Warning: rx_buffer large ({len(self._rx_buffer)} bytes)")
-                    
-                    quick_processed = 0
-                    max_quick_process = 50  # 最多快速处理50帧
-                    
-                    temp_buffer = self._rx_buffer[:]
-                    temp_pos = 0
-                    
-                    while temp_pos < len(temp_buffer) - 3 and quick_processed < max_quick_process:
-                        if temp_buffer[temp_pos] != 0xAA:
-                            temp_pos += 1
-                            continue
-                            
-                        if temp_pos + 2 >= len(temp_buffer):
-                            break
-                            
-                        data_len = temp_buffer[temp_pos + 2]
-                        if data_len > 200:  
-                            temp_pos += 1
-                            continue
-                            
-                        frame_len = data_len + DEFAULT_LENGTH
-                        
-                        if temp_pos + frame_len > len(temp_buffer):
-                            break
-                            
-                        frame_candidate = temp_buffer[temp_pos:temp_pos + frame_len]
-                        
-                        if frame_candidate[-1] == 0xFF:
-                            # 移除这个帧从缓冲区开始
-                            if temp_pos == 0:
-                                self._rx_buffer = self._rx_buffer[frame_len:]
-                                quick_processed += 1
-                                break
-                            else:
-                                # 如果不在开始位置，移除到这个位置的所有数据
-                                self._rx_buffer = self._rx_buffer[temp_pos:]
-                                break
-                        else:
-                            temp_pos += 1                    
-                    if len(self._rx_buffer) > 800:
-                        self._rx_buffer = self._rx_buffer[200:]
-                    
-                    if len(self._rx_buffer) < 3:
-                        break
-                        
+                    self._rx_buffer.clear()
                     continue
+
                 
                 # Step 2: 同步到帧头 0xAA
                 if self._rx_buffer[0] != 0xAA:
@@ -370,7 +326,6 @@ class SerialComm:
                 
                 if self.debug_mode:
                     print(f" Buffer size: {len(self._rx_buffer)} bytes, first bytes: {self._rx_buffer[:min(12, len(self._rx_buffer))]}")
-                
 
                 data_len = self._rx_buffer[2]
                 
@@ -390,11 +345,9 @@ class SerialComm:
                 
                 candidate = self._rx_buffer[:frame_length]
                 # Always print candidate frame in hex
-                # try:
+                # if candidate[1] == 0x12:
                 #     hex_cand = ' '.join(f"{b:02X}" for b in candidate)
                 #     logger.info(f"candidate: {hex_cand}")
-                # except Exception:
-                #     pass
                 # if self.debug_mode:
                 #     print(f" Candidate ({frame_length} bytes): {candidate}")
                 

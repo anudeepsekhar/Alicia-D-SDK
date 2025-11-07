@@ -533,7 +533,7 @@ class ServoDriver:
             int: 硬件值
         """
         # 先转换为角度
-        # angle_deg = value * self.RAD_TO_DEG
+        angle_deg = value * self.RAD_TO_DEG
         
         # 范围检查
         if value < 0:
@@ -549,19 +549,17 @@ class ServoDriver:
         else:
             servo_value_limit = self.GRI_MAX_100MM
         # 转换公式：0对应servo_value_limit(关闭)，100对应2048(打开)
-        # 这是一个反向线性映射
         ratio = (servo_value_limit - 2048) / 100
         hw_value = int(servo_value_limit - (value * ratio))
         
 
         # servo_value_limit = 3290
         # # 转换公式：0度对应2048，100度对应servo_value_limit 
-        # ratio = (servo_value_limit - 2048) / 100
-        # value = int(2048 + (angle_deg * ratio))
+        ratio = (servo_value_limit - 2048) / 100
+        value = int(2048 + (angle_deg * ratio))
         
         # 范围限制
         return max(2048, min(servo_value_limit, hw_value))
-        # return max(2048, min(servo_value_limit, value))
     
     def _value_to_hardware_value_speed(self, speed_rad_s: int) -> int:
         """

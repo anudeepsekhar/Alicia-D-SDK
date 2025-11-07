@@ -49,8 +49,7 @@ class DataParser:
         if gripper_type == "50mm":
             self.servo_value_limit = self.GRI_MAX_50MM
         else:
-            self.servo_value_limit = self.GRI_MAX_100MM
-
+            self.servo_value_limit = self.GRI_MAX_100MM 
         self.firmware_new = firmware_new
         # 存储最新数据
         self._joint_states = JointState([0.0]*6, 0.0, 0.0,
@@ -79,7 +78,9 @@ class DataParser:
         # 根据指令ID解析数据
         if cmd_id == self.CMD_JOINT:
             return self._parse_joint_data(frame)
-        elif cmd_id == self.CMD_GRIPPER:
+        elif cmd_id == self.CMD_GRIPPER_V5:
+            return self._parse_gripper_data_old(frame)
+        elif cmd_id == self.CMD_GRIPPER_V6:
             return self._parse_gripper_data(frame)
         elif cmd_id == self.CMD_ERROR:
             return self._parse_error_data(frame)
@@ -228,7 +229,7 @@ class DataParser:
             logger.error(f"值转换异常: {str(e)}")
             return 0.0
     
-    def _parse_gripper_data(self, frame: List[int]) -> Dict:
+    def _parse_gripper_data_old(self, frame: List[int]) -> Dict:
         """
         解析夹爪数据帧 (0x02)
         
@@ -260,22 +261,17 @@ class DataParser:
         if gripper_raw < 2048 or gripper_raw > self.servo_value_limit:
             gripper_raw = max(2048, min(gripper_raw, self.servo_value_limit))
         
-
-        # 转换为0-100范围
-        # 反向映射：2048(硬件打开) → 100, servo_value_limit(硬件关闭) → 0
+        # # 转换为0-100范围
+        # # 反向映射：2048(硬件打开) → 100, servo_value_limit(硬件关闭) → 0
         ratio = (self.servo_value_limit - 2048) / 100
         gripper_value = 100 - ((gripper_raw - 2048) / ratio)
 
 
-        
         # 更新存储的数据
         self._update_joint_state(gripper=gripper_value, button1=button1,
                                  button2=button2)
         
-        if self.debug_mode:
-            logger.debug(f"夹爪原始值: {gripper_raw}, 开合度: {gripper_value:.2f} (0=关闭, 100=打开)")
-            logger.debug(f"按钮状态: 按钮1={'按下' if button1 else '释放'}, 按钮2={'按下' if button2 else '释放'}")
-        
+
         return {
             "type": "gripper_data",
             "gripper_angle": self._joint_states.gripper,
@@ -284,6 +280,83 @@ class DataParser:
             "timestamp": self._joint_states.timestamp
         }
     
+
+
+
+    def _parse_gripper_data(self, frame: List[int]) -> Dict:
+        """
+        解析夹爪数据帧 (0x12)
+        
+        协议格式:
+        | 0xAA | 0x12 | 0x07 | 0x01 | range_low | range_high | pot_low | pot_high | sync_btn | attitude_btn | checksum | 0xFF |
+        
+        Args:
+            frame: 完整的数据帧
+            
+        Returns:
+            Dict: 解析结果
+        """
+        # 检查最小长度 (需要至少12字节: header + cmd + len + suite + 4 data + 2 buttons + checksum + footer)
+        if len(frame) < 12:
+            logger.warning(f"夹爪数据帧长度不足: 需要至少12字节，实际{len(frame)}字节")
+            return None
+        
+        # 验证帧头
+        if frame[0] != 0xAA:
+            logger.warning(f"夹爪数据帧头错误: 期望0xAA，实际0x{frame[0]:02X}")
+            return None
+        
+        # 验证命令ID
+        if frame[1] != self.CMD_GRIPPER_V6:
+            logger.warning(f"夹爪数据帧命令ID错误: 期望0x{self.CMD_GRIPPER_V6:02X}，实际0x{frame[1]:02X}")
+            return None
+        
+        # 验证帧尾
+        if frame[-1] != 0xFF:
+            logger.warning(f"夹爪数据帧尾错误: 期望0xFF，实际0x{frame[-1]:02X}")
+            return None
+        
+        # 解析夹爪范围值 (字节4-5，用于验证，应与发送值相同)
+        gripper_range_low = frame[4]
+        gripper_range_high = frame[5]
+        gripper_range = gripper_range_low | (gripper_range_high << 8)
+        
+        # 解析电位计值 (字节6-7，这是实际的夹爪位置值)
+        potentiometer_low = frame[6]
+        potentiometer_high = frame[7]
+        gripper_raw = potentiometer_low | (potentiometer_high << 8)
+        
+        button1 = frame[8]  # 同步按键状态
+        button2 = frame[9]  # 姿态按键状态
+        
+        # # 验证和限制夹爪值范围
+        # if gripper_raw < 2000 or gripper_raw > self.servo_value_limit:
+        #     logger.warning(f"夹爪值超出范围: {gripper_raw}，限制到[2048, {self.servo_value_limit}]")
+        #     gripper_raw = max(2048, min(gripper_raw, self.servo_value_limit))
+        
+        ratio = (self.servo_value_limit - 2048) / 100
+        gripper_value = 100 - ((gripper_raw - 2048) / ratio)
+        # 更新存储的数据
+        self._update_joint_state(gripper=gripper_value, button1=button1,
+                                 button2=button2)
+        
+        if self.debug_mode:
+            logger.debug(f"夹爪数据: 范围值={gripper_range}, 位置值={gripper_raw}, "
+                        f"同步按键={'按下' if button1 else '未按下'}, "
+                        f"姿态按键={'按下' if button2 else '未按下'}")
+        
+        return {
+            "type": "gripper_data",
+            "gripper_angle": self._joint_states.gripper,
+            "gripper_range": gripper_range,
+            "button1": self._joint_states.button1,
+            "button2": self._joint_states.button2,
+            "timestamp": self._joint_states.timestamp
+        }
+    
+
+
+
     def _parse_error_data(self, frame: List[int]) -> Dict:
         """
         解析错误数据帧 (0xEE)
