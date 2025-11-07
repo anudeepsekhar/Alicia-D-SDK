@@ -40,7 +40,7 @@ class ServoDriver:
     CMD_ACCELERATION = 0x05 # 加速度设置
     CMD_SPEED = 0x05 # 速度设置
 
-    def __init__(self, port: str = "", baudrate: int = 1000000, debug_mode: bool = False, gripper_type: str = "50mm", firmware_version: str = "6.0.0"):
+    def __init__(self, port: str = "", baudrate: int = 1000000, debug_mode: bool = False, gripper_type: str = "50mm", firmware_version: str = "6.0.0", robot_type: str = "follower"):
         """
         初始化机械臂控制器
         
@@ -57,7 +57,7 @@ class ServoDriver:
 
         # 创建串口通信模块和数据解析器
         self.serial_comm = SerialComm(lock=self._lock, port=port, baudrate=baudrate, debug_mode=debug_mode)
-        self.data_parser = DataParser(lock=self._lock, debug_mode=debug_mode, firmware_new=self.firmware_new)
+        self.data_parser = DataParser(lock=self._lock, debug_mode=debug_mode, robot_type=robot_type)
         
         # 舵机数量
         self.servo_count = 9

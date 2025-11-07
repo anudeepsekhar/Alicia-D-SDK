@@ -38,7 +38,7 @@ class DataParser:
     # 数据长度
     JOINT_DATA_SIZE = 18
     
-    def __init__(self, lock: threading.Lock, debug_mode: bool = False, gripper_type: str = "50mm", firmware_new: bool = False):
+    def __init__(self, lock: threading.Lock, debug_mode: bool = False, gripper_type: str = "50mm", robot_type: str = "follower"):
         """
         初始化数据解析器
         
@@ -53,8 +53,8 @@ class DataParser:
         # 存储最新数据
         self._joint_states = JointState([0.0]*6, 0.0, 0.0,
                                         False, False)  # 六个关节角度(弧度)
-        self._firmware_version = None #"未知版本"  # 存储固件版本
 
+        self.robot_type = robot_type
         self._lock = lock
         logger.info("初始化数据解析模块")
         if debug_mode:
@@ -76,7 +76,7 @@ class DataParser:
         elif cmd_id == self.CMD_GRIPPER_V5:
             return self._parse_gripper_data_old(frame)
         elif cmd_id == self.CMD_GRIPPER_V6:
-            return self._parse_gripper_data(frame)
+            return self._parse_gripper_data(frame, robot_type=self.robot_type)
         elif cmd_id == self.CMD_ERROR:
             return self._parse_error_data(frame)
         elif cmd_id == self.CMD_VERSION:
@@ -265,7 +265,6 @@ class DataParser:
         ratio = (self.servo_value_limit - 2048) / 100
         gripper_value = 100 - ((gripper_raw - 2048) / ratio)
 
-
         # 更新存储的数据
         self._update_joint_state(gripper=gripper_value, button1=button1,
                                  button2=button2)
@@ -282,7 +281,7 @@ class DataParser:
 
 
 
-    def _parse_gripper_data(self, frame: List[int]) -> Dict:
+    def _parse_gripper_data(self, frame: List[int], robot_type: str = "follower") -> Dict:
         """
         解析夹爪数据帧 (0x12)
         
@@ -318,36 +317,34 @@ class DataParser:
         # 解析夹爪范围值 (字节4-5，用于验证，应与发送值相同)
         gripper_range_low = frame[4]
         gripper_range_high = frame[5]
-        gripper_range = gripper_range_low | (gripper_range_high << 8)
+        gripper_raw = gripper_range_low | (gripper_range_high << 8)
         
         # 解析电位计值 (字节6-7，这是实际的夹爪位置值)
         potentiometer_low = frame[6]
         potentiometer_high = frame[7]
-        gripper_raw = potentiometer_low | (potentiometer_high << 8)
+        potentiomete_raw = potentiometer_low | (potentiometer_high << 8)
         
         button1 = frame[8]  # 同步按键状态
         button2 = frame[9]  # 姿态按键状态
-        
-        # # 验证和限制夹爪值范围
-        # if gripper_raw < 2000 or gripper_raw > self.servo_value_limit:
-        #     logger.warning(f"夹爪值超出范围: {gripper_raw}，限制到[2048, {self.servo_value_limit}]")
-        #     gripper_raw = max(2048, min(gripper_raw, self.servo_value_limit))
-        
+        if robot_type == "leader" or button1:
+            gripper_raw = potentiomete_raw
+
         ratio = (self.servo_value_limit - 2048) / 100
         gripper_value = 100 - ((gripper_raw - 2048) / ratio)
-        # 更新存储的数据
+        # clip gripper_value to 0-100, round to 2 decimal places
+        gripper_value = round(max(0, min(gripper_value, 100)), 2)
         self._update_joint_state(gripper=gripper_value, button1=button1,
                                  button2=button2)
         
         if self.debug_mode:
-            logger.debug(f"夹爪数据: 范围值={gripper_range}, 位置值={gripper_raw}, "
+            logger.debug(f"夹爪数据: 范围值={gripper_raw}, 位置值={gripper_raw}, "
                         f"同步按键={'按下' if button1 else '未按下'}, "
                         f"姿态按键={'按下' if button2 else '未按下'}")
         
         return {
             "type": "gripper_data",
             "gripper_angle": self._joint_states.gripper,
-            "gripper_range": gripper_range,
+            "gripper_raw": gripper_raw,
             "button1": self._joint_states.button1,
             "button2": self._joint_states.button2,
             "timestamp": self._joint_states.timestamp

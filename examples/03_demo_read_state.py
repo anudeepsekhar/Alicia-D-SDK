@@ -24,7 +24,7 @@ def main(args):
         port=args.port,
         baudrate=args.baudrate,
         robot_version=args.robot_version,
-        # debug_mode=True,
+        robot_type=args.robot_type,
         gripper_type=args.gripper_type
     )
     
@@ -58,7 +58,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Read robot state")
     
     # Serial port settings
-    parser.add_argument('--port', type=str, default="/dev/ttyCH343USB0 ", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
+    parser.add_argument('--port', type=str, default="/dev/ttyUSB0", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
     parser.add_argument('--baudrate', type=int, default=1000000,  help="波特率 (默认: 1000000)")
     parser.add_argument('--robot_version', type=str, default="v5_6",  help="机器人版本 (默认: v5_6)")
     parser.add_argument('--gripper_type', type=str, default="50mm",  help="夹爪型号 (默认: 50mm)")
