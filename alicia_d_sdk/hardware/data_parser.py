@@ -50,7 +50,6 @@ class DataParser:
             self.servo_value_limit = self.GRI_MAX_50MM
         else:
             self.servo_value_limit = self.GRI_MAX_100MM 
-        self.firmware_new = firmware_new
         # 存储最新数据
         self._joint_states = JointState([0.0]*6, 0.0, 0.0,
                                         False, False)  # 六个关节角度(弧度)
@@ -71,12 +70,8 @@ class DataParser:
         Returns:
             Dict: 解析结果，如果解析失败则返回None
         """
-        self.CMD_GRIPPER = self.CMD_GRIPPER_V6 if self.firmware_new else self.CMD_GRIPPER_V5
-        self.CMD_JOINT = self.CMD_JOINT_V6 if self.firmware_new else self.CMD_JOINT_V5
         cmd_id = frame[1]
-        # print("cmd_id:", cmd_id)
-        # 根据指令ID解析数据
-        if cmd_id == self.CMD_JOINT:
+        if cmd_id == self.CMD_GRIPPER_V6 or cmd_id == self.CMD_GRIPPER_V5:
             return self._parse_joint_data(frame)
         elif cmd_id == self.CMD_GRIPPER_V5:
             return self._parse_gripper_data_old(frame)
