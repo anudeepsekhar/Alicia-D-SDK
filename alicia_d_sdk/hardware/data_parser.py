@@ -71,7 +71,7 @@ class DataParser:
             Dict: 解析结果，如果解析失败则返回None
         """
         cmd_id = frame[1]
-        if cmd_id == self.CMD_GRIPPER_V6 or cmd_id == self.CMD_GRIPPER_V5:
+        if cmd_id == self.CMD_JOINT_V5 or cmd_id == self.CMD_JOINT_V6:
             return self._parse_joint_data(frame)
         elif cmd_id == self.CMD_GRIPPER_V5:
             return self._parse_gripper_data_old(frame)
@@ -140,6 +140,10 @@ class DataParser:
             Dict: 解析结果
         """
         # 检查数据长度
+        # print(f"帧长度: {len(frame)}")
+        # # print frame in hex format:
+        # frame_hex = " ".join([f"{b:02X}" for b in frame])
+        # logger.info(f"接收到的帧: {frame_hex}")
         if frame[2] != self.JOINT_DATA_SIZE:  # 0x12对应十进制18 (9个舵机 * 2字节)
             logger.warning(f"关节数据长度错误: {frame[2]}")
             return None
