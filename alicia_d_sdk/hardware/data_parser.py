@@ -55,6 +55,7 @@ class DataParser:
                                         False, False)  # 六个关节角度(弧度)
 
         self.robot_type = robot_type
+        self._firmware_version: Optional[str] = None
         self._lock = lock
         logger.info("初始化数据解析模块")
         if debug_mode:
