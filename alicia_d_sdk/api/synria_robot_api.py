@@ -679,8 +679,9 @@ class SynriaRobotAPI:
 
         :return: True if calibration successful
         """
+        logger.warning("此操作将更改出厂零点位置，请谨慎操作")
         logger.info("开始归零校准,机械臂将失去扭矩")
-        logger.info("按下回车继续")
+        logger.info("按下回车继续, Ctrl+C 取消...")
         input()
         # 关闭扭矩
         if not self.torque_control('off'):
