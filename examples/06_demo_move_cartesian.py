@@ -26,7 +26,8 @@ def main(cmd_args):
         port=cmd_args.port,
         baudrate=cmd_args.baudrate,
         robot_version=cmd_args.robot_version,
-        gripper_type=cmd_args.gripper_type
+        gripper_type=cmd_args.gripper_type,
+        speed_deg_s = 20
     )
     
     if not robot.connect():
@@ -80,7 +81,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Multi-Point Cartesian Trajectory Demo")
     
     # Robot configuration
-    parser.add_argument('--port', type=str, default="/dev/ttyUSB0", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
+    parser.add_argument('--port', type=str, default="/dev/ttyUSB0", help="串口端口 (例如: /dev/ttyCH343USB0 或 COM3)")
     parser.add_argument('--baudrate', type=int, default=1000000,  help="波特率 (默认: 1000000)")
     parser.add_argument('--robot_version', type=str, default="v5_6",  help="机器人版本 (默认: v5_6)")
     parser.add_argument('--gripper_type', type=str, default="50mm",  help="夹爪型号 (默认: 50mm)")
@@ -88,7 +89,7 @@ if __name__ == "__main__":
     
     
     # Trajectory planning settings
-    parser.add_argument('--move_duration', type=float, default=1.0, help="每个路径点的移动时间 (秒, 默认: 3.0)")
+    parser.add_argument('--move_duration', type=float, default=3.0, help="每个路径点的移动时间 (秒, 默认: 3.0)")
     parser.add_argument('--num_points', type=int, default=200, help="轨迹插值点数 (默认: 150)")
     parser.add_argument('--ik_method', type=str, default='dls',
                        choices=['dls', 'pinv', 'lm'], help="逆运动学求解方法 (默认: dls)")
