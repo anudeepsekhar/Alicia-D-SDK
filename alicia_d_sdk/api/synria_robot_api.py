@@ -130,25 +130,31 @@ class SynriaRobotAPI:
                          target_joints: List[float],
                          joint_format: str = 'rad',
                          tolerance: float = 0.03,
-                         timeout: Optional[float] = None) -> bool:
-        """Move robot to target joint angles and wait until near target.
+                         timeout: Optional[float] = None,
+                         wait_for_completion: bool = True) -> bool:
+        """Move robot to target joint angles and optionally wait until near target.
 
         :param target_joints: Target joint angles
         :param joint_format: Unit format, 'rad' or 'deg'
         :param tolerance: Rad, acceptable abs distance to target for all joints
         :param timeout: Seconds, maximum wait time; default derived from distance and speed
-        :return: True if command sent successfully
+        :param wait_for_completion: If True, wait until joints reach target; if False, return immediately after sending command
+        :return: True if command sent successfully (and reached target if wait_for_completion=True)
         """
         if joint_format == 'deg':
             target_joints = [a * np.pi / 180.0 for a in target_joints]
         sucess = self.servo_driver.set_joint_angles(target_joints)
 
+        if not sucess:
+            return False
+
+        # If not waiting, return immediately after successful command send
+        if not wait_for_completion:
+            return True
+
         # calculate the delay for the next movement
         current_joints = self.get_joints()
         delay = calculate_movement_duration(current_joints, target_joints, self.speed_deg_s)
-
-        if not sucess:
-            return False
 
         # Active feedback wait until close to target (or timeout)
         max_wait = timeout if timeout is not None else max(1.0, delay * 1.5)
@@ -159,6 +165,22 @@ class SynriaRobotAPI:
             log_prefix="等待关节接近目标"
         )
     
+    def set_joint_target_no_wait(self,
+                                 target_joints: List[float],
+                                 joint_format: str = 'rad') -> bool:
+        """Move robot to target joint angles without waiting for completion.
+        
+        This is a non-blocking version of set_joint_target. The command is sent
+        to the robot and the function returns immediately without waiting for
+        the robot to reach the target position.
+        
+        :param target_joints: Target joint angles
+        :param joint_format: Unit format, 'rad' or 'deg'
+        :return: True if command sent successfully, False otherwise
+        """
+        if joint_format == 'deg':
+            target_joints = [a * np.pi / 180.0 for a in target_joints]
+        return self.servo_driver.set_joint_angles(target_joints)
 
     
     def set_joint_target_interplotation(self,
