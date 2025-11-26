@@ -111,7 +111,7 @@ class BeautyLogger:
         if self._should_print(LogLevel.ERROR) and local_verbose:
             beauty_print(content, type="error")
         self._write_log(content, type="error")
-        raise Exception(content)
+        # raise Exception(content)
 
     def success(self, content, local_verbose=True):
         """

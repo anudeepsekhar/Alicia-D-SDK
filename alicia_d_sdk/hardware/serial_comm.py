@@ -3,265 +3,177 @@ import platform
 import serial.tools.list_ports
 import time
 import os
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import threading
 from datetime import datetime
-
-# 使用统一的日志器
+import getpass
 from alicia_d_sdk.utils.logger import logger
 READ_LENGTH = 50
-DEFAULT_LENGTH = 5
+DEFAULT_LENGTH = 6
 
 
 class SerialComm:
-    """机械臂串口通信模块 - 简化版"""
+    """Robot arm serial communication module"""
+    
+    PLATFORM_PRIORITIES = {
+        "Darwin": ["cu.wchusbserial", "cu.SLAB_USBtoUART", "cu.usbserial", "cu.usbmodem", "ttyUSB", "COM"],
+        "Linux": ["ttyUSB", "ttyACM", "ttyCH343USB", "ttyCH341USB", "cu.wchusbserial", 
+                 "cu.SLAB_USBtoUART", "cu.usbserial", "cu.usbmodem", "COM"],
+        "Windows": ["COM", "ttyUSB", "cu.usbserial", "cu.usbmodem"]
+    }
 
-    def __init__(self, lock: threading.Lock, port: str = "", baudrate: int = 1000000,
-                 timeout: float = 1.0, debug_mode: bool = False):
+    def __init__(self, port: str = "", baudrate: int = 1000000,
+                 timeout: float = 1.0, debug_mode: bool = False, lock: Optional[threading.Lock] = None):
         """
-        初始化串口通信模块
-
         Args:
-            port: 串口名称，留空则自动搜索
-            baudrate: 波特率
-            timeout: 超时时间(秒)
-            debug_mode: 是否启用调试模式
+            port: Serial port name, leave empty to auto-search
+            baudrate: Baud rate
+            timeout: Timeout in seconds
+            debug_mode: Whether to enable debug mode
+            lock: Optional thread lock, auto-created if not provided
         """
         self.port_name = port
         self.baudrate = baudrate
-        self.baudrate_default = 1000000
-        self.baudrate_macOS = 1000000
         self.timeout = timeout
         self.debug_mode = debug_mode
-
         self.serial_port = None
         self.last_log_time = 0
         self._last_print_time = 0
-
-        self._lock = lock
+        self._lock = lock if lock is not None else threading.Lock()
         self._rx_buffer = bytearray()
         self._frames_processed = 0
         self._frames_dropped = 0
-        logger.info(f"初始化串口通信模块: 端口={port or '自动'}, 波特率={baudrate}")
-        logger.info(f"调试模式: {'启用' if debug_mode else '禁用'}")
+        logger.info(f"Initialize serial communication module: port={port or 'auto'}, baudrate={baudrate}")
+        logger.info(f"Debug mode: {'enabled' if debug_mode else 'disabled'}")
 
     def __del__(self):
-        """析构函数，确保关闭串口"""
+        """Destructor, ensure serial port is closed"""
         self.disconnect()
 
     def connect(self) -> bool:
-        """
-        连接到串口设备
-
-        Returns:
-            bool: 连接是否成功
-        """
+        """Connect to serial port device"""
         try:
-            # 查找可用串口
             port = self.find_serial_port()
-
-            # 没有找到可用串口
             if not port:
-                logger.warning("未找到可用串口")
+                logger.warning("No available serial port found")
                 return False
 
-            logger.info(f"正在连接端口: {port}")
+            has_permission, error_msg = self._check_serial_permissions(port)
+            if not has_permission:
+                logger.error(error_msg)
+                return False
 
-            # 关闭已有连接
+            logger.info(f"Connecting to port: {port}")
+
             if self.serial_port and self.serial_port.is_open:
                 self.serial_port.close()
 
-            if '/dev/tty.' in port:
-                cu_candidate = port.replace('/dev/tty.', '/dev/cu.')
-                if os.path.exists(cu_candidate) and os.access(cu_candidate, os.R_OK | os.W_OK):
-                    logger.info(f"检测到 macOS 端口 {port}，将优先切换为 {cu_candidate} 用于写入")
-                    port = cu_candidate
+            port = self._prefer_cu_port(port)
 
-            # Do not force-change baudrate on macOS. Keep user/default and only log.
             if 'cu.usbserial' in port:
-                logger.info(f"当前波特率为 {self.baudrate}，如通信异常可尝试 1000000/1000000/115200")
+                logger.info(f"Current baudrate is {self.baudrate}, if communication is abnormal, try 1000000/1000000/921600")
 
-            # Serial parameters: add write timeout and disable flow control
             self.serial_port = serial.Serial(
-                port=port,
-                baudrate=self.baudrate,
-                timeout=self.timeout,
-                write_timeout=self.timeout,
-                xonxoff=False,
-                rtscts=False,
-                dsrdtr=False
+                port=port, baudrate=self.baudrate, timeout=self.timeout,
+                write_timeout=self.timeout, xonxoff=False, rtscts=False, dsrdtr=False
             )
-            try:
-                # Ensure buffers and handshake lines are in a sane state
-                self.serial_port.reset_input_buffer()
-                self.serial_port.reset_output_buffer()
-                try:
-                    # Keep DTR asserted; some controllers ignore TX when DTR is low
-                    self.serial_port.setDTR(True)
-                except Exception:
-                    pass
-                try:
-                    self.serial_port.setRTS(False)
-                except Exception:
-                    pass
-            except Exception:
-                pass
+            self._initialize_serial_port()
 
             if self.serial_port.is_open:
-                logger.info("串口连接成功")
+                logger.info("Serial port connection successful")
                 return True
-
             return False
-
         except Exception as e:
-            logger.error(f"连接串口异常: {str(e)}")
+            logger.error(f"Serial port connection exception: {str(e)}")
             return False
+
 
     def disconnect(self):
-        """断开串口连接"""
+        """Disconnect serial port connection"""
         if self.serial_port and self.serial_port.is_open:
             self.serial_port.close()
-            logger.info("串口已关闭")
+            logger.info("Serial port closed")
 
     def is_connected(self) -> bool:
-        """Check if serial port is connected and open.
-
-        Returns:
-            bool: True if serial port is connected and open
-        """
+        """Check if serial port is connected and open"""
         return self.serial_port is not None and self.serial_port.is_open
 
+
     def find_serial_port(self) -> str:
-        """
-        查找可用的串口设备
-
-        Returns:
-            str: 可用串口的路径，未找到则返回空字符串
-        """
-        # 记录当前时间，避免过频繁打印日志
+        """Find available serial port device"""
         current_time = time.time()
-        should_log = (current_time - self.last_log_time) >= 5.0  # 每5秒允许打印一次日志
-        if self.port_name:
-            # Windows: 对于COM端口号大于9的情况，需要添加 \\.\ 前缀
-            device_name = self.port_name
-            if platform.system() == "Windows" and device_name.startswith("COM"):
-                try:
-                    port_num = int(device_name[3:])  # 去掉"COM"前缀
-                    if port_num > 9 and not device_name.startswith("\\\\.\\"):
-                        device_name = f"\\\\.\\{device_name}"
-                        if should_log:
-                            logger.info(f"Windows COM端口号大于9，添加前缀: {device_name}")
-                except ValueError:
-                    pass  # 如果端口号解析失败，使用原始名称
+        should_log = (current_time - self.last_log_time) >= 5.0
 
-            if os.access(device_name, os.R_OK | os.W_OK):
-                logger.info(f"使用指定的端口: {device_name}")
+        # Handle user-specified port
+        if self.port_name:
+            device_name = self._normalize_device_name(self.port_name, should_log)
+            if self._is_device_accessible(device_name):
+                logger.info(f"Using specified port: {device_name}")
                 return device_name
-            else:
-                logger.warning(f"指定的端口 {device_name} 不可用，将搜索其他设备")
-        # 获取串口列表
+            logger.warning(f"Specified port {device_name} is not available, will search for other devices")
+
+        # Get serial port list
         try:
             ports = list(serial.tools.list_ports.comports())
         except Exception as e:
             if should_log:
-                logger.error(f"列出端口时异常: {str(e)}")
+                logger.error(f"Exception when listing ports: {str(e)}")
                 self.last_log_time = current_time
             return ""
 
-        # 如果有端口且应该打印日志
-        if ports and should_log:
-            port_names = [port.device for port in ports]
-            logger.info(f"找到 {len(ports)} 个串口设备: {' '.join(port_names)}")
-            self.last_log_time = current_time
-
-        # 如果没有端口
         if not ports:
             return ""
 
-        # Device priority based on platform
-        if platform.system() == "Darwin":  # macOS
-            # macOS: prefer cu.* devices to avoid write blocking
-            candidates_priority = [
-                "cu.wchusbserial", "cu.SLAB_USBtoUART", "cu.usbserial", "cu.usbmodem",
-                "ttyUSB", "COM"
-            ]
-        elif platform.system() == "Linux":  # Ubuntu/Linux
-            # Linux: prefer ttyUSB devices
-            candidates_priority = [
-                "ttyUSB", "ttyACM", "ttyCH343USB", "cu.wchusbserial", "cu.SLAB_USBtoUART",
-                "cu.usbserial", "cu.usbmodem", "COM"
-            ]
-        else:  # Windows and others
-            candidates_priority = [
-                "COM", "ttyUSB", "cu.usbserial", "cu.usbmodem"
-            ]
+        if should_log:
+            self.last_log_time = current_time
 
-        # Pass 1: strictly match priority keys
-        for key in candidates_priority:
+        # Find device by priority
+        for key in self.PLATFORM_PRIORITIES.get(platform.system(), self.PLATFORM_PRIORITIES["Windows"]):
             for p in ports:
                 if key in p.device:
-                    device_name = p.device
-                    # Windows: 对于COM端口号大于9的情况，需要添加 \\.\ 前缀
-                    if platform.system() == "Windows" and device_name.startswith("COM"):
-                        # 提取COM端口号
-                        try:
-                            port_num = int(device_name[3:])  # 去掉"COM"前缀
-                            if port_num > 9:
-                                device_name = f"\\\\.\\{device_name}"
-                                if should_log:
-                                    logger.info(f"Windows COM端口号大于9，添加前缀: {device_name}")
-                        except ValueError:
-                            pass  # 如果端口号解析失败，使用原始名称
-
-                    # 检查处理后的设备名称是否可访问
-                    # Windows COM端口不需要文件系统访问检查
-                    if platform.system() == "Windows" and device_name.startswith(("COM", "\\\\.\\COM")):
+                    device_name = self._normalize_device_name(p.device, should_log)
+                    if self._is_device_accessible(device_name):
                         if should_log:
-                            logger.info(f"找到可用设备: {device_name}")
-                        return device_name
-                    elif os.access(device_name, os.R_OK | os.W_OK):
-                        if should_log:
-                            logger.info(f"找到可用设备: {device_name}")
+                            logger.info(f"Found available device: {device_name}")
                         return device_name
 
-        # Pass 2: if only /dev/tty.* is present on macOS, try map to /dev/cu.*
+        # macOS: try to map tty.* to cu.*
         if platform.system() == "Darwin":
             for p in ports:
-                dev = p.device
-                if dev.startswith('/dev/tty.'):
-                    cu_candidate = dev.replace('/dev/tty.', '/dev/cu.')
+                if p.device.startswith('/dev/tty.'):
+                    cu_candidate = p.device.replace('/dev/tty.', '/dev/cu.')
                     if os.path.exists(cu_candidate) and os.access(cu_candidate, os.R_OK | os.W_OK):
                         if should_log:
-                            logger.info(f"将 {dev} 映射为 {cu_candidate}")
+                            logger.info(f"Map {p.device} to {cu_candidate}")
                         return cu_candidate
 
         if should_log:
-            logger.warning("未找到可用的串口设备（支持 ttyUSB/ttyACM/ttyCH343USB/cu.usbserial/cu.usbmodem/COM）")
+            logger.warning("No available serial port device found (supports ttyUSB/ttyACM/ttyCH343USB/cu.usbserial/cu.usbmodem/COM)")
         return ""
 
     def send_data(self, data: List[int]) -> bool:
         """
-        发送数据到串口
+        Send data to serial port
 
         Args:
-            data: 要发送的字节数据列表
+            data: Byte data list to send
 
         Returns:
-            bool: 是否发送成功
+            bool: Whether send is successful
         """
         with self._lock:
             try:
                 if not self.serial_port or not self.serial_port.is_open:
-                    logger.warning("串口未打开，尝试重新连接")
+                    logger.warning("Serial port not open, trying to reconnect")
                     if not self.connect():
-                        logger.error("无法连接到串口")
+                        logger.error("Cannot connect to serial port")
                         return False
 
-                # 转换为字节数组
+                # Convert to byte array
                 data_bytes = bytes(data)
 
-                # 写入数据
-
+                # Write data
+                print("data:", data_bytes)
                 bytes_written = self.serial_port.write(data_bytes)
                 try:
                     self.serial_port.flush()
@@ -269,7 +181,7 @@ class SerialComm:
                     pass
 
                 if bytes_written != len(data):
-                    logger.warning(f"只写入了 {bytes_written} 字节，应为 {len(data)} 字节")
+                    logger.warning(f"Only wrote {bytes_written} bytes, should be {len(data)} bytes")
                     return False
 
                 if self.debug_mode:
@@ -278,48 +190,52 @@ class SerialComm:
                 return True
 
             except Exception as e:
-                logger.error(f"发送数据时异常: {str(e)}")
+                logger.error(f"Exception sending data: {str(e)}")
                 return False
+
+
 
     def read_frame(self) -> Optional[List[int]]:
         """
-        读取一帧数据（非阻塞，如果没有完整帧则返回None）
+        Read one frame of data (non-blocking, returns None if no complete frame)
 
         Returns:
-            Optional[List[int]]: 完整的数据帧，如果没有则返回None
+            Optional[List[int]]: Complete data frame, returns None if not available
         """
         try:
             if not self.serial_port or not self.serial_port.is_open:
                 if not self.connect():
                     return None
 
-            # 检查是否有数据可读
+            # Check if there is data to read
             if self.serial_port.in_waiting == 0:
                 return None
-
-            # 限制一次读取的数据量，避免缓冲区过大
+            # 1. Read data from hardware
+            # elif self.serial_port.in_waiting > 0:
+            #     # Read up to 1024 bytes to ensure we capture full frames
+            #     read_size = min(self.serial_port.in_waiting, 50)
+            #     new_data = self.serial_port.read(read_size)
+            #     self._rx_buffer.extend(new_data)
+            # Limit the amount of data read at once to avoid buffer overflow
             available_bytes = self.serial_port.in_waiting
-            max_read_size = 100
+            max_read_size = 40
             read_size = min(available_bytes, max_read_size)
 
             self._rx_buffer += self.serial_port.read(read_size)
-            # try:
-            #     hex_buf = ' '.join(f"{b:02X}" for b in self._rx_buffer)
-            #     logger.info(f"self._rx_buffer: {hex_buf}")
-            # except Exception:
-            #     pass
-            # Minimal frame structure [0xAA] [CMD] [DATA_LEN]
-            frames_processed = 0
-            max_frames_per_call = 10 
+
+            # frames_processed = 0
+            # max_frames_per_call = 5 
             
-            while len(self._rx_buffer) >= 3 and frames_processed < max_frames_per_call:
+            while len(self._rx_buffer) >= 6: # and frames_processed < max_frames_per_call:
                 if len(self._rx_buffer) > 200:
                     # print(f" Warning: rx_buffer large ({len(self._rx_buffer)} bytes)")
                     self._rx_buffer.clear()
                     continue
 
-                
-                # Step 2: 同步到帧头 0xAA
+                # print hex of self._rx_buffer
+                print("self._rx_buffer: ", self._rx_buffer)
+                self._hex_print("self._rx_buffer", self._rx_buffer)
+                # Step 2: Sync to frame header 0xAA
                 if self._rx_buffer[0] != 0xAA:
                     self._rx_buffer.pop(0)
                     continue
@@ -327,135 +243,178 @@ class SerialComm:
                 if self.debug_mode:
                     print(f" Buffer size: {len(self._rx_buffer)} bytes, first bytes: {self._rx_buffer[:min(12, len(self._rx_buffer))]}")
 
-                data_len = self._rx_buffer[2]
-                
-                # 验证data_len是否合理（防止异常数据）
-                if data_len > 200:
-                    logger.warning(f" Abnormal data_len={data_len}, resyncing")
-                    self._rx_buffer.pop(0)
-                    continue
+                data_len = self._rx_buffer[3]
+                # Verify data_len is reasonable (prevent abnormal data)
+                # if data_len > 200:
+                #     logger.warning(f" Abnormal data_len={data_len}, resyncing")
+                #     self._rx_buffer.pop(0)
+                #     continue
                 
                 frame_length = data_len + DEFAULT_LENGTH
-                
-                # Step 4: 检查缓冲区是否包含完整帧
+                if len(self._rx_buffer) < frame_length:
+                    # Wait for more data
+                    break
+
+                # Step 4: Check if buffer contains complete frame
                 if len(self._rx_buffer) < frame_length:
                     if self.debug_mode:
-                        logger.debug(f"⏳ Incomplete frame: need {frame_length}, have {len(self._rx_buffer)}")
+                        logger.debug(f" Incomplete frame: need {frame_length}, have {len(self._rx_buffer)}")
                     break
                 
                 candidate = self._rx_buffer[:frame_length]
-                # Always print candidate frame in hex
-                # if candidate[1] == 0x12:
-                #     hex_cand = ' '.join(f"{b:02X}" for b in candidate)
-                #     logger.info(f"candidate: {hex_cand}")
-                # if self.debug_mode:
-                #     print(f" Candidate ({frame_length} bytes): {candidate}")
                 
-                # Step 5: 验证帧尾和校验
+                # Step 5: Verify frame tail and checksum
                 valid_tail = candidate[-1] == 0xFF
-                valid_checksum = self._serial_data_check(candidate)
+                
+                if not valid_tail:
+                    # Tail mismatch, this 0xAA was not a start or data is corrupted
+                    self._rx_buffer.pop(0)
+                    continue
 
-                parsed = {
-                    "timestamp": datetime.now().isoformat(),
-                    "raw": ' '.join(f"{b:02X}" for b in candidate),
-                    "raw_decimal": list(candidate),
-                    "valid": valid_tail and valid_checksum
-                }
-
-                if self.debug_mode:
-                    now = time.time()
-                    if now - self._last_print_time > 1.0:
-                        logger.info(f"[Frame] {parsed['raw_decimal']} {'(OK)' if parsed['valid'] else '(Invalid)'}")
-                        self._last_print_time = now
-
-                # Step 6: 处理验证结果
-                if parsed["valid"]:
+                if self._serial_data_check(candidate):
+                    # --- Valid Frame Found ---
+                
                     self._rx_buffer = self._rx_buffer[frame_length:]
-                    frames_processed += 1
-                    self._frames_processed += 1
-                    
-                    if self.debug_mode:
-                        print(f"Valid frame processed! ({frames_processed}/{max_frames_per_call}) Remaining: {len(self._rx_buffer)} bytes")
+                    # frames_processed += 1
 
                     return list(candidate)
                 else:
-                    self._frames_dropped += 1
-                    if self.debug_mode:
-                        logger.warning(f"Invalid frame, resyncing. Frame: {parsed['raw']} (dropped: {self._frames_dropped})")
-                    else:
-                        if self._frames_dropped % 100 == 0:  # 每丢弃100帧打印一次
-                            print(f"⚠ Dropped {self._frames_dropped} invalid frames")
-                    self._rx_buffer.pop(0)
-                    continue
-            
+                    # Checksum failed
+                    logger.warning(f"CRC Error. Raw: {' '.join(f'{b:02X}' for b in candidate)}")
+                    # Move past this header to try finding next sync
+                    self._rx_buffer.pop(0) 
+
             return None
 
         except Exception as e:
-            logger.error(f"读取数据异常: {str(e)}")
+            logger.error(f"Exception reading data: {str(e)}")
             return None
+
+
+
 
     def _serial_data_check(self, frame: bytearray) -> bool:
         """
-        验证数据的校验和
-
-        Args:
-            data: 数据帧
-
-        Returns:
-            bool: 校验是否通过
+        Verify CRC8 checksum.
+        Frame: [AA] [Cmd] [Func] [Len] [Data...] [CRC] [FF]
         """
-        data_len = frame[2]
-        if len(frame) != data_len + DEFAULT_LENGTH:
-            return False
-
-        payload = frame[3:3 + data_len]
-        checksum = frame[3 + data_len]
-        return checksum == self._calculate_checksum(payload)
+        # The Checksum is the second to last byte
+        received_checksum = frame[-2]
+        
+        # Calculate CRC on: Cmd, Func, Len, Data... 
+        # Range: Index 1 up to (but not including) the Checksum byte
+        payload_to_check = frame[1:-2]
+        
+        calculated_checksum = self._calculate_checksum(payload_to_check)
+        
+        return received_checksum == calculated_checksum
 
     def _calculate_checksum(self, data) -> int:
         """
-        计算数据的校验和
-
-        Args:
-            data: 数据帧
-
-        Returns:
-            int: 校验和
+        Calculate CRC-8 (Maxim/Dallas)
+        Polynomial: 0x31 (x^8 + x^5 + x^4 + 1)
+        Init: 0x00
+        XOR Out: 0x00
         """
-        sum_value = 0
-        for i in range(len(data)):
-            sum_value += data[i]
-        return sum_value % 2
+        crc = 0x00
+        for byte in data:
+            # Use precomputed table for speed
+            crc = self._crc8_table[crc ^ byte]
+        return crc
 
-    def _print_hex_frame(self, data: List[int], type_code: int):
-        """
-        打印十六进制数据
 
-        Args:
-            data: 数据帧
-            type_code: 0=发送数据, 1=接收数据, 其他=部分数据
-        """
-        if not self.debug_mode:
-            return
-
-        prefix = {
-            0: "发送数据: ",
-            1: "数据接收: ",
-            2: "部分数据: "
-        }.get(type_code, "未知数据: ")
-
-        hex_str = " ".join([f"{byte:02X}" for byte in data])
-        logger.info(f"{prefix}{hex_str}")
     
     def get_processing_stats(self) -> dict:
         """
-        获取帧处理统计信息
+        Get frame processing statistics
         
         Returns:
-            dict: 包含处理和丢弃帧数的统计信息
+            dict: Contains statistics of processed and dropped frames
         """
         return {
             "frames_processed": self._frames_processed,
             "frames_dropped": self._frames_dropped,
             "buffer_size": len(self._rx_buffer)
         }
+
+    def _prefer_cu_port(self, port: str) -> str:
+        """Convert macOS tty.* to cu.* if available"""
+        if '/dev/tty.' in port:
+            cu_candidate = port.replace('/dev/tty.', '/dev/cu.')
+            if os.path.exists(cu_candidate) and os.access(cu_candidate, os.R_OK | os.W_OK):
+                logger.info(f"Detected macOS port {port}, switching to {cu_candidate} for writing")
+                return cu_candidate
+        return port
+
+    def _initialize_serial_port(self):
+        """Initialize serial port buffers and handshake lines"""
+        self.serial_port.reset_input_buffer()
+        self.serial_port.reset_output_buffer()
+        self.serial_port.setDTR(True)  # Some controllers ignore TX when DTR is low
+        self.serial_port.setRTS(False)
+
+
+    def _normalize_device_name(self, device_name: str, should_log: bool = False) -> str:
+        """Normalize device name for Windows COM port and Linux path"""
+        # Windows: add prefix for COM ports > 9
+        if platform.system() == "Windows" and device_name.startswith("COM"):
+            try:
+                port_num = int(device_name[3:])
+                if port_num > 9 and not device_name.startswith("\\\\.\\"):
+                    device_name = f"\\\\.\\{device_name}"
+                    if should_log:
+                        logger.info(f"Windows COM port number greater than 9, add prefix: {device_name}")
+            except ValueError:
+                pass
+        
+        # Linux: ensure /dev/ prefix
+        if platform.system() == "Linux" and not device_name.startswith("/dev/"):
+            if device_name.startswith(("tty", "cu")):
+                device_name = f"/dev/{device_name}"
+        
+        return device_name
+
+    def _check_serial_permissions(self, device_name: str) -> Tuple[bool, Optional[str]]:
+        """Check serial port device permissions"""
+        if platform.system() == "Windows":
+            return True, None
+        
+        if not os.path.exists(device_name):
+            return False, f"Device {device_name} does not exist"
+        
+        if not os.access(device_name, os.R_OK | os.W_OK):
+            current_user = getpass.getuser()
+            system = platform.system()
+            solutions = {
+                "Linux": (
+                    f"  1. Add user '{current_user}' to dialout group:\n"
+                    f"     sudo usermod -a -G dialout {current_user}\n"
+                    f"  2. Log out and log back in, or run: newgrp dialout\n"
+                    f"  3. Or temporarily use: sudo chmod 666 {device_name}\n"
+                ),
+                "Darwin": (
+                    f"  1. Add user '{current_user}' to dialout or uucp group\n"
+                    f"  2. Or temporarily use: sudo chmod 666 {device_name}\n"
+                )
+            }
+            solution = solutions.get(system, f"  Temporarily use: sudo chmod 666 {device_name}\n")
+            return False, f"Insufficient permissions: Cannot access serial port device {device_name}\nSolution:\n{solution}"
+        
+        return True, None
+
+    def _is_device_accessible(self, device_name: str) -> bool:
+        """Check if device exists and is accessible"""
+        if platform.system() == "Windows" and device_name.startswith(("COM", "\\\\.\\COM")):
+            return True
+        if not os.path.exists(device_name):
+            return False
+        # Permission check is done in connect() for detailed error messages
+        has_permission, error_msg = self._check_serial_permissions(device_name)
+        if not has_permission and error_msg and self.debug_mode:
+            logger.warning(error_msg)
+        return True
+
+    def _hex_print(self, title: str, data: List[int]):
+        hex_buf = ' '.join(f"{b:02X}" for b in data)
+        print(f"{title}: {hex_buf}")
+        logger.info(f"{title}: {hex_buf}")

@@ -26,9 +26,6 @@ class ServoDriver:
     GRIPPER_FRAME_SIZE_V5 = 8
     GRIPPER_FRAME_SIZE = 11
     
-
-    
-    
     # 指令ID
     CMD_GRIPPER = 0x02     # 夹爪控制与行程反馈
     CMD_ZERO_POS = 0x03    # 机械臂以当前位置为零点  
@@ -218,27 +215,7 @@ class ServoDriver:
         logger.info("状态更新线程已结束运行")
 
 
-    def get_firmware_version(self) -> Optional[str]:
-        """
-        Get firmware version
-        """
-        command = [0xAA, 0x01, 0x00, 0xFE, 0x23, 0xFF]
 
-        self.serial_comm.send_data(command)
-        time.sleep(0.05) 
-        caldidata = self.serial_comm.read_frame()
-        print(caldidata)
-        # self.serial_comm._hex_print("caldidata", caldidata)
-        return caldidata
-
-    def set_torque(self, enble: False) -> bool:
-        """
-        Set torque
-        """
-        command = [0xAA, 0x05, 0x01, 0x00, 0x6F, 0xFF]
-        self.serial_comm.send_data(command)
-        time.sleep(0.05) 
-        return True
 
     def set_joint_angles(self, joint_angles: List[float]) -> bool:
         """
