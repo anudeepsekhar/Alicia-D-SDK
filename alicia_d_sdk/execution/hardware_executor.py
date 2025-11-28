@@ -17,13 +17,14 @@ class HardwareExecutor:
                 visualize: bool = False,
                 gripper_traj: List[float] = None,
                 interaction: bool = False,
-                firmware_new: bool = True
+                speed_deg_s: float = 20.0,
                 ):
         """
         :param joint_traj: Joint trajectory as a list of joint angle lists
         :param visualize: Whether to plot before execution
         :param gripper_traj: Optional gripper values aligned with trajectory
         :param interaction: Whether to wait for user confirmation
+        :param speed_deg_s: Joint speed in degrees per second for combined control
         :return: True if executed, False if cancelled
         """
         traj_np = np.array(joint_traj)
@@ -40,47 +41,19 @@ class HardwareExecutor:
                 return False
         
         for idx, point in enumerate(joint_traj):
-            self.joint_controller.set_joint_angles(point)
+            # Select corresponding gripper value (if provided)
+            g = None
             if gripper_traj is not None and idx < len(gripper_traj):
                 g = gripper_traj[idx]
-                if g is not None:
-                    self.joint_controller.set_gripper(g)
+
+            # Use combined joint + gripper command so they are sent at once
+            self.joint_controller.set_joint_and_gripper(
+                joint_angles=point,
+                gripper_value=g,
+                speed_deg_s=speed_deg_s,
+            )
             time.sleep(self.delay)
         
-
-class JointInterpolator:
-    """Joint space interpolator ( Deprecated, only used for old firmware )
-    """
-    def plan(
-        self,
-        start_angles: List[float],
-        target_angles: List[float],
-        steps: int
-        ) -> List[List[float]]:
-        """
-        :param start_angles: Start joint angles
-        :param target_angles: Target joint angles
-        :param steps: Number of interpolation steps
-        :return: Interpolated joint trajectory
-        """
-        traj = []
-        for step in range(1, steps + 1):
-            ratio = self.ease_in_out_cubic(step / steps)
-            interp = [
-                s + (t - s) * ratio
-                for s, t in zip(start_angles, target_angles)
-            ]
-            traj.append(interp)
-
-        return traj
-
-    @staticmethod
-    def ease_in_out_cubic(x: float) -> float:
-        """
-        :param x: Normalized time in [0, 1]
-        :return: Interpolation coefficient
-        """
-        return 4 * x**3 if x < 0.5 else 1 - pow(-2 * x + 2, 3) / 2
 
 
 class CartesianWaypointPlanner:
@@ -175,8 +148,8 @@ class CartesianWaypointPlanner:
                 visualize=visualize
             )
             
-            # 设置夹爪
-            self.robot.set_gripper_target(value=gripper, wait_for_completion=False)
+            # 设置夹爪（使用统一接口，仅控制夹爪）
+            self.robot.set_robot_target(gripper_value=gripper, wait_for_completion=False)
             time.sleep(step_delay)
             
             # 逐步执行模式下等待用户确认

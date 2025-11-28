@@ -6,6 +6,7 @@ import os
 from typing import List, Optional, Tuple
 import threading
 from datetime import datetime
+from PyCRC.CRC32 import CRC32
 import getpass
 from alicia_d_sdk.utils.logger import logger
 READ_LENGTH = 50
@@ -43,8 +44,6 @@ class SerialComm:
         self._rx_buffer = bytearray()
         self._frames_processed = 0
         self._frames_dropped = 0
-        logger.info(f"Initialize serial communication module: port={port or 'auto'}, baudrate={baudrate}")
-        logger.info(f"Debug mode: {'enabled' if debug_mode else 'disabled'}")
 
     def __del__(self):
         """Destructor, ensure serial port is closed"""
@@ -102,7 +101,7 @@ class SerialComm:
     def find_serial_port(self) -> str:
         """Find available serial port device"""
         current_time = time.time()
-        should_log = (current_time - self.last_log_time) >= 5.0
+        should_log = (current_time - self.last_log_time) >= 2.0
 
         # Handle user-specified port
         if self.port_name:
@@ -133,8 +132,6 @@ class SerialComm:
                 if key in p.device:
                     device_name = self._normalize_device_name(p.device, should_log)
                     if self._is_device_accessible(device_name):
-                        if should_log:
-                            logger.info(f"Found available device: {device_name}")
                         return device_name
 
         # macOS: try to map tty.* to cu.*
@@ -171,13 +168,13 @@ class SerialComm:
 
                 # Convert to byte array
                 data_bytes = bytes(data)
-
                 # Write data
-                print("data:", data_bytes)
                 bytes_written = self.serial_port.write(data_bytes)
+                time.sleep(0.01)
                 try:
                     self.serial_port.flush()
                 except Exception:
+                    print("flush error")
                     pass
 
                 if bytes_written != len(data):
@@ -206,35 +203,22 @@ class SerialComm:
             if not self.serial_port or not self.serial_port.is_open:
                 if not self.connect():
                     return None
-
             # Check if there is data to read
             if self.serial_port.in_waiting == 0:
                 return None
-            # 1. Read data from hardware
-            # elif self.serial_port.in_waiting > 0:
-            #     # Read up to 1024 bytes to ensure we capture full frames
-            #     read_size = min(self.serial_port.in_waiting, 50)
-            #     new_data = self.serial_port.read(read_size)
-            #     self._rx_buffer.extend(new_data)
-            # Limit the amount of data read at once to avoid buffer overflow
             available_bytes = self.serial_port.in_waiting
-            max_read_size = 40
+            max_read_size = 80
             read_size = min(available_bytes, max_read_size)
-
             self._rx_buffer += self.serial_port.read(read_size)
 
-            # frames_processed = 0
-            # max_frames_per_call = 5 
-            
-            while len(self._rx_buffer) >= 6: # and frames_processed < max_frames_per_call:
+            # print self._rx_buffer in hex
+            # self._hex_print("self._rx_buffer", self._rx_buffer)
+            while len(self._rx_buffer) >= 6:
                 if len(self._rx_buffer) > 200:
-                    # print(f" Warning: rx_buffer large ({len(self._rx_buffer)} bytes)")
                     self._rx_buffer.clear()
                     continue
 
-                # print hex of self._rx_buffer
-                print("self._rx_buffer: ", self._rx_buffer)
-                self._hex_print("self._rx_buffer", self._rx_buffer)
+                # self._hex_print("self._rx_buffer", self._rx_buffer)
                 # Step 2: Sync to frame header 0xAA
                 if self._rx_buffer[0] != 0xAA:
                     self._rx_buffer.pop(0)
@@ -244,11 +228,6 @@ class SerialComm:
                     print(f" Buffer size: {len(self._rx_buffer)} bytes, first bytes: {self._rx_buffer[:min(12, len(self._rx_buffer))]}")
 
                 data_len = self._rx_buffer[3]
-                # Verify data_len is reasonable (prevent abnormal data)
-                # if data_len > 200:
-                #     logger.warning(f" Abnormal data_len={data_len}, resyncing")
-                #     self._rx_buffer.pop(0)
-                #     continue
                 
                 frame_length = data_len + DEFAULT_LENGTH
                 if len(self._rx_buffer) < frame_length:
@@ -272,16 +251,13 @@ class SerialComm:
                     continue
 
                 if self._serial_data_check(candidate):
-                    # --- Valid Frame Found ---
-                
                     self._rx_buffer = self._rx_buffer[frame_length:]
                     # frames_processed += 1
-
+                    # self._hex_print("candidate", list(candidate))   
                     return list(candidate)
                 else:
                     # Checksum failed
                     logger.warning(f"CRC Error. Raw: {' '.join(f'{b:02X}' for b in candidate)}")
-                    # Move past this header to try finding next sync
                     self._rx_buffer.pop(0) 
 
             return None
@@ -292,35 +268,26 @@ class SerialComm:
 
 
 
-
     def _serial_data_check(self, frame: bytearray) -> bool:
         """
-        Verify CRC8 checksum.
+        Verify CRC8 checksum using specific robot algorithm.
         Frame: [AA] [Cmd] [Func] [Len] [Data...] [CRC] [FF]
         """
-        # The Checksum is the second to last byte
         received_checksum = frame[-2]
-        
-        # Calculate CRC on: Cmd, Func, Len, Data... 
-        # Range: Index 1 up to (but not including) the Checksum byte
+        # Payload includes Cmd, Func, Len, and Data (everything between Header and CRC)
         payload_to_check = frame[1:-2]
-        
-        calculated_checksum = self._calculate_checksum(payload_to_check)
-        
+
+        calculated_checksum = self.calculate_checksum(payload_to_check)
         return received_checksum == calculated_checksum
 
-    def _calculate_checksum(self, data) -> int:
+
+    def calculate_checksum(self, data) -> int:
         """
-        Calculate CRC-8 (Maxim/Dallas)
-        Polynomial: 0x31 (x^8 + x^5 + x^4 + 1)
-        Init: 0x00
-        XOR Out: 0x00
+        Use CRC-32 and only use the last 8 bits by pycrc
         """
-        crc = 0x00
-        for byte in data:
-            # Use precomputed table for speed
-            crc = self._crc8_table[crc ^ byte]
-        return crc
+        crc_calculator = CRC32()
+        crc = crc_calculator.calculate(bytes(data))
+        return crc & 0xFF
 
 
     
@@ -416,5 +383,4 @@ class SerialComm:
 
     def _hex_print(self, title: str, data: List[int]):
         hex_buf = ' '.join(f"{b:02X}" for b in data)
-        print(f"{title}: {hex_buf}")
         logger.info(f"{title}: {hex_buf}")

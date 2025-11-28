@@ -267,14 +267,15 @@ class SimpleDragTeaching:
             print("[回放] 使用直接设置模式（快速）")
             for i, point in enumerate(data):
                 try:
-                    # 直接设置关节状态到硬件，无插值
-                    self.controller.servo_driver.set_joint_angles(point["q"])
-                    
-                    # 设置夹爪
+                    # 获取夹爪值
                     gripper_value = point.get("grip", 0.0)
-                    if gripper_value is not None:
-                        # 夹爪值已经是0-100
-                        self.controller.set_gripper_target(value=gripper_value, wait_for_completion=False)
+                    
+                    # 使用combined control直接设置关节和夹爪，无插值
+                    self.controller.servo_driver.set_joint_and_gripper(
+                        joint_angles=point["q"],
+                        gripper_value=gripper_value,
+                        speed_deg_s=30.0  # 高速回放
+                    )
                     
                     print(f"[回放] {i+1}/{len(data)}")
                     time.sleep(0.02)  # 20ms延时，快速回放

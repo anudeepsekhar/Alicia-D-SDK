@@ -27,7 +27,7 @@ from robocore.planning.trajectory import (
     linear_cartesian_trajectory,
 )
 from ..hardware import ServoDriver
-from ..execution import HardwareExecutor, JointInterpolator
+from ..execution import HardwareExecutor
 from ..utils.logger import logger
 from robocore.utils.control_utils import compute_steps_and_delay, validate_joint_list, check_and_clip_joint_limits
 from ..utils.calculate import calculate_movement_duration
@@ -38,55 +38,30 @@ class SynriaRobotAPI:
     
     def __init__(self,
                  servo_driver: ServoDriver,
-                 robot_model: RobotModel,
-                 firmware_version: None,
-                 speed_deg_s: float = 20.0):
+                 robot_model: RobotModel):
         """Initialize robot API.
 
         :param servo_driver: Servo driver instance
         :param robot_model: Robot model from RoboCore
-        :param firmware_version: Firmware version string
-        :param speed_deg_s: Default speed in degrees per second
+        :param firmware_version: Firmware version string (optional, for reference)
         """
         # 核心组件
         self.servo_driver = servo_driver
         self.data_parser = servo_driver.data_parser  # Direct access to data parser
         self.robot_model = robot_model
-        self.speed_deg_s = speed_deg_s
-        self.firmware_version = firmware_version
-        self.firmware_new = False
 
         # 创建各层组件
         self.hardware_executor = HardwareExecutor(servo_driver)
         # 默认参数
-        self.home_angles = [0.0] * 6
-
-
+        self.robot_type = None
     
-    # ==================== Connection Management ====================
-    
+    # ==================== Connection Management ===================
+
     def connect(self) -> bool:
         """Connect to robot and detect firmware version.
-
-        :return: True if connection successful
         """
         result = self.servo_driver.connect()
-        # self.set_speed(self.speed)
-        if result:
-            if not self.firmware_version:
-                self.firmware_version = self.get_firmware_version(timeout=2.0)
-                # print the info by logger
-                logger.info(f"Detected firmware version: {self.firmware_version}")
-                # logger.info(f"固件版本：{self.firmware_version}")
-
-            # set speed if firmware is start with 6.
-            if self.firmware_version and self.firmware_version.startswith("6."):
-                # change the initial value of firmware_new in servo_driver
-                self.set_speed(self.speed_deg_s)
-                self.servo_driver.firmware_new = True
-                self.servo_driver.data_parser.firmware_new = True
-                self.firmware_new = True
-
+        # Load the version info from the json file
         return result
     
     def disconnect(self):
@@ -96,14 +71,98 @@ class SynriaRobotAPI:
     
     def is_connected(self) -> bool:
         """Check if robot is connected.
-
-        :return: True if connection is active
         """
         return self.servo_driver.serial_comm.is_connected()
     
+
+    # ==================== Get Robot Information ====================
+    def get_version(self, timeout: float = 1.0, log:bool = True) -> Optional[Dict[str, str]]:
+        """
+        Get full version information (serial number, hardware version, firmware version).
+        """
+        # Request version info and wait for response
+        if not self.servo_driver.acquire_info("version", wait=True, timeout=timeout):
+            logger.error("Failed to get version info within timeout period")
+            return None
+        
+        version_info = self.data_parser.get_version_info()
+        if version_info is None:
+            logger.error("Version info not available after successful acquisition")
+            return None
+
+        if log:
+            logger.info(
+            "Version info: "
+            f"Unique ID = {version_info.get('serial_number')}, "
+            f"Hardware Version = {version_info.get('hardware_version')}, "
+            f"Firmware Version = {version_info.get('firmware_version')}"
+        )
+        return version_info
+
+
+    
+    def get_robot_state(self, robot_type = None) -> Optional[Union[List[float], Tuple[List[float], bool, bool]]]:
+        """Get current joint angles.
+        :param robot_type: 'follower' or 'leader' or none for auto detection
+        """
+        if robot_type is None:
+            robot_type = self._robot_type()
+        self.servo_driver.acquire_info("joint", wait=True, timeout=1.0)
+        joint_state = self.data_parser.get_joint_state()
+        return joint_state
+    
+    def get_joints(self, robot_type = None) -> Optional[List[float]]:
+        """Get current joint angles."""
+        joint_state = self.get_robot_state(robot_type)
+        if joint_state:
+            return joint_state.angles
+        return None
+        
+    
+    def get_gripper(self) -> Optional[float]:
+        """Get current gripper position.
+
+        :return: Gripper value from 0 (closed) to 100 (open)
+        """
+        joint_state = self.get_robot_state()
+        if joint_state:
+            return joint_state.gripper
+        return None
+
+    def get_pose(self) -> Optional[Union[List[float], Dict]]:
+        """Get current end-effector pose.
+
+        :return: Dictionary with position, rotation, euler_xyz, quaternion_xyzw, transform
+        """
+
+        joint_angles = self.get_joints()
+        if joint_angles is None:
+            logger.error("无法获取关节角度")
+            return None
+
+        T_fk = forward_kinematics(
+            self.robot_model, 
+            joint_angles, 
+            backend='numpy', 
+            return_end=True
+        )
+
+        position_fk = T_fk[:3, 3]
+        rotation_fk = T_fk[:3, :3]
+        euler_fk = matrix_to_euler(rotation_fk, seq='xyz')
+        quat_fk = matrix_to_quaternion(rotation_fk)
+            
+        return {
+            'transform': T_fk,
+            'position': position_fk,
+            'rotation': rotation_fk,
+            'euler_xyz': euler_fk,
+            'quaternion_xyzw': quat_fk
+        }
+
+
     # ==================== Robot Control ====================                         
     
-
     def set_home(self, speed_factor: float = 1, tolerance: float = 0.03, timeout: float = 10.0):
         """Move robot to home position and wait until near zero.
 
@@ -112,223 +171,62 @@ class SynriaRobotAPI:
         :param timeout: Seconds, maximum wait time
         """
         time.sleep(0.1)
+        home_joints = [0.0] * 6
+        self.set_robot_target(target_joints=home_joints, gripper_value=100.0)
 
-        if self.firmware_new:
-            self.set_joint_target(self.home_angles, joint_format='rad', tolerance=tolerance, timeout=timeout)
-        else:
-            self.set_joint_target_interplotation(self.home_angles, joint_format='rad', speed_factor=speed_factor)
-            # Active feedback: block until joints are near zero
-        return self._wait_for_joint_target(
-                target_joints=self.home_angles,
+    
+    def set_robot_target(self,
+                            target_joints: Optional[List[float]] = None,
+                            gripper_value: Optional[float] = None,
+                            joint_format: str = 'rad',
+                            speed_deg_s: int = 20,
+                            tolerance: float = 0.03,
+                            timeout: float = 1.0,
+                            wait_for_completion: bool = True) -> bool:
+        """Set joint angles and/or gripper in a single combined command.
+        
+        :param target_joints: Optional target joint angles. If None, keeps current.
+        :param gripper_value: Optional gripper value (0-100). If None, keeps current.
+        :param joint_format: Unit format for joints, 'rad' or 'deg'
+        :param speed_deg_s: Speed in degrees per second (0-360, required range).
+        :param tolerance: Rad, acceptable abs distance to target for joints
+        :param timeout: Seconds, maximum wait time
+        :param wait_for_completion: If True, wait until target reached
+        
+        Examples:
+            # Only joints
+            set_joint_and_gripper_target(target_joints=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+            
+            # Only gripper
+            set_joint_and_gripper_target(gripper_value=50.0)
+            
+            # Both
+            set_joint_and_gripper_target(target_joints=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6], gripper_value=50.0)
+        """
+        # Convert joint format if needed
+        if target_joints is not None:
+            if joint_format == 'deg':
+                target_joints = [a * np.pi / 180.0 for a in target_joints]
+        
+        # Use unified method
+        success = self.servo_driver.set_joint_and_gripper(joint_angles=target_joints, gripper_value=gripper_value, speed_deg_s=speed_deg_s)
+        
+        if not success:
+            logger.error("Failed to set robot target")
+            return False
+        
+        # If no joint target is provided, there is nothing to wait for on joints.
+        if wait_for_completion and target_joints is not None:
+            return self._wait_for_joint_target(
+                target_joints=target_joints,
                 tolerance=tolerance,
                 timeout=timeout,
-                log_prefix="等待关节接近零位"
-            )
-
-
-    def set_joint_target(self,
-                         target_joints: List[float],
-                         joint_format: str = 'rad',
-                         tolerance: float = 0.03,
-                         timeout: Optional[float] = None,
-                         wait_for_completion: bool = True) -> bool:
-        """Move robot to target joint angles and optionally wait until near target.
-
-        :param target_joints: Target joint angles
-        :param joint_format: Unit format, 'rad' or 'deg'
-        :param tolerance: Rad, acceptable abs distance to target for all joints
-        :param timeout: Seconds, maximum wait time; default derived from distance and speed
-        :param wait_for_completion: If True, wait until joints reach target; if False, return immediately after sending command
-        :return: True if command sent successfully (and reached target if wait_for_completion=True)
-        """
-        if joint_format == 'deg':
-            target_joints = [a * np.pi / 180.0 for a in target_joints]
-        sucess = self.servo_driver.set_joint_angles(target_joints)
-
-        if not sucess:
-            return False
-
-        # If not waiting, return immediately after successful command send
-        if not wait_for_completion:
-            return True
-
-        # calculate the delay for the next movement
-        current_joints = self.get_joints()
-        delay = calculate_movement_duration(current_joints, target_joints, self.speed_deg_s)
-
-        # Active feedback wait until close to target (or timeout)
-        max_wait = timeout if timeout is not None else max(1.0, delay * 1.5)
-        return self._wait_for_joint_target(
-            target_joints=target_joints,
-            tolerance=tolerance,
-            timeout=max_wait,
-            log_prefix="等待关节接近目标"
-        )
-    
-    def set_joint_target_no_wait(self,
-                                 target_joints: List[float],
-                                 joint_format: str = 'rad') -> bool:
-        """Move robot to target joint angles without waiting for completion.
-        
-        This is a non-blocking version of set_joint_target. The command is sent
-        to the robot and the function returns immediately without waiting for
-        the robot to reach the target position.
-        
-        :param target_joints: Target joint angles
-        :param joint_format: Unit format, 'rad' or 'deg'
-        :return: True if command sent successfully, False otherwise
-        """
-        if joint_format == 'deg':
-            target_joints = [a * np.pi / 180.0 for a in target_joints]
-        return self.servo_driver.set_joint_angles(target_joints)
-
-    
-    def set_joint_target_interplotation(self,
-              target_joints: List[float],
-              joint_format: str = 'rad',
-              speed_factor: float = 1.0,
-              T_default: float = 4.0,
-              n_steps_ref: int = 200,
-              visualize: bool = False) -> bool:
-        """Move robot to target joint angles with interpolation.
-
-        :param target_joints: Target joint angles
-        :param joint_format: Unit format, 'rad' or 'deg'
-        :param speed_factor: Speed multiplier
-        :param T_default: Default interpolation duration in seconds
-        :param n_steps_ref: Reference number of interpolation steps
-        :param visualize: Enable trajectory visualization
-        :return: True if motion started successfully
-        """
-        logger.info("[moveJ] 开始执行关节空间插值移动")
-        
-        if target_joints is None:
-            logger.error("[moveJ] 请提供 target_joints 参数")
-            return False
-        
-        # 参数验证和转换
-        joint_format = joint_format.lower()
-        if joint_format not in ['rad', 'deg']:
-            logger.error(f"[moveJ] 不支持的 joint_format: '{joint_format}'，应为 'rad' 或 'deg'")
-            return False
-        
-        # 支持角度制输入
-        if joint_format == 'deg':
-            logger.info("[moveJ] 输入角度单位为 degree，将转换为 rad")
-            target_joints = [a * np.pi / 180.0 for a in target_joints]
-        
-        # 验证关节列表
-        validate_joint_list(target_joints)
-        
-        # 检查关节限位并修正
-        target_joints, violations = check_and_clip_joint_limits(
-            joints=target_joints,
-            joint_limits=self.robot_model.joint_limits
-        )
-        
-        for joint_name, original, clipped in violations:
-            logger.warning(
-                f"[moveJ] {joint_name} 超出限制：{original:.2f} -> 已截断为 {clipped:.2f}"
+                log_prefix="等待关节接近目标"
             )
         
-        # 获取当前状态（直接从servo_driver获取，带重试机制）
-        cur_angles = self.get_joints()
-        
-        # 插值步数与延迟
-        steps, delay = compute_steps_and_delay(
-            speed_factor=speed_factor,
-            T_default=T_default,
-            n_steps_ref=n_steps_ref
-        )
-        interploter = JointInterpolator()
-        # 规划轨迹
-        joint_traj = interploter.plan(
-            start_angles=cur_angles,
-            target_angles=target_joints,
-            steps=steps
-        )
-        
-        # 显示起始和目标角度
-        if joint_format == 'deg':
-            display_cur = [round(a * 180.0 / np.pi, 1) for a in cur_angles]
-            display_target = [round(a * 180.0 / np.pi, 1) for a in target_joints]
-            unit = "°"
-        else:
-            display_cur = [round(a, 3) for a in cur_angles]
-            display_target = [round(a, 3) for a in target_joints]
-            unit = "rad"
-        
-        # 日志输出
-        logger.info(f"[moveJ] 起始角度 ({unit}): {display_cur}")
-        logger.info(f"[moveJ] 目标角度 ({unit}): {display_target}")
-        logger.info(f"[moveJ] 插值步数: {steps}，单步延迟: {delay:.3f}s，预计总耗时: {steps * delay:.1f}s")
-        
-        # 执行轨迹
-        self.hardware_executor.delay = delay
-        result = self.hardware_executor.execute(
-            joint_traj=joint_traj,
-            visualize=visualize
-        )
-        
-        return result if result is not None else True
-    
-
-    # ==================== Gripper Control ====================
-    
-    def set_gripper_target(self,
-                       command: Optional[str] = None,
-                       value: Optional[float] = None,
-                       wait_for_completion: bool = True,
-                       timeout: float = 4.0,
-                       tolerance: float = 1.0) -> bool:
-        """Control gripper position.
-
-        :param command: Command string, 'open' or 'close'
-        :param value: Gripper value, 0 (closed) to 100 (open)
-        :param wait_for_completion: Wait until gripper reaches target
-        :param timeout: Maximum wait time in seconds
-        :param tolerance: Acceptable difference to target value
-        :return: True if successful
-        """
-        if command is not None and value is not None:
-            logger.error("command 与 value 参数不可同时指定")
-            return False
-        
-        if command is not None:
-            if command == "open":
-                value = 100.0  # 打开对应100
-            elif command == "close":
-                value = 0.0    # 关闭对应0
-            else:
-                logger.error("command 参数必须是 'open' 或 'close'")
-                return False
-        
-        if value is None:
-            logger.error("必须提供 command 或 value 参数")
-            return False
-        
-        # 发送夹爪命令
-        success = self.servo_driver.set_gripper(value)
-        if not success:
-            logger.error("夹爪命令发送失败")
-            return False
-        
-        if wait_for_completion:
-            start_time = time.time()
-            while time.time() - start_time < timeout:
-                current_gripper = self.get_gripper()
-                if current_gripper is not None:
-                    if abs(current_gripper - value) <= tolerance:
-                        # logger.info(f"夹爪已到达目标开合度: {value:.1f}")
-                        return True
-                self.servo_driver.set_gripper(value)
-                time.sleep(0.1)
-            
-            # logger.warning("夹爪运动等待超时")
-            return False
-        
+        # Either waiting was not requested, or only gripper was commanded.
         return True
-
+    
 
     def set_pose_target(self, 
                        target_pose: List[float], 
@@ -433,103 +331,6 @@ class SynriaRobotAPI:
             return ik_result
     
 
-
-    def get_joints(self, type: str = "follower") -> Optional[Union[List[float], Tuple[List[float], bool, bool]]]:
-        """Get current joint angles.
-        :param type: 'follower' -> return angles only; other values -> (angles, button1, button2)
-        :return: Angles list, or (angles, button1, button2) if requested; None if unavailable
-        """
-        joint_state = self.data_parser.get_joint_state()
-        if joint_state:
-            if type == "follower":
-                return joint_state.angles
-            return (joint_state.angles, joint_state.button1, joint_state.button2)
-        return None
-    
-    def get_pose(self) -> Optional[Union[List[float], Dict]]:
-        """Get current end-effector pose.
-
-        :return: Dictionary with position, rotation, euler_xyz, quaternion_xyzw, transform
-        """
-
-        joint_angles = self.get_joints()
-        if joint_angles is None:
-            logger.error("无法获取关节角度")
-            return None
-
-        T_fk = forward_kinematics(
-            self.robot_model, 
-            joint_angles, 
-            backend='numpy', 
-            return_end=True
-        )
-
-        position_fk = T_fk[:3, 3]
-        rotation_fk = T_fk[:3, :3]
-        euler_fk = matrix_to_euler(rotation_fk, seq='xyz')
-        quat_fk = matrix_to_quaternion(rotation_fk)
-            
-        return {
-            'transform': T_fk,
-            'position': position_fk,
-            'rotation': rotation_fk,
-            'euler_xyz': euler_fk,
-            'quaternion_xyzw': quat_fk
-        }
-
-    
-    def get_gripper(self) -> Optional[float]:
-        """Get current gripper position.
-
-        :return: Gripper value from 0 (closed) to 100 (open)
-        """
-
-        joint_state = self.data_parser.get_joint_state()
-        if joint_state:
-            return joint_state.gripper
-        return None
-
-    
-    def get_firmware_version(self, timeout=5.0, send_interval=0.2):
-        """Query robot firmware version.
-
-        :param timeout: Total time in seconds to keep trying
-        :param send_interval: Time in seconds between each attempt
-        :return: Firmware version string, or None if query fails
-        """
-        command = [0xAA, 0x0A, 0x01, 0x00, 0x00, 0xFF]
-        start_time = time.time()
-        
-        # Check if the firmware version is already in the json file
-        if os.path.exists(os.path.join(os.path.dirname(__file__), "firmware_version.json")):
-            with open(os.path.join(os.path.dirname(__file__), "firmware_version.json"), "r") as f:
-                firmware_version = json.load(f)["firmware_version"]
-                self.firmware_version = firmware_version
-        else:
-            firmware_version = None
-        
-        if firmware_version:
-            return firmware_version
-
-
-        while (time.time() - start_time) < timeout:
-            try:
-                self.servo_driver.serial_comm.send_data(command)
-                time.sleep(0.1)
-                version = self.data_parser.get_firmware_version()
-                if version and version != "未知版本":
-                    # Save it into a json file
-                    with open(os.path.join(os.path.dirname(__file__), "firmware_version.json"), "w") as f:
-                        json.dump({"firmware_version": version}, f)
-                    return version  # Success, return the version immediately
-
-            except Exception as e:
-                logger.error(f"An error occurred during a read attempt: {e}")
-
-            time.sleep(send_interval)
-
-        return None
-    
     # ==================== Advanced Trajectory Methods ====================
     
     def move_joint_trajectory(self,
@@ -661,105 +462,64 @@ class SynriaRobotAPI:
     
 
     
-    # ==================== System Control ====================
-    def set_acceleration(self, acceleration: int = 1) -> bool:
-        """Set robot acceleration.
-
-        :param acceleration: Acceleration value
-        :return: True if successful
-        """
-        return self.servo_driver.set_acceleration(acceleration)
-
-    def set_speed(self, speed_deg_s: float) -> bool:
-        """Set robot motion speed.
-
-        :param speed_deg_s: Speed in degrees per second
-        :return: True if successful
-        """
-        speed_rad_s = np.deg2rad(speed_deg_s)
-        return self.servo_driver.set_speed(speed_rad_s)
     
-    
-    def torque_control(self, command: str) -> bool:
+    def torque_control(self, command: str, timeout: float = 1.0) -> bool:
         """Enable or disable robot torque.
-
-        :param command: Command string, 'on' or 'off'
-        :return: True if successful
         """
         if command == "on":
-            logger.info("开启扭矩")
-            return self.servo_driver.enable_torque()
+            return self.servo_driver.acquire_info("torque_on", wait=True, timeout=timeout)
         elif command == "off":
-            logger.info("关闭扭矩")
-            return self.servo_driver.disable_torque()
+            return self.servo_driver.acquire_info("torque_off", wait=True, timeout=timeout)
         else:
             logger.error("command 参数必须是 'on' 或 'off'")
             return False
+
     
     def zero_calibration(self) -> bool:
         """Execute zero position calibration procedure.
 
         :return: True if calibration successful
         """
-        logger.warning("此操作将更改出厂零点位置，请谨慎操作")
+        logger.warning("此操作不可逆，将更改出厂零点位置，请谨慎操作")
         logger.info("开始归零校准,机械臂将失去扭矩")
         logger.info("按下回车继续, Ctrl+C 取消...")
         input()
-        # 关闭扭矩
         if not self.torque_control('off'):
             logger.error("扭矩关闭失败")
             return False
         logger.info("请手动拖动机械臂到零点位置，然后按回车继续...")
         input()
-        
-        # 重新开启扭矩
-        if not self.torque_control('on'):
-            logger.error("扭矩开启失败")
+
+        if not self.servo_driver.acquire_info("zero_cali", wait=True, timeout=2.0):
+            logger.error("零点校准失败")
             return False
-        
-        # 执行零点校准
-        result = self.servo_driver.set_zero_position()
-        if result:
-            logger.info("归零校准成功")
-        else:
-            logger.error("归零校准失败")
-        
-        return result
+        time.sleep(0.1)
+        self.servo_driver.acquire_info("torque_on", wait=True, timeout=1.0)
+        return True
     
-
     
-
-    
-    def print_state(self, continuous: bool = False, output_format: str = "deg", robot_type: str = "follower"):
+    def print_state(self, continuous: bool = False, output_format: str = "deg"):
         """Print current robot state.
 
         :param continuous: Print continuously if True, once if False
         :param output_format: Angle format, 'deg' or 'rad'
         """
+        robot_type = self._robot_type()
 
         def _print_once(robot_type):
-
-
-            joints_raw = self.get_joints(robot_type)
-
-            gripper = self.get_gripper()
-
             pose = None
-
-            if joints_raw is None:
-
+            state = self.get_robot_state(robot_type)
+            if state is None:
                 logger.warning("无法获取关节状态")
-
                 return
-            # Normalize angles and (optionally) buttons depending on robot_type
+
+            joints = state.angles
+            gripper = state.gripper
+            status = state.run_status_text
+
+            # Extract pose only for follower
             if robot_type == "follower":
-                joints = joints_raw
-                button1 = button2 = None
                 pose = self.get_pose()
-            else:
-                joints = joints_raw[0]
-                button1 = joints_raw[1]
-                button2 = joints_raw[2]
 
             # Format joints for printing
             if output_format == 'deg':
@@ -768,15 +528,17 @@ class SynriaRobotAPI:
             else:
                 joint_out = [round(angle, 3) for angle in joints]
                 unit = "rad"
-            logger.info(f"关节角度（{unit}）：{joint_out} 夹爪开合度：{gripper}")
-            if robot_type != "follower":
-                logger.info(f"同步键：{button1}, 锁定键：{button2}")
+            logger.info(f"关节角度（{unit}): {joint_out}, 夹爪开合度(%): {gripper}")
+            if status != "idle":
+                logger.info(f"按键状态：{status}")
+
 
             if pose is not None:
                 quaternion = pose['quaternion_xyzw']
                 position = pose['position']
                 logger.info(f"位置(xyz /m): {[round(p, 3) for p in position]}, 四元数(qx, qy, qz, qw): {[round(q, 3) for q in quaternion]}")
                 print("\n")
+
         if continuous:
             logger.info("开始连续状态打印，按 Ctrl+C 停止")
             try:
@@ -813,18 +575,23 @@ class SynriaRobotAPI:
 
 
     def _wait_for_joint_target(self,
-                               target_joints: List[float],
+                               target_joints: Optional[List[float]],
                                tolerance: float,
                                timeout: float,
                                log_prefix: str = "等待关节接近目标") -> bool:
         """Wait until all joints reach target angles.
 
-        :param target_joints: Target joint angles in radians
+        :param target_joints: Target joint angles in radians. If None, returns True immediately.
         :param tolerance: Rad, acceptable abs distance to target for all joints
         :param timeout: Seconds, maximum wait time
         :param log_prefix: Log message prefix
         :return: True if target reached, False if timeout
         """
+        # If no joint target is specified, there is nothing to wait for.
+        if target_joints is None:
+            logger.debug("No joint target specified, skip joint waiting.")
+            return True
+
         start_time = time.time()
         # logger.info(f"{log_prefix}...")
 
@@ -845,3 +612,16 @@ class SynriaRobotAPI:
             self.disconnect()
         except Exception as e:
             logger.error(f"SynriaRobotAPI destructor exception: {e}")
+
+
+    def _robot_type(self) -> str:
+
+        version = self.get_version(log=False)
+        serial_number = version.get("serial_number")
+        # ADFS for follower, ADLS for leader
+        if serial_number.startswith("ADFS"):
+            return "follower"
+        elif serial_number.startswith("ADLS"):
+            return "leader"
+        else:
+            return None

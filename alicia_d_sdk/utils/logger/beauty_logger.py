@@ -101,17 +101,19 @@ class BeautyLogger:
             beauty_print(content, type="debug")
         self._write_log(content, type="debug")
 
-    def error(self, content, local_verbose=True):
+    def error(self, content, local_verbose=True, raise_exception=True):
         """
         打印错误消息
         
         :param content: 错误消息内容
         :param local_verbose: 是否在控制台打印
+        :param raise_exception: 是否抛出异常
         """
         if self._should_print(LogLevel.ERROR) and local_verbose:
             beauty_print(content, type="error")
         self._write_log(content, type="error")
-        # raise Exception(content)
+        if raise_exception:
+            raise Exception(content)
 
     def success(self, content, local_verbose=True):
         """

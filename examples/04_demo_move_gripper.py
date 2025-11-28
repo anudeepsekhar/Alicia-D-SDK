@@ -22,8 +22,6 @@ def main(args):
     # Initialize robot instance
     robot = alicia_d_sdk.create_robot(
         port=args.port,
-        baudrate=args.baudrate,
-        robot_version=args.robot_version,
         gripper_type=args.gripper_type    
     )
     
@@ -34,15 +32,19 @@ def main(args):
         
         # Get gripper value (0-100)
         gripper_value = robot.get_gripper()
-        logger.info(f"Gripper value: {gripper_value:.1f}")
+        if gripper_value is not None:
+            logger.info(f"Gripper value: {gripper_value:.1f}")
+        else:
+            logger.warning("Failed to read gripper value")
         
-        # # Test 1: Open gripper
-        robot.set_gripper_target(command='open', wait_for_completion=True)
+        # Test 1: Open gripper
+        robot.set_robot_target(gripper_value=100.0)
         time.sleep(1)
-        robot.set_gripper_target(command='close', wait_for_completion=True)
+        # Test 2: Close gripper
+        robot.set_robot_target(gripper_value=0.0)
         time.sleep(1)
-        # Test 3: Partially open
-        robot.set_gripper_target(value=80.0, wait_for_completion=True)
+        # # Test 3: Partially open
+        robot.set_robot_target(gripper_value=80.0)
         time.sleep(1)
 
         
@@ -62,9 +64,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Gripper Control Demo")
     
     # Serial port settings
-    parser.add_argument('--port', type=str, default="/dev/ttyUSB0", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
-    parser.add_argument('--baudrate', type=int, default=1000000,  help="波特率 (默认: 1000000)")
-    parser.add_argument('--robot_version', type=str, default="v5_6",  help="机器人版本 (默认: v5_6)")
+    parser.add_argument('--port', type=str, default="", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
     parser.add_argument('--gripper_type', type=str, default="50mm",  help="夹爪型号 (默认: 50mm)")
     
     args = parser.parse_args()

@@ -1,7 +1,6 @@
-from .hardware_executor import HardwareExecutor, JointInterpolator, CartesianWaypointPlanner
+from .hardware_executor import HardwareExecutor, CartesianWaypointPlanner
 
 __all__ = [
     "HardwareExecutor",
-    "JointInterpolator",
     "CartesianWaypointPlanner"
 ]
