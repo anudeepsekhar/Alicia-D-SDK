@@ -19,10 +19,8 @@ def main(args):
     :param args: Command line arguments
     """
     # Initialize robot instance
-    robot = alicia_d_sdk.create_robot(
-        port=args.port,
-        gripper_type=args.gripper_type
-    )
+    robot = alicia_d_sdk.create_robot(port=args.port)
+
 
     try:
         # Connect to robot
@@ -32,7 +30,7 @@ def main(args):
                 
         # Set target joint positions in degrees
         target_joints_deg = [-30, 30.0, 30.0, 20.0, -20.0, 10.0]
-        robot.set_home()
+        robot.set_home(speed_deg_s=args.speed_deg_s)
         time.sleep(1)
         # Use unified joint and gripper target interface
         robot.set_robot_target(
@@ -42,7 +40,7 @@ def main(args):
             wait_for_completion=True
         )
         time.sleep(1)
-        robot.set_home()
+        robot.set_home(speed_deg_s=args.speed_deg_s)
 
     except KeyboardInterrupt:
         print("\n✗ Processing interrupted")
@@ -55,8 +53,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="机械臂运动控制示例")
     
     parser.add_argument('--port', type=str, default="", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
-    parser.add_argument('--gripper_type', type=str, default="50mm",  help="夹爪型号 (默认: 50mm)")
-    parser.add_argument('--speed_deg_s', type=float, default=20.0,  help="关节运动速度 (单位: 度/秒, 默认: 20.0)")
-    
+    parser.add_argument('--speed_deg_s', type=float, default=10.0,  help="关节运动速度 (单位: 度/秒, 默认: 20.0)")
     args = parser.parse_args()
     main(args)

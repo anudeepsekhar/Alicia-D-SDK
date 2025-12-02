@@ -211,8 +211,6 @@ class SerialComm:
             read_size = min(available_bytes, max_read_size)
             self._rx_buffer += self.serial_port.read(read_size)
 
-            # print self._rx_buffer in hex
-            # self._hex_print("self._rx_buffer", self._rx_buffer)
             while len(self._rx_buffer) >= 6:
                 if len(self._rx_buffer) > 200:
                     self._rx_buffer.clear()

@@ -28,6 +28,7 @@ class DataParser:
     CMD_VERSION = 0x01     # Firmware version feedback
     CMD_TORQUE = 0x05      # Torque control
     CMD_ERROR = 0xEE       # Error feedback
+    CMD_SELF_CHECK = 0xFE  # Machine self-check (servo health)
     GRI_MAX_50MM = 3290
     GRI_MAX_100MM = 3600
     # Data sizes
@@ -60,18 +61,37 @@ class DataParser:
         self._run_status: Optional[int] = None
         self._run_status_text: Optional[str] = None
         
+        # Store temperature data (in Celsius)
+        self._temperature_data: Optional[List[float]] = None
+        self._temperature_timestamp: Optional[float] = None
+        
+        # Store velocity data (in raw units)
+        self._velocity_data: Optional[List[float]] = None
+        self._velocity_timestamp: Optional[float] = None
+        
         # Event-based synchronization for async data acquisition
         # Events are set when corresponding data is received and parsed
         self._version_event = threading.Event()
         self._joint_event = threading.Event()
         self._gripper_event = threading.Event()
+        self._temperature_event = threading.Event()
+        self._velocity_event = threading.Event()
+        self._self_check_event = threading.Event()
         
         # Mapping from info type to corresponding event
         self._info_event_map = {
             "version": self._version_event,
             "joint": self._joint_event,
             "gripper": self._gripper_event,
+            "temperature": self._temperature_event,
+            "velocity": self._velocity_event,
+            "self_check": self._self_check_event,
         }
+
+        # Store self-check (servo health) data
+        self._self_check_raw_mask: Optional[int] = None
+        self._self_check_bits: Optional[List[bool]] = None
+        self._self_check_timestamp: Optional[float] = None
         
     
     def parse_frame(self, frame: List[int]) -> Optional[Dict]:
@@ -85,10 +105,22 @@ class DataParser:
         if cmd_id == self.CMD_VERSION:
             return self._parse_version_data(frame)
         elif cmd_id == self.CMD_JOINT:
-            return self._parse_joint_data(frame)
-
+            # Check function code to determine which parser to use
+            func_code = frame[2]
+            if func_code == 0x00:
+                return self._parse_joint_data(frame)
+            elif func_code == 0x01:
+                return self._parse_temperature_data(frame)
+            elif func_code == 0x02:
+                return self._parse_velocity_data(frame)
+            else:
+                if self.debug_mode:
+                    logger.debug(f"Unhandled function code in CMD_JOINT: 0x{func_code:02X}")
+                return None
         elif cmd_id == self.CMD_ERROR:
             return self._parse_error_data(frame)
+        elif cmd_id == self.CMD_SELF_CHECK:
+            return self._parse_self_check_data(frame)
         else:
             if self.debug_mode:
                 logger.debug(f"Unhandled command ID: 0x{cmd_id:02X}")
@@ -124,6 +156,62 @@ class DataParser:
                 return None
            
             return dict(self._version_info)
+    
+    def get_temperature_data(self) -> Optional[Dict[str, any]]:
+        """
+        Get current temperature data.
+        
+        Returns:
+            Optional[Dict]: Dictionary with keys:
+                - 'temperatures': List of temperatures in Celsius
+                - 'timestamp': Timestamp when data was received
+            or None if not available.
+        """
+        with self._lock:
+            if self._temperature_data is None:
+                return None
+            return {
+                "temperatures": list(self._temperature_data),
+                "timestamp": self._temperature_timestamp
+            }
+    
+    def get_velocity_data(self) -> Optional[Dict[str, any]]:
+        """
+        Get current velocity data.
+        
+        Returns:
+            Optional[Dict]: Dictionary with keys:
+                - 'velocities': List of velocities in raw units
+                - 'timestamp': Timestamp when data was received
+            or None if not available.
+        """
+        with self._lock:
+            if self._velocity_data is None:
+                return None
+            return {
+                "velocities": list(self._velocity_data),
+                "timestamp": self._velocity_timestamp
+            }
+
+    def get_self_check_data(self) -> Optional[Dict[str, any]]:
+        """
+        Get latest machine self-check (servo health) result.
+
+        Returns:
+            Optional[Dict]: Dictionary with keys:
+                - 'raw_mask': Integer bit mask (LSB = servo 1)
+                - 'bits': List[bool], True = OK, False = fault
+                - 'timestamp': Timestamp when data was received
+            or None if not available.
+        """
+        with self._lock:
+            if self._self_check_raw_mask is None or self._self_check_bits is None:
+                return None
+            return {
+                "raw_mask": int(self._self_check_raw_mask),
+                "bits": list(self._self_check_bits),
+                "timestamp": self._self_check_timestamp,
+            }
     
     def wait_for_info(self, info_type: str, timeout: float = 2.0) -> bool:
         """
@@ -186,26 +274,32 @@ class DataParser:
         data_end = data_start + data_len
         data_bytes = frame[data_start:data_end]
 
+        # print frame, data bytes in hex
+        # print(f"frame: {' '.join(f'{b:02X}' for b in frame)}")
+        # print(f"data bytes: {' '.join(f'{b:02X}' for b in data_bytes)}")
+
         if len(data_bytes) < 15:
             logger.warning(f"Joint DATA too short: expect ≥15 bytes, got {len(data_bytes)}")
             return None
 
         # Parse 6 joint angles
         joint_values: List[float] = [0.0] * 6
+        joint_bytes = data_bytes
+        # print joint_bytes in hex
         for i in range(6):
             start = i * 2
             joint_bytes = data_bytes[start:start + 2]
             angle_rad = self._bytes_to_radians(joint_bytes)
             joint_values[i] = angle_rad
-            
+        
         gripper_low = data_bytes[12]
         gripper_high = data_bytes[13]
         gripper_raw = (gripper_low & 0xFF) | ((gripper_high & 0xFF) << 8)
 
         # Map raw gripper value to 0–100 (same logic as V6 gripper parsing)
-        ratio = (self.servo_value_limit - 2048) / 100
-        gripper_value = 100 - ((gripper_raw - 2048) / ratio)
-        gripper_value = round(max(0, min(gripper_value, 100)), 2)
+        # ratio = (self.servo_value_limit - 2048) / 100
+        # gripper_value = 100 - ((gripper_raw - 2048) / ratio)
+        gripper_value = gripper_raw # round(max(0, min(gripper_value, 100)), 2)
 
         # Parse run status (last mandatory byte)
         run_status = data_bytes[14]
@@ -247,8 +341,158 @@ class DataParser:
             "timestamp": self._joint_states.timestamp,
         }
 
+    def _parse_temperature_data(self, frame: List[int]) -> Dict:
+        """
+        Parse temperature data frame (CMD=0x06, FUNC=0x01).
+        
+        Protocol:
+        | 0xAA | 0x06 | 0x01 | LEN | DATA... | CHECKSUM | 0xFF |
+        
+        DATA layout:
+          - Temperature values: LEN bytes (one byte per servo)
+          - For leader arm: 6 servos
+          - For follower arm: 10 servos
+        
+        Args:
+            frame: Complete data frame
+        """
+        data_len = frame[3]
+        expected_min_len = 4 + data_len + 2
+        if len(frame) < expected_min_len:
+            logger.warning(f"Temperature frame length mismatch: LEN={data_len}, frame_len={len(frame)}")
+            return None
 
+        data_start = 4
+        data_end = data_start + data_len
+        data_bytes = frame[data_start:data_end]
 
+        # Parse temperature values (each byte represents temperature in Celsius)
+        temperatures = [float(byte) for byte in data_bytes]
+
+        # Store temperature data
+        with self._lock:
+            self._temperature_data = temperatures
+            self._temperature_timestamp = time.time()
+        
+        # Signal that temperature data has been updated
+        self._temperature_event.set()
+
+        if self.debug_mode:
+            logger.debug(f"Temperature data: {temperatures}°C")
+
+        return {
+            "type": "temperature_data",
+            "temperatures": temperatures,
+            "timestamp": self._temperature_timestamp,
+        }
+
+    def _parse_velocity_data(self, frame: List[int]) -> Dict:
+        """
+        Parse velocity data frame (CMD=0x06, FUNC=0x02).
+        
+        Protocol:
+        | 0xAA | 0x06 | 0x02 | LEN | DATA... | CHECKSUM | 0xFF |
+        
+        DATA layout:
+          - Velocity values: LEN bytes (2 bytes per servo, low byte first)
+          - For teaching arm: 6 servos * 2 = 12 bytes
+          - For operation arm: 10 servos * 2 = 20 bytes
+        
+        Args:
+            frame: Complete data frame
+        """
+        # print frame in hex
+        # print("Velocity frame:", " ".join(f"{b:02X}" for b in frame))
+        data_len = frame[3]
+        expected_min_len = 4 + data_len + 2
+        if len(frame) < expected_min_len:
+            logger.warning(f"Velocity frame length mismatch: LEN={data_len}, frame_len={len(frame)}")
+            return None
+
+        data_start = 4
+        data_end = data_start + data_len
+        data_bytes = frame[data_start:data_end]
+
+        # Parse velocity values (2 bytes per servo, low byte first)
+        num_servos = data_len // 2
+        velocities = []
+        for i in range(num_servos):
+            low_byte = data_bytes[i * 2]
+            high_byte = data_bytes[i * 2 + 1]
+            velocity_raw = (low_byte & 0xFF) | ((high_byte & 0xFF) << 8)
+            # print("velocity_raw:", velocity_raw)
+            velocities.append(float(velocity_raw))
+
+        # Store velocity data
+        with self._lock:
+            self._velocity_data = velocities
+            self._velocity_timestamp = time.time()
+        
+        # Signal that velocity data has been updated
+        self._velocity_event.set()
+
+        if self.debug_mode:
+            logger.debug(f"Velocity data: {velocities}")
+
+        return {
+            "type": "velocity_data",
+            "velocities": velocities,
+            "timestamp": self._velocity_timestamp,
+        }
+
+    def _parse_self_check_data(self, frame: List[int]) -> Dict:
+        """
+        Parse machine self-check frame (CMD=0xFE, FUNC=0x00).
+
+        Protocol:
+        | 0xAA | 0xFE | 0x00 | LEN | DATA... | CHECKSUM | 0xFF |
+
+        DATA layout (LEN = 0x02):
+          - 2 bytes bit mask, low byte first.
+          - From low to high, each bit represents servo ID status from low to high.
+            Bit = 1 -> OK, Bit = 0 -> fault.
+            Teaching arm: 6 bits, Operation arm: 10 bits.
+        """
+        data_len = frame[3]
+        expected_min_len = 4 + data_len + 2
+        if len(frame) < expected_min_len:
+            logger.warning(f"Self-check frame length mismatch: LEN={data_len}, frame_len={len(frame)}")
+            return None
+
+        data_start = 4
+        data_end = data_start + data_len
+        data_bytes = frame[data_start:data_end]
+
+        if data_len < 2:
+            logger.warning(f"Self-check DATA too short: expect ≥2 bytes, got {data_len}")
+            return None
+
+        low = data_bytes[0]
+        high = data_bytes[1]
+        raw_mask = (low & 0xFF) | ((high & 0xFF) << 8)
+        # Decode to boolean list (LSB first), up to 16 bits to be safe
+        bits: List[bool] = [(raw_mask >> i) & 0x1 == 1 for i in range(10)]
+
+        with self._lock:
+            self._self_check_raw_mask = raw_mask
+            self._self_check_bits = bits
+            self._self_check_timestamp = time.time()
+
+        # Signal that self-check data has been updated
+        self._self_check_event.set()
+
+        if self.debug_mode:
+            logger.debug(
+                f"Self-check result: raw_mask=0x{raw_mask:04X}, "
+                f"bits={bits}"
+            )
+
+        return {
+            "type": "self_check_data",
+            "raw_mask": raw_mask,
+            "bits": bits,
+            "timestamp": self._self_check_timestamp,
+        }
 
     def _parse_error_data(self, frame: List[int]) -> Dict:
         """
@@ -326,26 +570,17 @@ class DataParser:
         serial_number = _bytes_to_ascii(serial_bytes)
         hardware_raw = _bytes_to_ascii(hardware_bytes)
         firmware_raw = _bytes_to_ascii(firmware_bytes)
-
+        hardware_str = self._hex_to_string(hardware_raw)
         # Example: firmware_raw = "0610" -> "610" -> "6.1.0"
-        compact = firmware_raw.lstrip("0") or "0"
-        if len(compact) == 3:
-            version_str = f"{compact[0]}.{compact[1]}.{compact[2]}"
-        elif len(compact) == 2:
-            version_str = f"{compact[0]}.{compact[1]}.0"
-        elif len(compact) == 1:
-            version_str = f"{compact[0]}.0.0"
-        else:
-            # Fallback: use raw string
-            version_str = firmware_raw or "unknown"
+        firmware_str = self._hex_to_string(firmware_raw)
 
         # Store firmware version (for upper-level API)
         with self._lock:
-            self._firmware_version = version_str
+            self._firmware_version = firmware_str
             self._version_info = {
                 "serial_number": serial_number,
-                "hardware_version": hardware_raw,
-                "firmware_version": version_str,
+                "hardware_version": hardware_str,
+                "firmware_version": firmware_str,
             }
         
         # Signal that version info has been received and parsed
@@ -353,15 +588,15 @@ class DataParser:
         
         if self.debug_mode:
             logger.debug(
-                f"Version parsed: SN='{serial_number}', HW='{hardware_raw}', FW_raw='{firmware_raw}', FW='{version_str}'"
+                f"Version parsed: SN='{serial_number}', HW='{hardware_str}', FW_raw='{firmware_raw}', FW='{firmware_str}'"
             )
 
         return {
             "type": "version_data",
             "serial_number": serial_number,
-            "hardware_version": hardware_raw,
+            "hardware_version": hardware_str,
             "firmware_version_raw": firmware_raw,
-            "version": version_str,
+            "version": firmware_str,
             "timestamp": time.time(),
         }
     
@@ -376,7 +611,8 @@ class DataParser:
         
         # Build 16-bit integer
         hex_value = (byte_array[0] & 0xFF) | ((byte_array[1] & 0xFF) << 8)
-        
+        # print in hex
+        # print(f"hex_value: {hex_value}")
         # Range check
         if hex_value < 0 or hex_value > 4095:
             logger.warning(f"Servo value out of range: {hex_value} (valid 0–4095)")
@@ -399,3 +635,18 @@ class DataParser:
         return (value / 4096.0) * (2 * math.pi) - math.pi
                 
 
+    def _hex_to_string(self, hex_value: int) -> str:
+        """
+        Convert hex value to ASCII string.
+        """
+        compact = hex_value.lstrip("0") or "0"
+        if len(compact) == 3:
+            version_str = f"{compact[0]}.{compact[1]}.{compact[2]}"
+        elif len(compact) == 2:
+            version_str = f"{compact[0]}.{compact[1]}.0"
+        elif len(compact) == 1:
+            version_str = f"{compact[0]}.0.0"
+        else:
+            # Fallback: use raw string
+            version_str = hex_value or "unknown"
+        return version_str

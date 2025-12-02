@@ -20,10 +20,7 @@ def main(args):
     :param args: Command line arguments
     """
     # Initialize robot instance
-    robot = alicia_d_sdk.create_robot(
-        port=args.port,
-        gripper_type=args.gripper_type    
-    )
+    robot = alicia_d_sdk.create_robot(port=args.port)
     
     try:
         # Connect to robot
@@ -38,13 +35,13 @@ def main(args):
             logger.warning("Failed to read gripper value")
         
         # Test 1: Open gripper
-        robot.set_robot_target(gripper_value=100.0)
+        robot.set_robot_target(gripper_value=1000)
         time.sleep(1)
         # Test 2: Close gripper
-        robot.set_robot_target(gripper_value=0.0)
+        robot.set_robot_target(gripper_value=0)
         time.sleep(1)
         # # Test 3: Partially open
-        robot.set_robot_target(gripper_value=80.0)
+        robot.set_robot_target(gripper_value=500)
         time.sleep(1)
 
         
@@ -65,8 +62,6 @@ if __name__ == '__main__':
     
     # Serial port settings
     parser.add_argument('--port', type=str, default="", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
-    parser.add_argument('--gripper_type', type=str, default="50mm",  help="夹爪型号 (默认: 50mm)")
-    
     args = parser.parse_args()
     
     

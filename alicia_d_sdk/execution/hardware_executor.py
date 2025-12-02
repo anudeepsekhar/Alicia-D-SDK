@@ -12,25 +12,15 @@ class HardwareExecutor:
         self.joint_controller = joint_controller
         self.delay = 0.02
 
-    def execute(self, 
-                joint_traj: List[List[float]], 
-                visualize: bool = False,
-                gripper_traj: List[float] = None,
+    def execute(self,
+                joint_traj: List[List[float]],
                 interaction: bool = False,
-                speed_deg_s: float = 20.0,
-                ):
+                speed_deg_s: float = 20.0):
         """
         :param joint_traj: Joint trajectory as a list of joint angle lists
-        :param visualize: Whether to plot before execution
-        :param gripper_traj: Optional gripper values aligned with trajectory
         :param interaction: Whether to wait for user confirmation
-        :param speed_deg_s: Joint speed in degrees per second for combined control
-        :return: True if executed, False if cancelled
+        :param speed_deg_s: Joint speed in degrees per second
         """
-        traj_np = np.array(joint_traj)
-
-        if visualize:
-            plot_joint_angles(traj_np)
 
         if interaction:
             logger.module("[executor]按下回车执行轨迹，按下 q 取消：")
@@ -41,15 +31,10 @@ class HardwareExecutor:
                 return False
         
         for idx, point in enumerate(joint_traj):
-            # Select corresponding gripper value (if provided)
-            g = None
-            if gripper_traj is not None and idx < len(gripper_traj):
-                g = gripper_traj[idx]
-
-            # Use combined joint + gripper command so they are sent at once
+            # 仅根据关节轨迹执行运动，不再复现夹爪轨迹
             self.joint_controller.set_joint_and_gripper(
                 joint_angles=point,
-                gripper_value=g,
+                gripper_value=None,
                 speed_deg_s=speed_deg_s,
             )
             time.sleep(self.delay)
@@ -67,7 +52,7 @@ class CartesianWaypointPlanner:
     
     def get_current_waypoint(self) -> Optional[List[float]]:
         """
-        :return: [x, y, z, qx, qy, qz, qw, gripper] or None
+        :return: [x, y, z, qx, qy, qz, qw] or None
         """
         pose = self.robot.get_pose()
         if pose is None:
@@ -75,13 +60,11 @@ class CartesianWaypointPlanner:
         
         pos = pose['position'].tolist()
         quat = pose['quaternion_xyzw'].tolist()
-        gripper = self.robot.get_gripper() or 0.0
-        
-        return pos + quat + [gripper]
+        return pos + quat
     
     def record_teaching_waypoints(self) -> List[List[float]]:
         """
-        :return: Waypoints as [x, y, z, qx, qy, qz, qw, gripper]
+        :return: Waypoints as [x, y, z, qx, qy, qz, qw]
         """
         logger.info("=== 教学模式：手动记录路径点 ===")
         
@@ -91,10 +74,9 @@ class CartesianWaypointPlanner:
         
         # 定义日志格式化函数
         def format_waypoint(count, waypoint):
-            if waypoint and len(waypoint) >= 8:
+            if waypoint and len(waypoint) >= 3:
                 return (f"[记录] 路径点 {count}: "
-                       f"位置={[round(p, 4) for p in waypoint[:3]]}, "
-                       f"夹爪={waypoint[7]:.3f}")
+                       f"位置={[round(p, 4) for p in waypoint[:3]]}")
             return f"[记录] 路径点 {count}"
         
         # 使用共享函数记录路径点
@@ -109,14 +91,14 @@ class CartesianWaypointPlanner:
     
     def execute_trajectory(self,
                           waypoints: List[List[float]],
+                          speed_deg_s: float = 20.0,
                           move_duration: float = 3.0,
                           num_points: int = 150,
                           ik_method: str = 'dls',
-                          visualize: bool = False,
                           step_by_step: bool = False,
                           step_delay: float = 0.2):
         """
-        :param waypoints: Waypoints as [x, y, z, qx, qy, qz, qw, gripper]
+        :param waypoints: Waypoints as [x, y, z, qx, qy, qz, qw]
         :param move_duration: Movement time per waypoint in seconds
         :param num_points: Interpolation points per segment
         :param ik_method: IK method
@@ -137,20 +119,19 @@ class CartesianWaypointPlanner:
             
             # 分离位姿和夹爪
             pose = waypoint[:7]  # [x, y, z, qx, qy, qz, qw]
-            gripper = waypoint[7] if len(waypoint) > 7 else 0.0
             
             # 执行笛卡尔运动
             self.robot.move_cartesian_linear(
                 target_pose=pose,
+                speed_deg_s=speed_deg_s,
                 duration=move_duration,
                 num_points=num_points,
-                ik_method=ik_method,
-                visualize=visualize
+                ik_method=ik_method
             )
             
             # 设置夹爪（使用统一接口，仅控制夹爪）
-            self.robot.set_robot_target(gripper_value=gripper, wait_for_completion=False)
-            time.sleep(step_delay)
+            # self.robot.set_robot_target(gripper_value=gripper, speed_deg_s=speed_deg_s, wait_for_completion=False)
+            # time.sleep(step_delay)
             
             # 逐步执行模式下等待用户确认
             if step_by_step and i < len(waypoints) - 1:

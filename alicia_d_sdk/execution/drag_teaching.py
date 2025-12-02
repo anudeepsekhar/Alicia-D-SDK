@@ -81,6 +81,9 @@ class SimpleDragTeaching:
             print(f"动作名: {self.args.save_motion}")
         if self.args.mode == 'auto':
             print(f"采样频率: {self.args.sample_hz} Hz")
+        # 显示回放/运动速度
+        if hasattr(self.args, "speed_deg_s"):
+            print(f"关节速度: {self.args.speed_deg_s} deg/s")
         print("=" * 30)
         
     def manual_mode(self) -> List[Dict[str, Any]]:
@@ -253,33 +256,52 @@ class SimpleDragTeaching:
         """根据模式回放轨迹"""
         if not data:
             return
-            
+
+        # 简单的时间戳节奏控制：
+        # 假设每个点都有 float 类型的 't' 字段，
+        # 以第一个点为基准，按照 (t_i - t_0) 的间隔进行回放。
+        base_t = float(data[0].get("t", 0.0))
+        start_wall_time = time.time()
+
+        def _sleep_to_match_timestamp(point: Dict[str, Any]):
+            """根据记录的时间戳进行等待，使回放节奏与录制时一致"""
+            t_cur = float(point["t"])
+            target_elapsed = t_cur - base_t
+            now_elapsed = time.time() - start_wall_time
+            wait = target_elapsed - now_elapsed
+            if wait > 0:
+                time.sleep(wait)
+
         print(f"\n=== 轨迹回放 ===")
         print(f"回放模式: {self.args.mode}")
         replay = input(f"是否回放轨迹（{len(data)}个点）？(y/n): ").strip().lower()
         if replay != 'y':
             return
-            
+
         print("[回放] 开始...")
-        
+
         if self.args.mode == 'auto':
             # 自动模式：使用直接设置，快速回放
             print("[回放] 使用直接设置模式（快速）")
             for i, point in enumerate(data):
                 try:
+                    # 根据时间戳控制节奏
+                    _sleep_to_match_timestamp(point)
+
                     # 获取夹爪值
                     gripper_value = point.get("grip", 0.0)
-                    
-                    # 使用combined control直接设置关节和夹爪，无插值
-                    self.controller.servo_driver.set_joint_and_gripper(
-                        joint_angles=point["q"],
+
+                    # 使用高级 API 统一控制关节和夹爪（避免直接依赖底层 driver）
+                    # 关节数据在示教阶段按弧度记录，这里保持 joint_format='rad'
+                    self.controller.set_robot_target(
+                        target_joints=point["q"],
                         gripper_value=gripper_value,
-                        speed_deg_s=30.0  # 高速回放
+                        joint_format='rad',
+                        speed_deg_s=getattr(self.args, "speed_deg_s", 30.0),
+                        wait_for_completion=False,  # 快速连续回放
                     )
-                    
+
                     print(f"[回放] {i+1}/{len(data)}")
-                    time.sleep(0.02)  # 20ms延时，快速回放
-                    
                 except Exception as e:
                     print(f"[错误] 回放第{i+1}点失败: {e}")
                     
@@ -288,6 +310,9 @@ class SimpleDragTeaching:
             print("[回放] 使用插值运动模式（平滑）")
             for i, point in enumerate(data):
                 try:
+                    # 根据时间戳控制节奏
+                    _sleep_to_match_timestamp(point)
+
                     firmware_new = self.controller.firmware_new
                     if firmware_new:
                         self.controller.set_joint_target(point["q"])

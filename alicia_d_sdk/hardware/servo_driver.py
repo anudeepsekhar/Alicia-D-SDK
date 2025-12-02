@@ -37,9 +37,15 @@ class ServoDriver:
         # Torque on/off
         "torque_on": [0xAA, 0x05, 0x00, 0x01, 0x01, 0xF9, 0xFF],
         "torque_off": [0xAA, 0x05, 0x00, 0x01, 0x00, 0x6F, 0xFF],
-        # Joint information acquisition
+        # Joint information acquisition (position and status)
         "joint": [0xAA, 0x06, 0x00, 0x01, 0xFE, 0x9A, 0xFF],
+        # Temperature information acquisition
+        "temperature": [0xAA, 0x06, 0x01, 0x01, 0xFE, 0xAD, 0xFF],
+        # Velocity information acquisition
+        "velocity": [0xAA, 0x06, 0x02, 0x01, 0xFE, 0xF4, 0xFF],
+        "self_check": [0xAA, 0xFE, 0x00, 0x00, 0xFE, 0x93, 0xFF],
     }
+
     def __init__(self, port: str = "", baudrate: int = 1000000, debug_mode: bool = False, gripper_type: str = "50mm"):
         """
         Initialize robot arm controller
@@ -330,6 +336,7 @@ class ServoDriver:
         for joint_idx in range(6):
             angle_rad = effective_joints[joint_idx]
             hardware_value = self._rad_to_hardware_value(angle_rad)
+            # print(f"hardware_value_target: {hardware_value}")
             offset = data_start + joint_idx * 4
             frame[offset] = hardware_value & 0xFF              # low byte
             frame[offset + 1] = (hardware_value >> 8) & 0xFF   # high byte
@@ -339,12 +346,12 @@ class ServoDriver:
         # Gripper value and speed (4 bytes: 2 bytes value, 2 bytes speed)
         gripper_offset = data_start + 6 * 4
         if gripper_value is not None:
-            gripper_hw_value = self._value_to_hardware_value_grip(gripper_value, type=self.gripper_type)
+            gripper_hw_value = int(max(0, min(1000, gripper_value)))
         else:
             if current_state and current_state.gripper is not None:
-                gripper_hw_value = self._value_to_hardware_value_grip(current_state.gripper, type=self.gripper_type)
+                gripper_hw_value = int(max(0, min(1000, current_state.gripper)))
             else:
-                gripper_hw_value = 2048  # Default middle position
+                gripper_hw_value = 1000  # Default middle position
 
         gripper_speed_hw_value = 5500
         frame[gripper_offset] = gripper_hw_value & 0xFF
@@ -375,41 +382,7 @@ class ServoDriver:
         
         return max(0, min(4095, value))
     
-    def _value_to_hardware_value_grip(self, value: float, type: str="50mm") -> int:
-        """
-        :param value: Gripper value in 0-100
-        :return: Hardware value
 
-        Args:
-            value: Angle (radians)
-            
-        Returns:
-            int: Hardware value
-        """
-        # First convert to degrees
-        angle_deg = value * self.RAD_TO_DEG
-        
-        # Range check
-        if value < 0:
-            logger.warning(f"Gripper angle below range: {value:.2f}, will be clipped to 0")
-            value = 0
-        elif value > 100.0:
-            logger.warning(f"Gripper angle above range: {value:.2f}, will be clipped to 100")
-            value = 100.0
-
-        if type == "50mm":
-            servo_value_limit = self.GRI_MAX_50MM
-        else:
-            servo_value_limit = self.GRI_MAX_100MM
-        # Mapping: 0 -> servo_value_limit (closed), 100 -> 2048 (open)
-        ratio = (servo_value_limit - 2048) / 100
-        hw_value = int(servo_value_limit - (value * ratio))
-        
-        ratio = (servo_value_limit - 2048) / 100
-        value = int(2048 + (angle_deg * ratio))
-        
-        # 范围限制
-        return max(2048, min(servo_value_limit, hw_value))
     
     def _value_to_hardware_value_speed(self, speed_deg_s: float) -> int:
         """

@@ -128,6 +128,84 @@ class SynriaRobotAPI:
         if joint_state:
             return joint_state.gripper
         return None
+    
+    def get_temperature(self, timeout: float = 1.0) -> Optional[List[float]]:
+        """Get current servo temperatures.
+        
+        :param timeout: Maximum time to wait for response in seconds
+        :return: List of temperatures in Celsius for each servo, or None if failed
+        """
+        if not self.servo_driver.acquire_info("temperature", wait=True, timeout=timeout):
+            logger.error("Failed to get temperature data within timeout period")
+            return None
+        
+        temp_data = self.data_parser.get_temperature_data()
+        if temp_data is None:
+            logger.error("Temperature data not available after successful acquisition")
+            return None
+        
+        return temp_data['temperatures']
+    
+    def get_velocity(self, timeout: float = 1.0) -> Optional[List[float]]:
+        """Get current servo velocities.
+        
+        :param timeout: Maximum time to wait for response in seconds
+        :return: List of velocities in raw units for each servo, or None if failed
+        """
+        if not self.servo_driver.acquire_info("velocity", wait=True, timeout=timeout):
+            logger.error("Failed to get velocity data within timeout period")
+            return None
+        
+        vel_data = self.data_parser.get_velocity_data()
+        if vel_data is None:
+            logger.error("Velocity data not available after successful acquisition")
+            return None
+        
+        return vel_data['velocities']
+
+    def get_self_check(self, timeout: float = 1.0):
+        """
+        Execute machine self-check (servo health) and return detailed status.
+
+        :param timeout: Maximum time to wait for response in seconds
+        :return: Dict with keys:
+                 - 'robot_type': 'leader' / 'follower' / None
+                 - 'raw_mask': Integer bit mask (LSB = servo 1)
+                 - 'servo_status_bits': List[bool], True = OK, False = fault
+                 - 'all_ok': True if all relevant servos are OK
+                 - 'faulty_ids': List of servo IDs (1-based) that are faulty
+                 - 'timestamp': Timestamp
+                 or None if failed.
+        """
+        if not self.servo_driver.acquire_info("self_check", wait=True, timeout=timeout):
+            logger.error("Failed to get self-check data within timeout period")
+            return None
+
+        sc_data = self.data_parser.get_self_check_data()
+
+        robot_type = self._robot_type()
+        if robot_type == "leader":
+            bits_full = sc_data["bits"][:6]
+        elif robot_type == "follower":
+            bits_full = sc_data["bits"][:10]
+        else:
+            logger.error("Invalid robot type")
+            return None
+        if sc_data is None:
+            logger.error("Self-check data not available after successful acquisition")
+            return None
+
+        # check if the bits_full is all True
+        if all(bits_full):
+            logger.info("All servos are OK")
+        else:
+            # print the faulty servo ids
+            faulty_ids = [i + 1 for i, bit in enumerate(bits_full) if not bit]
+            logger.warning(f"Broken servo IDs: {faulty_ids}")
+            return None
+
+
+
 
     def get_pose(self) -> Optional[Union[List[float], Dict]]:
         """Get current end-effector pose.
@@ -163,25 +241,23 @@ class SynriaRobotAPI:
 
     # ==================== Robot Control ====================                         
     
-    def set_home(self, speed_factor: float = 1, tolerance: float = 0.03, timeout: float = 10.0):
+    def set_home(self, speed_deg_s: int = 20):
         """Move robot to home position and wait until near zero.
 
-        :param speed_factor: Speed multiplier for motion
-        :param tolerance: Rad, acceptable abs distance to zero for all joints
-        :param timeout: Seconds, maximum wait time
+        :param speed_deg_s: Speed in degrees per second (0-360, required range).
         """
         time.sleep(0.1)
         home_joints = [0.0] * 6
-        self.set_robot_target(target_joints=home_joints, gripper_value=100.0)
+        self.set_robot_target(target_joints=home_joints, gripper_value=1000, speed_deg_s=speed_deg_s)
 
     
     def set_robot_target(self,
                             target_joints: Optional[List[float]] = None,
-                            gripper_value: Optional[float] = None,
+                            gripper_value: Optional[int] = None,
                             joint_format: str = 'rad',
                             speed_deg_s: int = 20,
                             tolerance: float = 0.03,
-                            timeout: float = 1.0,
+                            timeout: float = 10.0,
                             wait_for_completion: bool = True) -> bool:
         """Set joint angles and/or gripper in a single combined command.
         
@@ -198,10 +274,10 @@ class SynriaRobotAPI:
             set_joint_and_gripper_target(target_joints=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
             
             # Only gripper
-            set_joint_and_gripper_target(gripper_value=50.0)
+            set_joint_and_gripper_target(gripper_value=1000)
             
             # Both
-            set_joint_and_gripper_target(target_joints=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6], gripper_value=50.0)
+            set_joint_and_gripper_target(target_joints=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6], gripper_value=1000)
         """
         # Convert joint format if needed
         if target_joints is not None:
@@ -237,7 +313,7 @@ class SynriaRobotAPI:
                        max_iters: int = 100,
                        multi_start: int = 0,
                        use_random_init: bool = False,
-                       speed_factor: float = 1.0,
+                       speed_deg_s: float = 20.0,
                        execute: bool = True) -> Dict:
         """Move end-effector to target pose using inverse kinematics.
 
@@ -249,7 +325,7 @@ class SynriaRobotAPI:
         :param max_iters: Maximum number of iterations
         :param multi_start: Number of multi-start attempts, 0 to disable
         :param use_random_init: Use random initial guess instead of current pose
-        :param speed_factor: Motion speed multiplier
+        :param speed_deg_s: Motion speed in degrees per second
         :param execute: Execute motion if True
         :return: Dictionary with success, q, iters, pos_err, ori_err, message
         """
@@ -305,14 +381,7 @@ class SynriaRobotAPI:
             
             # Execute motion if requested
             if execute:
-                if self.firmware_new:
-                    result = self.set_joint_target(ik_result['q'], joint_format='rad')
-                else:
-                    result = self.set_joint_target_interplotation(
-                        ik_result['q'], 
-                        joint_format='rad',
-                        speed_factor=speed_factor
-                    )
+                result = self.set_robot_target(target_joints=ik_result['q'], joint_format='rad', speed_deg_s=speed_deg_s, wait_for_completion=True)
                 ik_result['motion_executed'] = result
             else:
                 ik_result['motion_executed'] = False
@@ -392,10 +461,11 @@ class SynriaRobotAPI:
     
     def move_cartesian_linear(self,
                              target_pose: List[float],
+                             speed_deg_s: float = 20.0,
                              duration: float = 2.0,
                              num_points: int = 50,
-                             ik_method: str = 'dls',
-                             visualize: bool = False) -> bool:
+                             ik_method: str = 'dls'
+                             ) -> bool:
         """Execute linear Cartesian trajectory to target pose.
 
         :param target_pose: Target pose as [x, y, z, qx, qy, qz, qw]
@@ -403,7 +473,6 @@ class SynriaRobotAPI:
         :param num_points: Number of trajectory waypoints
         :param ik_method: IK solver method
         :param visualize: Enable trajectory visualization
-        :return: True if successful
         """
         # 获取当前位姿
         current_pose_dict = self.get_pose()
@@ -413,7 +482,7 @@ class SynriaRobotAPI:
         
         pose_start = current_pose_dict['transform']
         
-        # 构建目标位姿矩阵
+        # 构建目标位姿矩阵（仅基于末端位姿，不包含夹爪信息）
         position = np.array(target_pose[:3])
         quaternion = np.array(target_pose[3:])
         rotation_matrix = quaternion_to_matrix(quaternion)
@@ -455,7 +524,7 @@ class SynriaRobotAPI:
 
         result = self.hardware_executor.execute(
             joint_traj=q.tolist(),
-            visualize=visualize, 
+            speed_deg_s=speed_deg_s,
         )
         
         return result if result is not None else True
@@ -509,6 +578,10 @@ class SynriaRobotAPI:
         def _print_once(robot_type):
             pose = None
             state = self.get_robot_state(robot_type)
+            # get temperature and velocity as well
+            temperature = self.get_temperature()
+            velocity = self.get_velocity()
+            self.get_self_check()
             if state is None:
                 logger.warning("无法获取关节状态")
                 return
@@ -537,14 +610,19 @@ class SynriaRobotAPI:
                 quaternion = pose['quaternion_xyzw']
                 position = pose['position']
                 logger.info(f"位置(xyz /m): {[round(p, 3) for p in position]}, 四元数(qx, qy, qz, qw): {[round(q, 3) for q in quaternion]}")
-                print("\n")
+                
 
+            logger.info(f"舵机温度（°C): {[round(t, 1) for t in temperature]}")
+            logger.info(f"舵机速度: {[round(v, 1) for v in velocity]}")
+            
+
+            print("\n")
         if continuous:
             logger.info("开始连续状态打印，按 Ctrl+C 停止")
             try:
                 while True:
                     _print_once(robot_type)
-                    time.sleep(0.06)
+                    time.sleep(0.7)
             except KeyboardInterrupt:
                 logger.info("停止连续状态打印")
         else:
@@ -602,8 +680,12 @@ class SynriaRobotAPI:
                     # logger.info("已到达目标位置")
                     return True
             time.sleep(0.05)
-
         logger.warning("等待关节到目标附近超时")
+        # time.sleep(10)
+        joints = self.get_joints()
+        logger.warning(f"目标关节角度: {target_joints}")
+        logger.warning(f"关节角度: {joints}")
+        
         return False
     
 

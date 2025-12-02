@@ -16,17 +16,10 @@ from alicia_d_sdk.execution import CartesianWaypointPlanner
 
 def main(cmd_args):
     """Demonstrate multi-point Cartesian trajectory planning.
-    
-    :param cmd_args: Command line arguments
     """
-    logger.info("=== Multi-point Cartesian trajectory planning demo ===")
     
     # Initialize and connect to the robot
-    robot = alicia_d_sdk.create_robot(
-        port=cmd_args.port,
-        robot_version=cmd_args.robot_version,
-        gripper_type=cmd_args.gripper_type,
-    )
+    robot = alicia_d_sdk.create_robot(port=cmd_args.port)
     
     if not robot.connect():
         logger.error("Unable to connect to the robot")
@@ -56,10 +49,10 @@ def main(cmd_args):
         # Execute trajectory
         planner.execute_trajectory(
             waypoints=waypoints,
+            speed_deg_s=cmd_args.speed_deg_s,
             move_duration=cmd_args.move_duration,
             num_points=cmd_args.num_points,
             ik_method=cmd_args.ik_method,
-            visualize=cmd_args.visualize,
             step_by_step=step_by_step,
             step_delay=0.5 if step_by_step else 0.2
         )
@@ -80,10 +73,7 @@ if __name__ == "__main__":
     
     # Robot configuration
     parser.add_argument('--port', type=str, default="", help="串口端口 (例如: /dev/ttyCH343USB0 或 COM3)")
-    parser.add_argument('--robot_version', type=str, default="v5_6",  help="机器人版本 (默认: v5_6)")
-    parser.add_argument('--gripper_type', type=str, default="50mm",  help="夹爪型号 (默认: 50mm)")
-    
-    
+    parser.add_argument('--speed_deg_s', type=float, default=15.0,  help="关节运动速度 (单位: 度/秒, 默认: 20.0)")
     # Trajectory planning settings
     parser.add_argument('--move_duration', type=float, default=3.0, help="每个路径点的移动时间 (秒, 默认: 3.0)")
     parser.add_argument('--num_points', type=int, default=200, help="轨迹插值点数 (默认: 150)")

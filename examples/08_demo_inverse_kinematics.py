@@ -19,12 +19,8 @@ def main(args):
     """
     :param args: Command line arguments
     """
-    robot = alicia_d_sdk.create_robot(
-        port=args.port,
-        robot_version=args.robot_version,
-        gripper_type=args.gripper_type
-    )
-    
+    robot = alicia_d_sdk.create_robot(port=args.port)
+
     if not robot.connect():
         print("✗ 连接失败，请检查串口设置")
         return
@@ -41,7 +37,7 @@ def main(args):
         max_iters=args.max_iters,
         multi_start=args.multi_start,
         use_random_init=args.use_random_init,
-        speed_factor=args.speed_deg_s,
+        speed_deg_s=args.speed_deg_s,
         execute=args.execute
     )
     
@@ -67,7 +63,7 @@ def main(args):
     # 如果执行了移动，回到初始位置
     if args.execute and ik_result['success']:
         print("\n返回初始位置...")
-        robot.set_home(speed_factor=2.0)
+        robot.set_home(speed_deg_s=args.speed_deg_s)
     
     robot.disconnect()
 
@@ -76,10 +72,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="逆向运动学示例")
     
     # Robot connection settings
-    parser.add_argument('--port', type=str, default="/dev/ttyUSB0", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
-    parser.add_argument('--robot_version', type=str, default="v5_6",  help="机器人版本 (默认: v5_6)")
-    parser.add_argument('--gripper_type', type=str, default="50mm",  help="夹爪型号 (默认: 50mm)")
-    parser.add_argument('--speed_deg_s', type=float, default=20.0,  help="关节运动速度 (单位: 度/秒, 默认: 20.0)")
+    parser.add_argument('--port', type=str, default="", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
+    parser.add_argument('--speed_deg_s', type=float, default=8.0,  help="关节运动速度 (单位: 度/秒, 默认: 10.0)")
     
     # IK Configuration
     parser.add_argument('--end-pose', type=float, nargs=7, 

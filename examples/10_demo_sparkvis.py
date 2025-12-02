@@ -41,12 +41,7 @@ def main(args):
     :param args: Command line arguments
     """
     # Initialize robot instance
-    robot = alicia_d_sdk.create_robot(
-        port=args.port,
-        baudrate=args.baudrate,
-        robot_version=args.robot_version,
-        gripper_type=args.gripper_type,
-    )
+    robot = alicia_d_sdk.create_robot(port=args.port)
 
     try:
         # Connect to robot
@@ -86,11 +81,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='SparkVis ↔ 真实机器人 同步与数据记录 Demo')
     
     # Robot connection settings
-    parser.add_argument('--port', type=str, default='/dev/ttyCH343USB0', help='串口设备，如 /dev/ttyUSB0 或 COM3')
-    parser.add_argument('--baudrate', type=int, default=1000000, help='串口波特率，默认1000000；若读取超时请尝试 921600')
-    parser.add_argument('--robot_version', type=str, default='v5_6', help='机器人版本 (默认: v5_6)')
-    parser.add_argument('--gripper_type', type=str, default='50mm', help='夹爪型号 (默认: 50mm)')
-    
+    parser.add_argument('--port', type=str, default='', help='串口设备，如 /dev/ttyUSB0 或 COM3')
     # WebSocket settings
     parser.add_argument('--host', type=str, default='localhost', help='WebSocket主机')
     parser.add_argument('--websocket-port', type=int, default=8765, help='WebSocket端口')
