@@ -211,7 +211,7 @@ class ServoDriver:
 
 
     
-    def acquire_info(self, info_type: str, wait: bool = False, timeout: float = 2.0) -> bool:
+    def acquire_info(self, info_type: str, wait: bool = False, timeout: float = 2.0, retry_interval: float = 0.2) -> bool:
         """
         General information acquisition interface, selecting different commands by type.
         Args:
@@ -223,6 +223,7 @@ class ServoDriver:
                 - "joint"
             wait: If True, wait for the response to be received and parsed
             timeout: Maximum time to wait in seconds (only used if wait=True)
+            retry_interval: Time interval between retry attempts in seconds (default 0.2s)
         """
         if info_type not in self.INFO_COMMAND_MAP:
             raise ValueError(f"Unsupported info type: {info_type}")
@@ -233,17 +234,40 @@ class ServoDriver:
             event.clear()
 
         command = self.INFO_COMMAND_MAP[info_type]
-        success = self.serial_comm.send_data(command)
+        
+        # If not waiting, just send once
+        if not wait:
+            success = self.serial_comm.send_data(command)
+            return success
+        
+        # If waiting and has an event, implement retry logic
+        if info_type in self.data_parser._info_event_map:
+            event = self.data_parser._info_event_map[info_type]
+            start_time = time.time()
+            
+            while time.time() - start_time < timeout:
+                # Send command
+                success = self.serial_comm.send_data(command)
+                if not success:
+                    logger.warning(f"Failed to send {info_type} command, retrying...")
+                    time.sleep(retry_interval)
+                    continue
+                
+                # Wait for response with a short timeout (retry_interval)
+                remaining_time = timeout - (time.time() - start_time)
+                wait_time = min(retry_interval, remaining_time)
+                
+                if event.wait(wait_time):
+                    # Successfully received response
+                    return True
 
-        if not success:
+            # Timeout exceeded
+            logger.warning(f"Failed to get {info_type} within timeout period after multiple retries")
             return False
-        
-        if wait:
-            if info_type in self.data_parser._info_event_map:
-                return self.data_parser.wait_for_info(info_type, timeout)
-            return True
-        
-        return True
+        else:
+            # For commands without events, just send once
+            success = self.serial_comm.send_data(command)
+            return success
 
     
 

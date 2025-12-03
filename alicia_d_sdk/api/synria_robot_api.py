@@ -129,7 +129,7 @@ class SynriaRobotAPI:
             return joint_state.gripper
         return None
     
-    def get_temperature(self, timeout: float = 1.0) -> Optional[List[float]]:
+    def get_temperature(self, timeout: float = 5.0) -> Optional[List[float]]:
         """Get current servo temperatures.
         
         :param timeout: Maximum time to wait for response in seconds
