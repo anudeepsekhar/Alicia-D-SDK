@@ -34,21 +34,16 @@ class DataParser:
     # Data sizes
     JOINT_DATA_SIZE = 18
     
-    def __init__(self, lock: threading.Lock, debug_mode: bool = False, gripper_type: str = "50mm"):
+    def __init__(self, lock: threading.Lock, debug_mode: bool = False):
         """
         Initialize data parser.
         
         Args:
             lock: Shared threading lock for concurrent access.
             debug_mode: Whether to enable debug logging.
-            gripper_type: Gripper type, e.g. "50mm" or "100mm".
-            robot_type: Robot role, e.g. "follower" or "leader".
         """
         self.debug_mode = debug_mode
-        if gripper_type == "50mm":
-            self.servo_value_limit = self.GRI_MAX_50MM
-        else:
-            self.servo_value_limit = self.GRI_MAX_100MM 
+
         # Store latest joint state
         self._joint_states = JointState([0.0]*6, 0.0, 0.0, "idle")
 

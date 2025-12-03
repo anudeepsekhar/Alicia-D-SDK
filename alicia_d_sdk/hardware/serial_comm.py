@@ -23,19 +23,17 @@ class SerialComm:
         "Windows": ["COM", "ttyUSB", "cu.usbserial", "cu.usbmodem"]
     }
 
-    def __init__(self, port: str = "", baudrate: int = 1000000,
-                 timeout: float = 1.0, debug_mode: bool = False, lock: Optional[threading.Lock] = None):
+    def __init__(self, port: str = "", timeout: float = 1.0, debug_mode: bool = False, lock: Optional[threading.Lock] = None):
         """
         Args:
             port: Serial port name, leave empty to auto-search
-            baudrate: Baud rate
             timeout: Timeout in seconds
             debug_mode: Whether to enable debug mode
             lock: Optional thread lock, auto-created if not provided
         """
         self.port_name = port
-        self.baudrate = baudrate
         self.timeout = timeout
+        self.baudrate = 1000000
         self.debug_mode = debug_mode
         self.serial_port = None
         self.last_log_time = 0

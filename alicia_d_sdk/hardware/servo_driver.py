@@ -46,22 +46,20 @@ class ServoDriver:
         "self_check": [0xAA, 0xFE, 0x00, 0x00, 0xFE, 0x93, 0xFF],
     }
 
-    def __init__(self, port: str = "", baudrate: int = 1000000, debug_mode: bool = False, gripper_type: str = "50mm"):
+    def __init__(self, port: str = "", debug_mode: bool = False):
         """
         Initialize robot arm controller
         
         :param port: Serial port name, leave empty to auto search
-        :param baudrate: Baud rate
         :param debug_mode: Whether to enable debug mode
         """
         self.debug_mode = debug_mode
         self._lock = threading.Lock()
-        self.gripper_type = gripper_type
 
 
 
         # Create serial communication module and data parser
-        self.serial_comm = SerialComm(lock=self._lock, port=port, baudrate=baudrate, debug_mode=debug_mode)
+        self.serial_comm = SerialComm(lock=self._lock, port=port, debug_mode=debug_mode)
         self.data_parser = DataParser(lock=self._lock, debug_mode=debug_mode)
         
         # Number of servos

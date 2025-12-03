@@ -11,12 +11,9 @@ from alicia_d_sdk import create_robot
 
 robot = create_robot(
     port="",                    # 串口（留空自动查找）
-    baudrate=1000000,           # 波特率
     robot_version="v5_6",       # 机械臂结构版本
     gripper_type="50mm",        # 夹爪类型
-    firmware_version=None,      # 固件版本（自动检测）
     debug_mode=False,           # 调试模式
-    speed_deg_s=20.0           # 默认速度（度/秒），建议使用默认值
 )
 ```
 
@@ -88,11 +85,6 @@ robot = create_robot()
 - `zero_calibration()`  
   执行归零校准流程：关闭扭矩 → 手动拖动 → 重启扭矩 → 记录零点
 
-- `set_speed(speed_deg_s)`  
-  设置机械臂运动速度（度/秒，仅新固件）
-
-- `set_acceleration(acceleration)`  
-  设置机械臂加速度
 
 ---
 
@@ -107,7 +99,6 @@ robot = create_robot()
 - `set_gripper(...)`
 - `enable_torque()` / `disable_torque()`
 - `set_zero_position()`
-- `set_speed(...)` / `set_acceleration(...)`
 
 不推荐用户直接使用此类，建议通过 `SynriaRobotAPI` 高级接口操作。
 

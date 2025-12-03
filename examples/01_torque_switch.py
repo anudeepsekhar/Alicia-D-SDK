@@ -15,7 +15,7 @@ from alicia_d_sdk.utils.logger import logger
 def main(args):
     """Execute robot torque control.
     
-    :param args: Command line arguments containing port, baudrate, version, and gripper_type
+    :param args: Command line arguments containing port
     """
     # Initialize robot instance
     robot = alicia_d_sdk.create_robot(

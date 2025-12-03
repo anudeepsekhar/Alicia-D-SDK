@@ -67,7 +67,6 @@ __all__ = [
 
 def create_robot(
         port: str = "", 
-        baudrate: int = 1000000, 
         robot_version: str = "v5_6",
         gripper_type: str = "50mm",
         debug_mode: bool = False,
@@ -80,7 +79,7 @@ def create_robot(
     :param debug_mode: Debug mode
     """
     # 创建硬件层
-    servo_driver = ServoDriver(port=port, baudrate=baudrate, debug_mode=debug_mode)
+    servo_driver = ServoDriver(port=port, debug_mode=debug_mode)
     
     # 创建运动学层 (使用 RoboCore)
     try:

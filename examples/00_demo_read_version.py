@@ -11,14 +11,10 @@ from alicia_d_sdk.utils.logger import logger
 def main(args):
     """Read and print robot firmware version.
 
-    :param args: Command line arguments containing port, baudrate, version, and gripper_type
+    :param args: Command line arguments containing port
     """
     # Initialize robot instance
-    robot = alicia_d_sdk.create_robot(
-        port=args.port,
-        robot_version=args.robot_version,
-        gripper_type=args.gripper_type
-    )
+    robot = alicia_d_sdk.create_robot(port=args.port)
 
     try:
         # Connect to robot
@@ -43,8 +39,6 @@ if __name__ == '__main__':
 
     # Robot configuration
     parser.add_argument('--port', type=str, default="", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
-    parser.add_argument('--robot_version', type=str, default="v5_6",  help="机械臂版本 (默认: v5_6)")
-    parser.add_argument('--gripper_type', type=str, default="50mm",  help="夹爪型号 (默认: 50mm)")
     args = parser.parse_args()
 
     main(args)

@@ -15,7 +15,7 @@
 
 ### 1. 克隆或下载项目
 ```bash
-git clone https://github.com/Xuanya-Robotics/Alicia-D-SDK.git -v6.0.0
+git clone https://github.com/Synria-Robotics/Alicia-D-SDK.git -v6.1.0
 cd Alicia-D-SDK
 ```
 
@@ -114,7 +114,7 @@ python3 03_demo_read_state.py     # 读取机械臂状态
 
 手动指定波特率：
 ```python
-robot = create_robot(port="/dev/ttyUSB0", baudrate=921600)
+robot = create_robot(port="/dev/ttyUSB0")
 ```
 
 ### 权限错误 (Permission denied)
@@ -124,7 +124,6 @@ robot = create_robot(port="/dev/ttyUSB0", baudrate=921600)
 
 ### 固件版本检测失败
 - 多次运行 `00_demo_read_version.py`
-- 尝试不同的波特率（1000000 或 921600）
 - 检查串口连接是否稳定
 
 ---
@@ -134,7 +133,7 @@ robot = create_robot(port="/dev/ttyUSB0", baudrate=921600)
 主要依赖：
 - `pyserial`: 串口通信
 - `numpy`: 数值计算
-- `matplotlib`: 可视化（可选）
+- `pycrc`: CRC校验
 - `robocore`: 运动学和轨迹规划（自动安装）
 
 ---

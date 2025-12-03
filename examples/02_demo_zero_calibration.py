@@ -15,7 +15,7 @@ import alicia_d_sdk
 def main(args):
     """Execute robot zero calibration.
     
-    :param args: Command line arguments containing port, baudrate, version, and gripper_type
+    :param args: Command line arguments containing port
     """
     # Initialize robot instance
     robot = alicia_d_sdk.create_robot(port=args.port)

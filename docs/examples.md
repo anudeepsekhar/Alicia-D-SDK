@@ -124,7 +124,6 @@ python 04_demo_move_gripper.py
 
 **调整建议：**
 - 根据运动距离调整 `T_default`：短距离用2-3秒，长距离用5-8秒
-- 精细操作时降低 `speed_factor` 到0.5-0.8
 - 快速运动时可提高 `speed_factor` 到1.2-1.5
 
 **使用方式：**
@@ -223,36 +222,15 @@ python 09_demo_drag_teaching.py
 
 ### 运动控制参数调整：
 
-*新固件（6.0.0及以上）*
+*新固件（6.1.0及以上）*
 
-- **速度过快**：降低 `speed_factor` 或 `speed_deg_s`
+- **速度过快**：降低 `speed_deg_s`
 
-*旧固件（6.0.0以下）*
-- **运动不平滑**：增加 `num_points` 或 `n_steps_ref`
-- **精度不够**：降低 `tolerance`，增加 `max_iters`
-- **响应过慢**：降低 `duration` 或 `T_default`
 
 ### IK 求解参数调整：
 - **求解失败**：尝试不同 `method`，增加 `multi_start`
 - **局部最优**：使用 `use_random_init=True`
 - **精度要求高**：降低 `tolerance` 到 1e-5 或更小
 - **速度要求高**：使用 `method='pinv'` 或 `method='transpose'`
-
----
-
-## 🔧 固件版本说明
-
-SDK 自动检测固件版本并选择合适的控制模式：
-
-### 新固件（6.x.x）：
-- 使用 `set_joint_target()` 直接设置关节目标
-- 支持 `set_speed()` 设置运动速度
-- 更快的响应速度
-- 更平滑的运动轨迹
-
-### 旧固件（<6.x.x）：
-- 使用 `set_joint_target_interplotation()` 插值控制
-- 需要手动调整 `speed_factor` 和 `T_default`
-- SDK 自动生成插值轨迹
 
 ---
