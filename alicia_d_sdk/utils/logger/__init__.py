@@ -1,4 +1,4 @@
-from .beauty_logger import *
+from alicia_d_sdk.utils.logger.beauty_logger import *
 from datetime import datetime
 
 # 创建统一的日志文件，使用日期时间命名

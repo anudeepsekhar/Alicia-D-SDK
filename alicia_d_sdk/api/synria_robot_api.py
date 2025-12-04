@@ -12,9 +12,7 @@ Responsibilities:
 import time
 from typing import List, Optional, Dict, Union, Tuple
 import numpy as np
-import json
-import os
-# Import from robocore for kinematics and planning
+
 from robocore.kinematics import inverse_kinematics
 from robocore.modeling import RobotModel
 from robocore.transform import make_transform, quaternion_to_matrix
@@ -26,11 +24,11 @@ from robocore.planning.trajectory import (
     linear_joint_trajectory,
     linear_cartesian_trajectory,
 )
-from ..hardware import ServoDriver
-from ..execution import HardwareExecutor
-from ..utils.logger import logger
+from alicia_d_sdk.hardware import ServoDriver
+from alicia_d_sdk.execution import HardwareExecutor
+from alicia_d_sdk.utils.logger import logger
 from robocore.utils.control_utils import compute_steps_and_delay, validate_joint_list, check_and_clip_joint_limits
-from ..utils.calculate import calculate_movement_duration
+from alicia_d_sdk.utils.calculate import calculate_movement_duration
 
 
 class SynriaRobotAPI:

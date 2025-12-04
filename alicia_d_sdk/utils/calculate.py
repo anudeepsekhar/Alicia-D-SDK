@@ -2,11 +2,10 @@ from typing import List
 import numpy as np
 
 
-
 def calculate_movement_duration(current_joints: List[float], target_joints: List[float], speed_deg_s: int) -> float:
     """
     Calculates the required time for the movement to complete based on the stored speed.
-        
+
     :param current_joints: The starting joint angles in radians
     :param target_joints: The destination joint angles in radians
     :param speed_deg_s: Speed in degrees per second
@@ -20,5 +19,3 @@ def calculate_movement_duration(current_joints: List[float], target_joints: List
     max_angle_distance = np.max(angle_distances)
     duration = max_angle_distance / angular_velocity + 0.5
     return duration
-
-

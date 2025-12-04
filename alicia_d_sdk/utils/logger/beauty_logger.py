@@ -33,7 +33,7 @@ class BeautyLogger:
         self.min_level = min_level
 
         os.makedirs(self.log_dir, exist_ok=True)
-        
+
     def _write_log(self, content, type):
         with open(self.log_path, "a", encoding="utf-8") as f:
             f.write(" Alicia-D-SDK:{}] {}\n".format(type.upper(), content))
@@ -93,7 +93,7 @@ class BeautyLogger:
     def debug(self, content, local_verbose=True):
         """
         Print debug message.
-        
+
         :param content: Debug message content
         :param local_verbose: Whether to print to console
         """
@@ -104,7 +104,7 @@ class BeautyLogger:
     def error(self, content, local_verbose=True, raise_exception=True):
         """
         Print error message.
-        
+
         :param content: Error message content
         :param local_verbose: Whether to print to console
         :param raise_exception: Whether to raise exception
@@ -118,7 +118,7 @@ class BeautyLogger:
     def success(self, content, local_verbose=True):
         """
         Print success message.
-        
+
         :param content: Success message content
         :param local_verbose: Whether to print to console
         """

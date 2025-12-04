@@ -1,4 +1,4 @@
-from .trajectory import plot_joint_angles, plot_3d
+from alicia_d_sdk.utils.vislab.trajectory import plot_joint_angles, plot_3d
 
 __all__ = [
     "plot_3d",

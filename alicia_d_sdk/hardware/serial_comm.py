@@ -15,11 +15,11 @@ DEFAULT_LENGTH = 6
 
 class SerialComm:
     """Robot arm serial communication module"""
-    
+
     PLATFORM_PRIORITIES = {
         "Darwin": ["cu.wchusbserial", "cu.SLAB_USBtoUART", "cu.usbserial", "cu.usbmodem", "ttyUSB", "COM"],
-        "Linux": ["ttyUSB", "ttyACM", "ttyCH343USB", "ttyCH341USB", "cu.wchusbserial", 
-                 "cu.SLAB_USBtoUART", "cu.usbserial", "cu.usbmodem", "COM"],
+        "Linux": ["ttyUSB", "ttyACM", "ttyCH343USB", "ttyCH341USB", "cu.wchusbserial",
+                  "cu.SLAB_USBtoUART", "cu.usbserial", "cu.usbmodem", "COM"],
         "Windows": ["COM", "ttyUSB", "cu.usbserial", "cu.usbmodem"]
     }
 
@@ -83,7 +83,6 @@ class SerialComm:
             logger.error(f"Serial port connection exception: {str(e)}")
             return False
 
-
     def disconnect(self):
         """Disconnect serial port connection"""
         if self.serial_port and self.serial_port.is_open:
@@ -93,7 +92,6 @@ class SerialComm:
     def is_connected(self) -> bool:
         """Check if serial port is connected and open"""
         return self.serial_port is not None and self.serial_port.is_open
-
 
     def find_serial_port(self) -> str:
         """Find available serial port device"""
@@ -184,8 +182,6 @@ class SerialComm:
                 logger.error(f"Exception sending data: {str(e)}")
                 return False
 
-
-
     def read_frame(self) -> Optional[List[int]]:
         """
         Read one frame of data (non-blocking, returns None if no complete frame)
@@ -214,12 +210,12 @@ class SerialComm:
                 if self._rx_buffer[0] != 0xAA:
                     self._rx_buffer.pop(0)
                     continue
-                
+
                 if self.debug_mode:
                     print(f" Buffer size: {len(self._rx_buffer)} bytes, first bytes: {self._rx_buffer[:min(12, len(self._rx_buffer))]}")
 
                 data_len = self._rx_buffer[3]
-                
+
                 frame_length = data_len + DEFAULT_LENGTH
                 if len(self._rx_buffer) < frame_length:
                     # Wait for more data
@@ -230,12 +226,12 @@ class SerialComm:
                     if self.debug_mode:
                         logger.debug(f" Incomplete frame: need {frame_length}, have {len(self._rx_buffer)}")
                     break
-                
+
                 candidate = self._rx_buffer[:frame_length]
-                
+
                 # Step 5: Verify frame tail and checksum
                 valid_tail = candidate[-1] == 0xFF
-                
+
                 if not valid_tail:
                     # Tail mismatch, this 0xAA was not a start or data is corrupted
                     self._rx_buffer.pop(0)
@@ -244,20 +240,18 @@ class SerialComm:
                 if self._serial_data_check(candidate):
                     self._rx_buffer = self._rx_buffer[frame_length:]
                     # frames_processed += 1
-                    # self._hex_print("candidate", list(candidate))   
+                    # self._hex_print("candidate", list(candidate))
                     return list(candidate)
                 else:
                     # Checksum failed
                     logger.warning(f"CRC Error. Raw: {' '.join(f'{b:02X}' for b in candidate)}")
-                    self._rx_buffer.pop(0) 
+                    self._rx_buffer.pop(0)
 
             return None
 
         except Exception as e:
             logger.error(f"Exception reading data: {str(e)}")
             return None
-
-
 
     def _serial_data_check(self, frame: bytearray) -> bool:
         """
@@ -271,7 +265,6 @@ class SerialComm:
         calculated_checksum = self.calculate_checksum(payload_to_check)
         return received_checksum == calculated_checksum
 
-
     def calculate_checksum(self, data) -> int:
         """
         Use CRC-32 and only use the last 8 bits by pycrc
@@ -280,12 +273,10 @@ class SerialComm:
         crc = crc_calculator.calculate(bytes(data))
         return crc & 0xFF
 
-
-    
     def get_processing_stats(self) -> dict:
         """
         Get frame processing statistics
-        
+
         :return: Contains statistics of processed and dropped frames
         """
         return {
@@ -310,7 +301,6 @@ class SerialComm:
         self.serial_port.setDTR(True)  # Some controllers ignore TX when DTR is low
         self.serial_port.setRTS(False)
 
-
     def _normalize_device_name(self, device_name: str, should_log: bool = False) -> str:
         """Normalize device name for Windows COM port and Linux path"""
         # Windows: add prefix for COM ports > 9
@@ -323,26 +313,26 @@ class SerialComm:
                         logger.info(f"Windows COM port number greater than 9, add prefix: {device_name}")
             except ValueError:
                 pass
-        
+
         # Linux: ensure /dev/ prefix
         if platform.system() == "Linux" and not device_name.startswith("/dev/"):
             if device_name.startswith(("tty", "cu")):
                 device_name = f"/dev/{device_name}"
-        
+
         return device_name
 
     def _check_serial_permissions(self, device_name: str) -> Tuple[bool, Optional[str]]:
         """Check serial port device permissions
-        
+
         :param device_name: Device name to check
         :return: Tuple of (has_permission, error_message)
         """
         if platform.system() == "Windows":
             return True, None
-        
+
         if not os.path.exists(device_name):
             return False, f"Device {device_name} does not exist"
-        
+
         if not os.access(device_name, os.R_OK | os.W_OK):
             current_user = getpass.getuser()
             system = platform.system()
@@ -360,7 +350,7 @@ class SerialComm:
             }
             solution = solutions.get(system, f"  Temporarily use: sudo chmod 666 {device_name}\n")
             return False, f"Insufficient permissions: Cannot access serial port device {device_name}\nSolution:\n{solution}"
-        
+
         return True, None
 
     def _is_device_accessible(self, device_name: str) -> bool:

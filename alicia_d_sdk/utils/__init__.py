@@ -1,5 +1,5 @@
 # utils/__init__.py
-from .vislab import *
-from .logger import *
-from .calculate import *
+from alicia_d_sdk.utils.vislab import *
+from alicia_d_sdk.utils.logger import *
+from alicia_d_sdk.utils.calculate import *
 

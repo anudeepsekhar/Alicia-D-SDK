@@ -11,7 +11,7 @@ class JointState(NamedTuple):
     angles: List[float]  # Six joint angles (radians)
     gripper: float       # Gripper value
     timestamp: float     # Timestamp (seconds)
-    run_status_text: str # Run status text
+    run_status_text: str  # Run status text
 
 
 class DataParser:
@@ -19,7 +19,7 @@ class DataParser:
     # Constants
     DEG_TO_RAD = math.pi / 180.0  # Degrees to radians
     RAD_TO_DEG = 180.0 / math.pi  # Radians to degrees
-    
+
     # Command IDs
     CMD_GRIPPER = 0x04     # Gripper control and travel feedback
     CMD_GRIPPER_V6 = 0x12  # Gripper control for V6 firmware
@@ -33,11 +33,11 @@ class DataParser:
     GRI_MAX_100MM = 3600
     # Data sizes
     JOINT_DATA_SIZE = 18
-    
+
     def __init__(self, lock: threading.Lock, debug_mode: bool = False):
         """
         Initialize data parser.
-        
+
         :param lock: Shared threading lock for concurrent access
         :param debug_mode: Whether to enable debug logging
         """
@@ -50,19 +50,19 @@ class DataParser:
         # Full version information dict: serial, hardware, firmware
         self._version_info: Optional[Dict[str, str]] = None
         self._lock = lock
-        
+
         # Store run status from joint data
         self._run_status: Optional[int] = None
         self._run_status_text: Optional[str] = None
-        
+
         # Store temperature data (in Celsius)
         self._temperature_data: Optional[List[float]] = None
         self._temperature_timestamp: Optional[float] = None
-        
+
         # Store velocity data (in raw units)
         self._velocity_data: Optional[List[float]] = None
         self._velocity_timestamp: Optional[float] = None
-        
+
         # Event-based synchronization for async data acquisition
         # Events are set when corresponding data is received and parsed
         self._version_event = threading.Event()
@@ -71,7 +71,7 @@ class DataParser:
         self._temperature_event = threading.Event()
         self._velocity_event = threading.Event()
         self._self_check_event = threading.Event()
-        
+
         # Mapping from info type to corresponding event
         self._info_event_map = {
             "version": self._version_event,
@@ -86,12 +86,11 @@ class DataParser:
         self._self_check_raw_mask: Optional[int] = None
         self._self_check_bits: Optional[List[bool]] = None
         self._self_check_timestamp: Optional[float] = None
-        
-    
+
     def parse_frame(self, frame: List[int]) -> Optional[Dict]:
         """
         Parse a full data frame.
-        
+
         :param frame: Complete data frame (byte list)
         """
         cmd_id = frame[1]
@@ -118,7 +117,7 @@ class DataParser:
             if self.debug_mode:
                 logger.debug(f"Unhandled command ID: 0x{cmd_id:02X}")
             return None
-    
+
     def get_joint_state(self) -> Optional[JointState]:
         """
         Get current joint state.
@@ -130,25 +129,23 @@ class DataParser:
                 logger.warning("Robot state has not been updated yet")
                 return None
             return copy.deepcopy(self._joint_states)
-        
 
-    
     def get_version_info(self) -> Optional[Dict[str, str]]:
         """
         Get full version information.
-        
+
         :return: Dictionary with keys: serial_number, hardware_version, firmware_version, or None if not available
         """
         with self._lock:
             if self._version_info is None:
                 return None
-           
+
             return dict(self._version_info)
-    
+
     def get_temperature_data(self) -> Optional[Dict[str, any]]:
         """
         Get current temperature data.
-        
+
         :return: Dictionary with keys: temperatures (List of temperatures in Celsius), timestamp, or None if not available
         """
         with self._lock:
@@ -158,11 +155,11 @@ class DataParser:
                 "temperatures": list(self._temperature_data),
                 "timestamp": self._temperature_timestamp
             }
-    
+
     def get_velocity_data(self) -> Optional[Dict[str, any]]:
         """
         Get current velocity data.
-        
+
         :return: Dictionary with keys: velocities (List of velocities in raw units), timestamp, or None if not available
         """
         with self._lock:
@@ -187,26 +184,24 @@ class DataParser:
                 "bits": list(self._self_check_bits),
                 "timestamp": self._self_check_timestamp,
             }
-    
+
     def wait_for_info(self, info_type: str, timeout: float = 2.0) -> bool:
         """
         Wait for specified info type to be received and parsed.
-        
+
         :param info_type: Type of information to wait for (version, joint, gripper, etc.)
         :param timeout: Maximum time to wait in seconds
         """
         if info_type not in self._info_event_map:
             raise ValueError(f"Unsupported info type: {info_type}. Supported types: {list(self._info_event_map.keys())}")
-        
+
         event = self._info_event_map[info_type]
         return event.wait(timeout)
-        
-
 
     def _update_joint_state(self,
-                        angles: Optional[List[float]] = None,
-                        gripper: Optional[float] = None,
-                        run_status_text: Optional[str] = None):
+                            angles: Optional[List[float]] = None,
+                            gripper: Optional[float] = None,
+                            run_status_text: Optional[str] = None):
         with self._lock:
             prev = self._joint_states
             self._joint_states = JointState(
@@ -216,11 +211,10 @@ class DataParser:
                 run_status_text=run_status_text if run_status_text is not None else prev.run_status_text
             )
 
-
     def _parse_joint_data(self, frame: List[int]) -> Dict:
         """
         Parse joint data frame.
-        
+
         :param frame: Complete data frame
         """
 
@@ -260,7 +254,7 @@ class DataParser:
             joint_bytes = data_bytes[start:start + 2]
             angle_rad = self._bytes_to_radians(joint_bytes)
             joint_values[i] = angle_rad
-        
+
         gripper_low = data_bytes[12]
         gripper_high = data_bytes[13]
         gripper_raw = (gripper_low & 0xFF) | ((gripper_high & 0xFF) << 8)
@@ -312,7 +306,7 @@ class DataParser:
     def _parse_temperature_data(self, frame: List[int]) -> Dict:
         """
         Parse temperature data frame (CMD=0x06, FUNC=0x01).
-        
+
         :param frame: Complete data frame
         """
         data_len = frame[3]
@@ -332,7 +326,7 @@ class DataParser:
         with self._lock:
             self._temperature_data = temperatures
             self._temperature_timestamp = time.time()
-        
+
         # Signal that temperature data has been updated
         self._temperature_event.set()
 
@@ -348,7 +342,7 @@ class DataParser:
     def _parse_velocity_data(self, frame: List[int]) -> Dict:
         """
         Parse velocity data frame (CMD=0x06, FUNC=0x02).
-        
+
         :param frame: Complete data frame
         """
         # print frame in hex
@@ -377,7 +371,7 @@ class DataParser:
         with self._lock:
             self._velocity_data = velocities
             self._velocity_timestamp = time.time()
-        
+
         # Signal that velocity data has been updated
         self._velocity_event.set()
 
@@ -440,29 +434,29 @@ class DataParser:
     def _parse_error_data(self, frame: List[int]) -> Dict:
         """
         Parse error data frame (0xEE).
-        
+
         :param frame: Complete data frame
         """
         # Minimal length check
         if len(frame) < 7:
             logger.warning("Error frame too short")
             return None
-        
+
         # Extract error code and parameter
         error_code = frame[3]
         error_param = frame[4]
-        
+
         error_types = {
             0x00: "Header/footer or length error",
             0x01: "Checksum error",
             0x02: "Mode error",
             0x03: "Invalid ID",
         }
-        
+
         error_message = error_types.get(error_code, f"Unknown error (0x{error_code:02X})")
-        
+
         logger.warning(f"Device error: {error_message}, param: 0x{error_param:02X}")
-        
+
         return {
             "type": "error_data",
             "error_code": error_code,
@@ -470,11 +464,11 @@ class DataParser:
             "error_message": error_message,
             "timestamp": time.time()
         }
-    
+
     def _parse_version_data(self, frame: List[int]) -> Dict:
         """
         Parse version data frame (CMD=0x01).
-        
+
         :param frame: Complete data frame
         """
         # Basic length check: header(1)+CMD(1)+func(1)+LEN(1)+DATA(LEN)+checksum(1)+footer(1)
@@ -518,10 +512,10 @@ class DataParser:
                 "hardware_version": hardware_str,
                 "firmware_version": firmware_str,
             }
-        
+
         # Signal that version info has been received and parsed
         self._version_event.set()
-        
+
         if self.debug_mode:
             logger.debug(
                 f"Version parsed: SN='{serial_number}', HW='{hardware_str}', FW_raw='{firmware_raw}', FW='{firmware_str}'"
@@ -535,17 +529,17 @@ class DataParser:
             "version": firmware_str,
             "timestamp": time.time(),
         }
-    
+
     def _bytes_to_radians(self, byte_array: List[int]) -> float:
         """
         Convert 2-byte array (little endian) to radians directly.
-        
+
         :param byte_array: 2-byte array (little endian)
         """
         if len(byte_array) != 2:
             logger.warning(f"Data length error: need 2 bytes, got {len(byte_array)}")
             return 0.0
-        
+
         # Build 16-bit integer
         hex_value = (byte_array[0] & 0xFF) | ((byte_array[1] & 0xFF) << 8)
         # print in hex
@@ -554,29 +548,27 @@ class DataParser:
         if hex_value < 0 or hex_value > 4095:
             logger.warning(f"Servo value out of range: {hex_value} (valid 0–4095)")
             hex_value = max(0, min(hex_value, 4095))
-        
+
         # Directly map raw value to radians: 0–4095 -> [-π, π]
         return (hex_value / 4096.0) * (2 * math.pi) - math.pi
 
-    
     def _value_to_radians(self, value: int) -> float:
         """
         Convert servo raw value to radians directly.
-        
+
         :param value: Servo raw value (0-4095)
         """
         if value < 0 or value > 4095:
             logger.warning(f"Servo value out of range: {value} (valid 0–4095)")
             value = max(0, min(value, 4095))
-        
+
         # Directly map raw value to radians: 0–4095 -> [-π, π]
         return (value / 4096.0) * (2 * math.pi) - math.pi
-                
 
     def _hex_to_string(self, hex_value: int) -> str:
         """
         Convert hex value to ASCII string.
-        
+
         :param hex_value: Hex value string
         """
         compact = hex_value.lstrip("0") or "0"

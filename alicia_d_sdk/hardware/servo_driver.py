@@ -1,20 +1,18 @@
 import math
 import time
-import logging
 import threading
-from typing import List, Optional, Union, Tuple, Dict
-import numpy as np
+from typing import List, Optional, Dict
 
 from alicia_d_sdk.hardware.serial_comm import SerialComm
-from alicia_d_sdk.hardware.data_parser import DataParser, JointState
+from alicia_d_sdk.hardware.data_parser import DataParser
 from alicia_d_sdk.utils.logger import logger
 
 
 class ServoDriver:
     """Robot arm control module"""
-    
+
     # Constant definitions
-    
+
     RAD_TO_DEG = 180.0 / math.pi  # 弧度转角度系数
     DEG_TO_RAD = math.pi / 180.0  # 角度转弧度系数
     # Frame constants
@@ -23,11 +21,11 @@ class ServoDriver:
 
     # Command IDs
     CMD_JOINT = 0x06       # Arm joint angle feedback and control
-    
+
     # Gripper type configuration
     GRI_MAX_50MM = 3290
     GRI_MAX_100MM = 3590
-    
+
     # Raw instruction mapping table for information retrieval and control
     INFO_COMMAND_MAP: Dict[str, List[int]] = {
         # Get firmware version
@@ -49,23 +47,21 @@ class ServoDriver:
     def __init__(self, port: str = "", debug_mode: bool = False):
         """
         Initialize robot arm controller
-        
+
         :param port: Serial port name, leave empty to auto search
         :param debug_mode: Whether to enable debug mode
         """
         self.debug_mode = debug_mode
         self._lock = threading.Lock()
 
-
-
         # Create serial communication module and data parser
         self.serial_comm = SerialComm(lock=self._lock, port=port, debug_mode=debug_mode)
         self.data_parser = DataParser(lock=self._lock, debug_mode=debug_mode)
-        
+
         # Number of servos
         self.servo_count = 9
         self.joint_count = 6
-        
+
         # Servo mapping table: joint index -> servo index
         # 6 joints of the arm are mapped to 9 servos
         # [joint1, joint1(duplicate), joint2, joint2(reversed), joint3, joint3(reversed), joint4, joint5, joint6]
@@ -80,15 +76,15 @@ class ServoDriver:
             (4, 1.0),    # joint 5 -> servo 8 (normal)
             (5, 1.0),    # joint 6 -> servo 9 (normal)
         ]
-        
+
         # State update thread related
         self._update_thread = None
         self.thread_update_interval = 0.005  # Update interval in seconds
         self._stop_thread = threading.Event()
         self._thread_running = False
-        
+
         self.disconnect()
-    
+
     def wait_for_valid_state(self, timeout: float = 1.5) -> bool:
         """
         Wait for robot arm state to become valid
@@ -115,11 +111,11 @@ class ServoDriver:
         except Exception as e:
             if hasattr(logger, 'error'):  # logger may be destroyed in some cases
                 logger.error(f"Exception in destructor: {str(e)}")
-    
+
     def connect(self) -> bool:
         """
         Connect to the robot arm
-        
+
         :return: Whether connection is successful
         """
         result = self.serial_comm.connect()
@@ -128,52 +124,52 @@ class ServoDriver:
             self.start_update_thread()
             self.wait_for_valid_state()
         return result
-    
+
     def disconnect(self):
         """Disconnect from the robot arm"""
         # Stop state update thread first
         self.stop_update_thread()
         self.serial_comm.disconnect()
-    
+
     def start_update_thread(self):
         """Start state update thread"""
         if self._update_thread is not None and self._thread_running:
             logger.info("State update thread is already running")
             return
-        
+
         # Reset stop flag
         self._stop_thread.clear()
         self._thread_running = True
-        
+
         # Create and start thread
         self._update_thread = threading.Thread(target=self._update_loop, daemon=True)
         self._update_thread.start()
-    
+
     def stop_update_thread(self):
         """Stop state update thread"""
         if self._update_thread is None or not self._thread_running:
             return
-        
+
         # Set stop flag
         self._stop_thread.set()
         self._thread_running = False
-        
+
         # Wait for thread to finish
         if self._update_thread.is_alive():
             self._update_thread.join(timeout=2.0)
-        
+
         self._update_thread = None
-    
+
     def is_update_thread_running(self) -> bool:
         """
         Check whether state update thread is running
         """
         return self._thread_running and self._update_thread is not None and self._update_thread.is_alive()
-    
+
     def get_update_thread_status(self) -> Dict:
         """
         Get detailed status of the state update thread
-        
+
         :return: Dictionary containing thread status
         """
         return {
@@ -183,10 +179,10 @@ class ServoDriver:
             "thread_alive": self._update_thread.is_alive() if self._update_thread else False,
             "stop_flag_set": self._stop_thread.is_set()
         }
-    
+
     def _update_loop(self):
         """Main loop of state update thread"""
-        
+
         while not self._stop_thread.is_set():
             time.sleep(self.thread_update_interval)
             try:
@@ -198,20 +194,17 @@ class ServoDriver:
                     break
                 if frame:
                     self.data_parser.parse_frame(frame)
-        
+
             except Exception as e:
                 logger.error(f"State update thread exception: {str(e)}", raise_exception=False)
-                
-                
+
                 break
         self._thread_running = False
 
-
-    
     def acquire_info(self, info_type: str, wait: bool = False, timeout: float = 2.0, retry_interval: float = 0.2) -> bool:
         """
         General information acquisition interface, selecting different commands by type.
-        
+
         :param info_type: Type of information to acquire (version, zero_cali, torque_on, torque_off, joint, etc.)
         :param wait: If True, wait for the response to be received and parsed
         :param timeout: Maximum time to wait in seconds (only used if wait=True)
@@ -227,17 +220,17 @@ class ServoDriver:
             event.clear()
 
         command = self.INFO_COMMAND_MAP[info_type]
-        
+
         # If not waiting, just send once
         if not wait:
             success = self.serial_comm.send_data(command)
             return success
-        
+
         # If waiting and has an event, implement retry logic
         if info_type in self.data_parser._info_event_map:
             event = self.data_parser._info_event_map[info_type]
             start_time = time.time()
-            
+
             while time.time() - start_time < timeout:
                 # Send command
                 success = self.serial_comm.send_data(command)
@@ -245,11 +238,11 @@ class ServoDriver:
                     logger.warning(f"Failed to send {info_type} command, retrying...")
                     time.sleep(retry_interval)
                     continue
-                
+
                 # Wait for response with a short timeout (retry_interval)
                 remaining_time = timeout - (time.time() - start_time)
                 wait_time = min(retry_interval, remaining_time)
-                
+
                 if event.wait(wait_time):
                     # Successfully received response
                     return True
@@ -262,15 +255,13 @@ class ServoDriver:
             success = self.serial_comm.send_data(command)
             return success
 
-    
-
-    def set_joint_and_gripper(self, 
+    def set_joint_and_gripper(self,
                               joint_angles: Optional[List[float]] = None,
                               gripper_value: Optional[float] = None,
                               speed_deg_s: float = 20.0) -> bool:
         """
         Unified method to set joints, gripper, or both in a single combined frame.
-        
+
         :param joint_angles: Optional angle list (radians) for 6 joints. If None, keeps current joints (or zeros if state unavailable)
         :param gripper_value: Optional gripper value (0-100). If None, keeps current gripper (or 50.0 if state unavailable)
         :param speed_deg_s: Speed in degrees per second (0-360, required range), default 20.0
@@ -280,7 +271,7 @@ class ServoDriver:
         if speed_deg_s < 0 or speed_deg_s > 360:
             logger.error(f"Speed out of range: {speed_deg_s} deg/s (valid range: 0-360)")
             return False
-        
+
         frame = self._build_joint_frame(
             joint_angles=joint_angles,
             gripper_value=gripper_value,
@@ -289,16 +280,15 @@ class ServoDriver:
 
         # self.serial_comm._hex_print("Send combined control", frame)
         result = self.serial_comm.send_data(frame)
-        
+
         if self.debug_mode:
             self.serial_comm._hex_print("Send combined control", frame)
-        
+
         return result
-    
-    
-    def _build_joint_frame(self, 
-                           joint_angles: Optional[List[float]] = None, 
-                           gripper_value: Optional[float] = None, 
+
+    def _build_joint_frame(self,
+                           joint_angles: Optional[List[float]] = None,
+                           gripper_value: Optional[float] = None,
                            speed_deg_s: float = 10.0) -> List[int]:
         """
         Build combined joint + gripper + speed control frame (CMD=0x06, FUNC=0x03)
@@ -311,7 +301,7 @@ class ServoDriver:
         # 6 joints * 4 bytes (value + speed) + 1 gripper * 4 bytes (value + speed) = 28 bytes
         DATA_LENGTH = 0x1C
         FRAME_SIZE = 1 + 1 + 1 + 1 + DATA_LENGTH + 1 + 1  # header + cmd + func + len + data + checksum + footer
-        
+
         # Create frame
         frame = [0] * FRAME_SIZE
         frame[0] = self.FRAME_HEADER  # 0xAA
@@ -319,7 +309,7 @@ class ServoDriver:
         frame[2] = 0x03               # Function code
         frame[3] = DATA_LENGTH        # Data length: 0x1C (28 bytes)
         frame[-1] = self.FRAME_FOOTER  # 0xFF
-        
+
         data_start = 4
 
         # Get current state for optional values
@@ -344,7 +334,7 @@ class ServoDriver:
 
         # Convert common speed value to hardware units (used for all joints and gripper)
         speed_hw_value = self._value_to_hardware_value_speed(speed_deg_s)
-        
+
         for joint_idx in range(6):
             angle_rad = effective_joints[joint_idx]
             hardware_value = self._rad_to_hardware_value(angle_rad)
@@ -354,7 +344,7 @@ class ServoDriver:
             frame[offset + 1] = (hardware_value >> 8) & 0xFF   # high byte
             frame[offset + 2] = speed_hw_value & 0xFF
             frame[offset + 3] = (speed_hw_value >> 8) & 0xFF
-        
+
         # Gripper value and speed (4 bytes: 2 bytes value, 2 bytes speed)
         gripper_offset = data_start + 6 * 4
         if gripper_value is not None:
@@ -371,18 +361,17 @@ class ServoDriver:
         frame[gripper_offset + 2] = gripper_speed_hw_value & 0xFF
         frame[gripper_offset + 3] = (gripper_speed_hw_value >> 8) & 0xFF
         frame[-2] = self.serial_comm.calculate_checksum(frame[1:-2])
-        
+
         if self.debug_mode:
             angle_deg = [round(angle * self.RAD_TO_DEG, 2) for angle in joint_angles]
             logger.debug(f"Send combined frame - joints (deg): {angle_deg}, gripper: {gripper_value}, speed: {speed_deg_s} deg/s")
-            
+
         return frame
 
-    
     def _rad_to_hardware_value(self, angle_rad: float) -> int:
         """
         Convert radians to hardware value (0-4095)
-        
+
         :param angle_rad: Angle (radians)
         :return: Hardware value (0-4095)
         """
@@ -390,24 +379,22 @@ class ServoDriver:
         if angle_rad < -math.pi or angle_rad > math.pi:
             logger.warning(f"Angle out of range: {angle_rad:.2f} rad, will be clipped")
             angle_rad = max(-math.pi, min(math.pi, angle_rad))
-        
-        value = int((angle_rad + math.pi) / (2 * math.pi) * 4096)
-        
-        return max(0, min(4095, value))
-    
 
-    
+        value = int((angle_rad + math.pi) / (2 * math.pi) * 4096)
+
+        return max(0, min(4095, value))
+
     def _value_to_hardware_value_speed(self, speed_deg_s: float) -> int:
         """
         Converts speed from degrees per second to hardware value (0-5500).
-        
+
         :param speed_deg_s: The desired speed in degrees per second (0-360, required range)
         :return: A corresponding raw integer speed value (0-5500)
         """
         MIN_SPEED_DEG_S = 0.0
         MAX_SPEED_DEG_S = 360.0
         MAX_HARDWARE_VALUE = 5500
-        
+
         # Validate and clip speed to required range
         if speed_deg_s < MIN_SPEED_DEG_S:
             logger.warning(f"Speed below range: {speed_deg_s} deg/s (min {MIN_SPEED_DEG_S}), will be clipped to {MIN_SPEED_DEG_S}")
@@ -415,10 +402,7 @@ class ServoDriver:
         elif speed_deg_s > MAX_SPEED_DEG_S:
             logger.warning(f"Speed above range: {speed_deg_s} deg/s (max {MAX_SPEED_DEG_S}), will be clipped to {MAX_SPEED_DEG_S}")
             speed_deg_s = MAX_SPEED_DEG_S
-        
+
         hardware_value = int((speed_deg_s / MAX_SPEED_DEG_S) * MAX_HARDWARE_VALUE)
-        
+
         return max(0, min(MAX_HARDWARE_VALUE, hardware_value))
-
-
-    

@@ -6,6 +6,7 @@ from typing import List, Optional
 from robocore.transform.so3 import quaternion_to_matrix
 from alicia_d_sdk.utils.logger import logger
 
+
 def plot_joint_angles(joint_traj: np.ndarray, title: str = "Joint Trajectory"):
     logger.module("[vislab]开始绘制关节轨迹图")
     plt.figure(figsize=(10, 4))
@@ -19,6 +20,7 @@ def plot_joint_angles(joint_traj: np.ndarray, title: str = "Joint Trajectory"):
     plt.tight_layout()
     plt.show(block=False)
     plt.pause(0.1)
+
 
 def plot_3d(data_lst: List[List[List[float]]], legend: Optional[str] = None, title: Optional[str] = None,
             show_ori: bool = False, interval: int = 20, axis_length: float = 0.03):
@@ -37,7 +39,7 @@ def plot_3d(data_lst: List[List[List[float]]], legend: Optional[str] = None, tit
     # 如果是单条轨迹，自动包装成列表
     if isinstance(data_lst[0][0], (int, float)):
         data_lst = [data_lst]
-        
+
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d', fc='white')
 
@@ -73,6 +75,7 @@ def plot_3d(data_lst: List[List[List[float]]], legend: Optional[str] = None, tit
     plt.tight_layout()
     plt.show()
 
+
 def _draw_axes(ax, origin: np.ndarray, R: np.ndarray, length: float = 0.03):
     for i, color in zip(range(3), ['r', 'g', 'b']):
         vec = R[:, i] * length
@@ -81,6 +84,7 @@ def _draw_axes(ax, origin: np.ndarray, R: np.ndarray, length: float = 0.03):
             vec[0], vec[1], vec[2],
             color=color, linewidth=1.0, alpha=0.8
         )
+
 
 def _set_axes_equal(ax):
     x_limits = ax.get_xlim3d()

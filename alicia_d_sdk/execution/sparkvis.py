@@ -27,7 +27,7 @@ except ImportError:
 
 class SparkVisBridge:
     """WebSocket bridge for SparkVis UI and robot synchronization."""
-    
+
     def __init__(
         self,
         robot,
@@ -39,7 +39,7 @@ class SparkVisBridge:
         log_source: str = "ui"  # ui | robot | both
     ):
         """Initialize SparkVis bridge.
-        
+
         :param robot: Alicia-D robot instance
         :param host: WebSocket server host
         :param port: WebSocket server port
@@ -107,13 +107,13 @@ class SparkVisBridge:
             gripper_rad = self.robot.get_gripper()  # rad
             if joints is None or gripper_rad is None:
                 return None
-            
+
             # Convert gripper to percentage [0..1] for UI
             try:
                 gripper_pct = max(0.0, min(1.0, float(gripper_rad) / 100.0))
             except Exception:
                 gripper_pct = 0.0
-                
+
             return {
                 "Joint1": float(joints[0]),
                 "Joint2": float(joints[1]),
