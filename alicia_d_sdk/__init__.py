@@ -72,11 +72,13 @@ def create_robot(
         debug_mode: bool = False,
     ) -> SynriaRobotAPI:
     """
+    Create robot instance.
+    
     :param port: Serial port
-    :param baudrate: Baud rate
     :param robot_version: Robot version (e.g., "v5_6", "v5_4")
     :param gripper_type: Gripper type (e.g., "50mm", "30mm")
     :param debug_mode: Debug mode
+    :return: SynriaRobotAPI instance
     """
     # 创建硬件层
     servo_driver = ServoDriver(port=port, debug_mode=debug_mode)

@@ -38,9 +38,8 @@ class DataParser:
         """
         Initialize data parser.
         
-        Args:
-            lock: Shared threading lock for concurrent access.
-            debug_mode: Whether to enable debug logging.
+        :param lock: Shared threading lock for concurrent access
+        :param debug_mode: Whether to enable debug logging
         """
         self.debug_mode = debug_mode
 
@@ -93,8 +92,7 @@ class DataParser:
         """
         Parse a full data frame.
         
-        Args:
-            frame: Complete data frame (byte list)
+        :param frame: Complete data frame (byte list)
         """
         cmd_id = frame[1]
         if cmd_id == self.CMD_VERSION:
@@ -139,12 +137,7 @@ class DataParser:
         """
         Get full version information.
         
-        Returns:
-            Optional[Dict[str, str]]: Dictionary with keys:
-                - 'serial_number'
-                - 'hardware_version'
-                - 'firmware_version'
-            or None if not available.
+        :return: Dictionary with keys: serial_number, hardware_version, firmware_version, or None if not available
         """
         with self._lock:
             if self._version_info is None:
@@ -156,11 +149,7 @@ class DataParser:
         """
         Get current temperature data.
         
-        Returns:
-            Optional[Dict]: Dictionary with keys:
-                - 'temperatures': List of temperatures in Celsius
-                - 'timestamp': Timestamp when data was received
-            or None if not available.
+        :return: Dictionary with keys: temperatures (List of temperatures in Celsius), timestamp, or None if not available
         """
         with self._lock:
             if self._temperature_data is None:
@@ -174,11 +163,7 @@ class DataParser:
         """
         Get current velocity data.
         
-        Returns:
-            Optional[Dict]: Dictionary with keys:
-                - 'velocities': List of velocities in raw units
-                - 'timestamp': Timestamp when data was received
-            or None if not available.
+        :return: Dictionary with keys: velocities (List of velocities in raw units), timestamp, or None if not available
         """
         with self._lock:
             if self._velocity_data is None:
@@ -192,12 +177,7 @@ class DataParser:
         """
         Get latest machine self-check (servo health) result.
 
-        Returns:
-            Optional[Dict]: Dictionary with keys:
-                - 'raw_mask': Integer bit mask (LSB = servo 1)
-                - 'bits': List[bool], True = OK, False = fault
-                - 'timestamp': Timestamp when data was received
-            or None if not available.
+        :return: Dictionary with keys: raw_mask (Integer bit mask, LSB = servo 1), bits (List[bool], True = OK, False = fault), timestamp, or None if not available
         """
         with self._lock:
             if self._self_check_raw_mask is None or self._self_check_bits is None:
@@ -212,13 +192,8 @@ class DataParser:
         """
         Wait for specified info type to be received and parsed.
         
-        Args:
-            info_type: Type of information to wait for. Supported types:
-                - "version": Wait for version info
-                - "joint": Wait for joint state
-                - "gripper": Wait for gripper state
-            timeout: Maximum time to wait in seconds
-
+        :param info_type: Type of information to wait for (version, joint, gripper, etc.)
+        :param timeout: Maximum time to wait in seconds
         """
         if info_type not in self._info_event_map:
             raise ValueError(f"Unsupported info type: {info_type}. Supported types: {list(self._info_event_map.keys())}")
@@ -246,8 +221,7 @@ class DataParser:
         """
         Parse joint data frame.
         
-        Args:
-            frame: Complete data frame
+        :param frame: Complete data frame
         """
 
         # 灵动系列 DATA layout:
@@ -291,10 +265,9 @@ class DataParser:
         gripper_high = data_bytes[13]
         gripper_raw = (gripper_low & 0xFF) | ((gripper_high & 0xFF) << 8)
 
-        # Map raw gripper value to 0–100 (same logic as V6 gripper parsing)
-        # ratio = (self.servo_value_limit - 2048) / 100
-        # gripper_value = 100 - ((gripper_raw - 2048) / ratio)
-        gripper_value = gripper_raw # round(max(0, min(gripper_value, 100)), 2)
+        # Map raw gripper value (0-1000) to percentage (0-100)
+        # Hardware uses 0-1000 range, convert to 0-100 percentage
+        gripper_value = round(max(0.0, min(100.0, gripper_raw / 10.0)), 2)
 
         # Parse run status (last mandatory byte)
         run_status = data_bytes[14]
@@ -340,16 +313,7 @@ class DataParser:
         """
         Parse temperature data frame (CMD=0x06, FUNC=0x01).
         
-        Protocol:
-        | 0xAA | 0x06 | 0x01 | LEN | DATA... | CHECKSUM | 0xFF |
-        
-        DATA layout:
-          - Temperature values: LEN bytes (one byte per servo)
-          - For leader arm: 6 servos
-          - For follower arm: 10 servos
-        
-        Args:
-            frame: Complete data frame
+        :param frame: Complete data frame
         """
         data_len = frame[3]
         expected_min_len = 4 + data_len + 2
@@ -385,16 +349,7 @@ class DataParser:
         """
         Parse velocity data frame (CMD=0x06, FUNC=0x02).
         
-        Protocol:
-        | 0xAA | 0x06 | 0x02 | LEN | DATA... | CHECKSUM | 0xFF |
-        
-        DATA layout:
-          - Velocity values: LEN bytes (2 bytes per servo, low byte first)
-          - For teaching arm: 6 servos * 2 = 12 bytes
-          - For operation arm: 10 servos * 2 = 20 bytes
-        
-        Args:
-            frame: Complete data frame
+        :param frame: Complete data frame
         """
         # print frame in hex
         # print("Velocity frame:", " ".join(f"{b:02X}" for b in frame))
@@ -439,14 +394,7 @@ class DataParser:
         """
         Parse machine self-check frame (CMD=0xFE, FUNC=0x00).
 
-        Protocol:
-        | 0xAA | 0xFE | 0x00 | LEN | DATA... | CHECKSUM | 0xFF |
-
-        DATA layout (LEN = 0x02):
-          - 2 bytes bit mask, low byte first.
-          - From low to high, each bit represents servo ID status from low to high.
-            Bit = 1 -> OK, Bit = 0 -> fault.
-            Teaching arm: 6 bits, Operation arm: 10 bits.
+        :param frame: Complete data frame
         """
         data_len = frame[3]
         expected_min_len = 4 + data_len + 2
@@ -493,8 +441,7 @@ class DataParser:
         """
         Parse error data frame (0xEE).
         
-        Args:
-            frame: Complete data frame
+        :param frame: Complete data frame
         """
         # Minimal length check
         if len(frame) < 7:
@@ -528,13 +475,7 @@ class DataParser:
         """
         Parse version data frame (CMD=0x01).
         
-        Protocol:
-        | 0xAA | 0x01 | 0x00 | LEN | DATA... | CHECKSUM | 0xFF |
-        
-        DATA layout (LEN = 0x18 = 24 bytes):
-          - Serial number: 16 ASCII bytes
-          - Hardware version: 4 ASCII bytes
-          - Firmware version: 4 ASCII bytes
+        :param frame: Complete data frame
         """
         # Basic length check: header(1)+CMD(1)+func(1)+LEN(1)+DATA(LEN)+checksum(1)+footer(1)
         if len(frame) < 4 + frame[3] + 2:
@@ -598,7 +539,8 @@ class DataParser:
     def _bytes_to_radians(self, byte_array: List[int]) -> float:
         """
         Convert 2-byte array (little endian) to radians directly.
-        Mapping: 0 -> -π, 2048 -> 0, 4095 -> +π
+        
+        :param byte_array: 2-byte array (little endian)
         """
         if len(byte_array) != 2:
             logger.warning(f"Data length error: need 2 bytes, got {len(byte_array)}")
@@ -620,7 +562,8 @@ class DataParser:
     def _value_to_radians(self, value: int) -> float:
         """
         Convert servo raw value to radians directly.
-        Mapping: 0 -> -π, 2048 -> 0, 4095 -> +π
+        
+        :param value: Servo raw value (0-4095)
         """
         if value < 0 or value > 4095:
             logger.warning(f"Servo value out of range: {value} (valid 0–4095)")
@@ -633,6 +576,8 @@ class DataParser:
     def _hex_to_string(self, hex_value: int) -> str:
         """
         Convert hex value to ASCII string.
+        
+        :param hex_value: Hex value string
         """
         compact = hex_value.lstrip("0") or "0"
         if len(compact) == 3:

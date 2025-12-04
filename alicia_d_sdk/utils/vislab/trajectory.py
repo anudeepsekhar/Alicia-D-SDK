@@ -23,15 +23,14 @@ def plot_joint_angles(joint_traj: np.ndarray, title: str = "Joint Trajectory"):
 def plot_3d(data_lst: List[List[List[float]]], legend: Optional[str] = None, title: Optional[str] = None,
             show_ori: bool = False, interval: int = 20, axis_length: float = 0.03):
     """
-    可视化末端执行器轨迹（3D），支持多个轨迹输入和方向箭头
+    Visualize end-effector trajectory (3D), supports multiple trajectories and orientation arrows.
 
-    Args:
-        data_lst: List of List of [x, y, z] 或 [x, y, z, qx, qy, qz, qw]
-        legend: 图例前缀
-        title: 图标题
-        show_ori: 是否绘制姿态方向箭头（仅当数据为 7D 时）
-        interval: 姿态箭头绘制间隔
-        axis_length: 坐标系箭头长度
+    :param data_lst: List of List of [x, y, z] or [x, y, z, qx, qy, qz, qw]
+    :param legend: Legend prefix
+    :param title: Plot title
+    :param show_ori: Whether to draw orientation arrows (only when data is 7D)
+    :param interval: Orientation arrow drawing interval
+    :param axis_length: Coordinate axis arrow length
     """
     logger.module("[vislab]开始绘制末端位姿3D轨迹图")
 

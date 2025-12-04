@@ -174,8 +174,7 @@ class ServoDriver:
         """
         Get detailed status of the state update thread
         
-        Returns:
-            Dict: Dictionary containing thread status
+        :return: Dictionary containing thread status
         """
         return {
             "running": self.is_update_thread_running(),
@@ -212,16 +211,12 @@ class ServoDriver:
     def acquire_info(self, info_type: str, wait: bool = False, timeout: float = 2.0, retry_interval: float = 0.2) -> bool:
         """
         General information acquisition interface, selecting different commands by type.
-        Args:
-            info_type: Type of information to acquire. Supported types:
-                - "version"
-                - "zero_cali"
-                - "torque_on"
-                - "torque_off"
-                - "joint"
-            wait: If True, wait for the response to be received and parsed
-            timeout: Maximum time to wait in seconds (only used if wait=True)
-            retry_interval: Time interval between retry attempts in seconds (default 0.2s)
+        
+        :param info_type: Type of information to acquire (version, zero_cali, torque_on, torque_off, joint, etc.)
+        :param wait: If True, wait for the response to be received and parsed
+        :param timeout: Maximum time to wait in seconds (only used if wait=True)
+        :param retry_interval: Time interval between retry attempts in seconds (default 0.2s)
+        :return: True if successful
         """
         if info_type not in self.INFO_COMMAND_MAP:
             raise ValueError(f"Unsupported info type: {info_type}")
@@ -275,12 +270,11 @@ class ServoDriver:
                               speed_deg_s: float = 20.0) -> bool:
         """
         Unified method to set joints, gripper, or both in a single combined frame.
-        Args:
-            joint_angles: Optional angle list (radians) for 6 joints. 
-                          If None, keeps current joints (or zeros if state unavailable).
-            gripper_value: Optional gripper value (0-100). 
-                           If None, keeps current gripper (or 50.0 if state unavailable).
-            speed_deg_s: Speed in degrees per second (0-360, required range), default 20.0
+        
+        :param joint_angles: Optional angle list (radians) for 6 joints. If None, keeps current joints (or zeros if state unavailable)
+        :param gripper_value: Optional gripper value (0-100). If None, keeps current gripper (or 50.0 if state unavailable)
+        :param speed_deg_s: Speed in degrees per second (0-360, required range), default 20.0
+        :return: True if successful
         """
 
         if speed_deg_s < 0 or speed_deg_s > 360:
@@ -309,14 +303,10 @@ class ServoDriver:
         """
         Build combined joint + gripper + speed control frame (CMD=0x06, FUNC=0x03)
 
-        Args:
-            joint_angles: Optional angle list (radians) for 6 joints. 
-                          If None, keeps current joints (or zeros if state unavailable).
-            gripper_value: Optional gripper value (0-100). 
-                           If None, keeps current gripper (or 50.0 if state unavailable).
-            speed_deg_s: Speed in degrees per second (0-360, required range, maps to hardware 0-5500).
-                         The same speed is applied to all joints. The gripper is fixed at 5500.
-
+        :param joint_angles: Optional angle list (radians) for 6 joints. If None, keeps current joints (or zeros if state unavailable)
+        :param gripper_value: Optional gripper value (0-100). If None, keeps current gripper (or 50.0 if state unavailable)
+        :param speed_deg_s: Speed in degrees per second (0-360, required range, maps to hardware 0-5500). The same speed is applied to all joints. The gripper is fixed at 5500
+        :return: Frame byte list
         """
         # 6 joints * 4 bytes (value + speed) + 1 gripper * 4 bytes (value + speed) = 28 bytes
         DATA_LENGTH = 0x1C
@@ -392,8 +382,9 @@ class ServoDriver:
     def _rad_to_hardware_value(self, angle_rad: float) -> int:
         """
         Convert radians to hardware value (0-4095)
-        Args:
-            angle_rad: Angle (radians)
+        
+        :param angle_rad: Angle (radians)
+        :return: Hardware value (0-4095)
         """
         # Range check in radians
         if angle_rad < -math.pi or angle_rad > math.pi:
@@ -410,10 +401,8 @@ class ServoDriver:
         """
         Converts speed from degrees per second to hardware value (0-5500).
         
-        Speed range: 0 to 360 degrees per second (required, not recommended).
-        
-        :param speed_deg_s: The desired speed in degrees per second (0-360, required range).
-        :return: A corresponding raw integer speed value (0-5500).
+        :param speed_deg_s: The desired speed in degrees per second (0-360, required range)
+        :return: A corresponding raw integer speed value (0-5500)
         """
         MIN_SPEED_DEG_S = 0.0
         MAX_SPEED_DEG_S = 360.0

@@ -11,15 +11,12 @@ def record_waypoints_manual(controller,
                             get_state_fn: Optional[Callable] = None,
                             format_fn: Optional[Callable] = None) -> List[Any]:
     """
-    通用手动路径点记录函数
+    General manual waypoint recording function.
     
-    Args:
-        controller: 机器人控制器
-        get_state_fn: 自定义状态获取函数，返回要记录的数据。如果为None，使用默认的关节+夹爪
-        format_fn: 自定义格式化函数，用于日志输出。如果为None，使用默认格式
-        
-    Returns:
-        记录的路径点列表
+    :param controller: Robot controller
+    :param get_state_fn: Custom state getter function, returns data to record. If None, uses default joint+gripper
+    :param format_fn: Custom formatting function for log output. If None, uses default format
+    :return: List of recorded waypoints
     """
     print("\n=== 手动记录模式 ===")
     print("关闭扭矩后，拖动到目标位置按回车记录")

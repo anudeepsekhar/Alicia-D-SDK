@@ -17,6 +17,8 @@ class HardwareExecutor:
                 interaction: bool = False,
                 speed_deg_s: float = 20.0):
         """
+        Execute joint trajectory.
+        
         :param joint_traj: Joint trajectory as a list of joint angle lists
         :param interaction: Whether to wait for user confirmation
         :param speed_deg_s: Joint speed in degrees per second
@@ -46,12 +48,16 @@ class CartesianWaypointPlanner:
     
     def __init__(self, robot):
         """
+        Initialize Cartesian waypoint planner.
+        
         :param robot: Robot API instance
         """
         self.robot = robot
     
     def get_current_waypoint(self) -> Optional[List[float]]:
         """
+        Get current waypoint.
+        
         :return: [x, y, z, qx, qy, qz, qw] or None
         """
         pose = self.robot.get_pose()
@@ -64,6 +70,8 @@ class CartesianWaypointPlanner:
     
     def record_teaching_waypoints(self) -> List[List[float]]:
         """
+        Record teaching waypoints.
+        
         :return: Waypoints as [x, y, z, qx, qy, qz, qw]
         """
         logger.info("=== 教学模式：手动记录路径点 ===")
@@ -98,11 +106,13 @@ class CartesianWaypointPlanner:
                           step_by_step: bool = False,
                           step_delay: float = 0.2):
         """
+        Execute trajectory from waypoints.
+        
         :param waypoints: Waypoints as [x, y, z, qx, qy, qz, qw]
+        :param speed_deg_s: Motion speed in degrees per second
         :param move_duration: Movement time per waypoint in seconds
         :param num_points: Interpolation points per segment
         :param ik_method: IK method
-        :param visualize: Whether to visualize
         :param step_by_step: Whether to execute step by step
         :param step_delay: Delay between steps in seconds
         """

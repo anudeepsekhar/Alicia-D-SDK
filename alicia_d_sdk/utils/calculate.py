@@ -7,9 +7,10 @@ def calculate_movement_duration(current_joints: List[float], target_joints: List
     """
     Calculates the required time for the movement to complete based on the stored speed.
         
-    :param current_joints: The starting joint angles in radians.
-    :param target_joints: The destination joint angles in radians.
-    :return: The estimated duration of the movement in seconds.
+    :param current_joints: The starting joint angles in radians
+    :param target_joints: The destination joint angles in radians
+    :param speed_deg_s: Speed in degrees per second
+    :return: The estimated duration of the movement in seconds
     """
     if not current_joints or not target_joints or len(current_joints) != len(target_joints):
         print("Warning: Invalid joint angles provided. Returning default delay of 1.0s.")

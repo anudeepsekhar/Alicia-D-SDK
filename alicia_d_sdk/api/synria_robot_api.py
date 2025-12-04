@@ -43,7 +43,6 @@ class SynriaRobotAPI:
 
         :param servo_driver: Servo driver instance
         :param robot_model: Robot model from RoboCore
-        :param firmware_version: Firmware version string (optional, for reference)
         """
         # 核心组件
         self.servo_driver = servo_driver
@@ -79,6 +78,10 @@ class SynriaRobotAPI:
     def get_version(self, timeout: float = 1.0, log:bool = True) -> Optional[Dict[str, str]]:
         """
         Get full version information (serial number, hardware version, firmware version).
+        
+        :param timeout: Maximum time to wait for response in seconds
+        :param log: Whether to log version info
+        :return: Dictionary with version info or None if failed
         """
         # Request version info and wait for response
         if not self.servo_driver.acquire_info("version", wait=True, timeout=timeout):
@@ -103,7 +106,9 @@ class SynriaRobotAPI:
     
     def get_robot_state(self, robot_type = None) -> Optional[Union[List[float], Tuple[List[float], bool, bool]]]:
         """Get current joint angles.
+        
         :param robot_type: 'follower' or 'leader' or none for auto detection
+        :return: Joint state or None if failed
         """
         if robot_type is None:
             robot_type = self._robot_type()
@@ -112,7 +117,11 @@ class SynriaRobotAPI:
         return joint_state
     
     def get_joints(self, robot_type = None) -> Optional[List[float]]:
-        """Get current joint angles."""
+        """Get current joint angles.
+        
+        :param robot_type: 'follower' or 'leader' or none for auto detection
+        :return: List of joint angles in radians or None if failed
+        """
         joint_state = self.get_robot_state(robot_type)
         if joint_state:
             return joint_state.angles
@@ -122,7 +131,7 @@ class SynriaRobotAPI:
     def get_gripper(self) -> Optional[float]:
         """Get current gripper position.
 
-        :return: Gripper value from 0 (closed) to 100 (open)
+        :return: Gripper value from 0 (closed) to 100 (open) or None if failed
         """
         joint_state = self.get_robot_state()
         if joint_state:
@@ -168,14 +177,7 @@ class SynriaRobotAPI:
         Execute machine self-check (servo health) and return detailed status.
 
         :param timeout: Maximum time to wait for response in seconds
-        :return: Dict with keys:
-                 - 'robot_type': 'leader' / 'follower' / None
-                 - 'raw_mask': Integer bit mask (LSB = servo 1)
-                 - 'servo_status_bits': List[bool], True = OK, False = fault
-                 - 'all_ok': True if all relevant servos are OK
-                 - 'faulty_ids': List of servo IDs (1-based) that are faulty
-                 - 'timestamp': Timestamp
-                 or None if failed.
+        :return: Dict with keys: robot_type, raw_mask, servo_status_bits, all_ok, faulty_ids, timestamp, or None if failed
         """
         if not self.servo_driver.acquire_info("self_check", wait=True, timeout=timeout):
             logger.error("Failed to get self-check data within timeout period")
@@ -210,7 +212,7 @@ class SynriaRobotAPI:
     def get_pose(self) -> Optional[Union[List[float], Dict]]:
         """Get current end-effector pose.
 
-        :return: Dictionary with position, rotation, euler_xyz, quaternion_xyzw, transform
+        :return: Dictionary with position, rotation, euler_xyz, quaternion_xyzw, transform, or None if failed
         """
 
         joint_angles = self.get_joints()
@@ -244,7 +246,7 @@ class SynriaRobotAPI:
     def set_home(self, speed_deg_s: int = 20):
         """Move robot to home position and wait until near zero.
 
-        :param speed_deg_s: Speed in degrees per second (0-360, required range).
+        :param speed_deg_s: Speed in degrees per second (0-360, required range)
         """
         time.sleep(0.1)
         home_joints = [0.0] * 6
@@ -261,23 +263,14 @@ class SynriaRobotAPI:
                             wait_for_completion: bool = True) -> bool:
         """Set joint angles and/or gripper in a single combined command.
         
-        :param target_joints: Optional target joint angles. If None, keeps current.
-        :param gripper_value: Optional gripper value (0-100). If None, keeps current.
+        :param target_joints: Optional target joint angles. If None, keeps current
+        :param gripper_value: Optional gripper value (0-100). If None, keeps current
         :param joint_format: Unit format for joints, 'rad' or 'deg'
-        :param speed_deg_s: Speed in degrees per second (0-360, required range).
+        :param speed_deg_s: Speed in degrees per second (0-360, required range)
         :param tolerance: Rad, acceptable abs distance to target for joints
         :param timeout: Seconds, maximum wait time
         :param wait_for_completion: If True, wait until target reached
-        
-        Examples:
-            # Only joints
-            set_joint_and_gripper_target(target_joints=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
-            
-            # Only gripper
-            set_joint_and_gripper_target(gripper_value=1000)
-            
-            # Both
-            set_joint_and_gripper_target(target_joints=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6], gripper_value=1000)
+        :return: True if successful, False otherwise
         """
         # Convert joint format if needed
         if target_joints is not None:
@@ -469,10 +462,11 @@ class SynriaRobotAPI:
         """Execute linear Cartesian trajectory to target pose.
 
         :param target_pose: Target pose as [x, y, z, qx, qy, qz, qw]
+        :param speed_deg_s: Motion speed in degrees per second
         :param duration: Trajectory duration in seconds
         :param num_points: Number of trajectory waypoints
         :param ik_method: IK solver method
-        :param visualize: Enable trajectory visualization
+        :return: True if successful
         """
         # 获取当前位姿
         current_pose_dict = self.get_pose()
@@ -534,6 +528,10 @@ class SynriaRobotAPI:
     
     def torque_control(self, command: str, timeout: float = 1.0) -> bool:
         """Enable or disable robot torque.
+        
+        :param command: 'on' or 'off'
+        :param timeout: Maximum time to wait for response in seconds
+        :return: True if successful
         """
         if command == "on":
             return self.servo_driver.acquire_info("torque_on", wait=True, timeout=timeout)
@@ -596,24 +594,22 @@ class SynriaRobotAPI:
 
             # Format joints for printing
             if output_format == 'deg':
-                joint_out = [round(angle * 180.0 / np.pi, 2) for angle in joints]
+                joint_out = np.round(np.array(joints) * 180.0 / np.pi, 2)
                 unit = "°"
             else:
-                joint_out = [round(angle, 3) for angle in joints]
+                joint_out = np.round(joints, 3)
                 unit = "rad"
-            logger.info(f"关节角度（{unit}): {joint_out}, 夹爪开合度(%): {gripper}")
+            logger.info(f"关节角度（{unit}): {joint_out.tolist()}, 夹爪开合度(%): {gripper}")
             if status != "idle":
                 logger.info(f"按键状态：{status}")
-
 
             if pose is not None:
                 quaternion = pose['quaternion_xyzw']
                 position = pose['position']
-                logger.info(f"位置(xyz /m): {[round(p, 3) for p in position]}, 四元数(qx, qy, qz, qw): {[round(q, 3) for q in quaternion]}")
-                
+                logger.info(f"位置(xyz /m): {np.round(position, 3).tolist()}, 四元数(qx, qy, qz, qw): {np.round(quaternion, 3).tolist()}")
 
-            logger.info(f"舵机温度（°C): {[round(t, 1) for t in temperature]}")
-            logger.info(f"舵机速度: {[round(v, 1) for v in velocity]}")
+            logger.info(f"舵机温度（°C): {np.round(temperature, 1).tolist()}")
+            logger.info(f"舵机速度: {np.round(velocity, 1).tolist()}")
             
 
             print("\n")
@@ -659,7 +655,7 @@ class SynriaRobotAPI:
                                log_prefix: str = "等待关节接近目标") -> bool:
         """Wait until all joints reach target angles.
 
-        :param target_joints: Target joint angles in radians. If None, returns True immediately.
+        :param target_joints: Target joint angles in radians. If None, returns True immediately
         :param tolerance: Rad, acceptable abs distance to target for all joints
         :param timeout: Seconds, maximum wait time
         :param log_prefix: Log message prefix

@@ -25,11 +25,10 @@ class SerialComm:
 
     def __init__(self, port: str = "", timeout: float = 1.0, debug_mode: bool = False, lock: Optional[threading.Lock] = None):
         """
-        Args:
-            port: Serial port name, leave empty to auto-search
-            timeout: Timeout in seconds
-            debug_mode: Whether to enable debug mode
-            lock: Optional thread lock, auto-created if not provided
+        :param port: Serial port name, leave empty to auto-search
+        :param timeout: Timeout in seconds
+        :param debug_mode: Whether to enable debug mode
+        :param lock: Optional thread lock, auto-created if not provided
         """
         self.port_name = port
         self.timeout = timeout
@@ -150,11 +149,8 @@ class SerialComm:
         """
         Send data to serial port
 
-        Args:
-            data: Byte data list to send
-
-        Returns:
-            bool: Whether send is successful
+        :param data: Byte data list to send
+        :return: Whether send is successful
         """
         with self._lock:
             try:
@@ -194,8 +190,7 @@ class SerialComm:
         """
         Read one frame of data (non-blocking, returns None if no complete frame)
 
-        Returns:
-            Optional[List[int]]: Complete data frame, returns None if not available
+        :return: Complete data frame, returns None if not available
         """
         try:
             if not self.serial_port or not self.serial_port.is_open:
@@ -291,8 +286,7 @@ class SerialComm:
         """
         Get frame processing statistics
         
-        Returns:
-            dict: Contains statistics of processed and dropped frames
+        :return: Contains statistics of processed and dropped frames
         """
         return {
             "frames_processed": self._frames_processed,
@@ -338,7 +332,11 @@ class SerialComm:
         return device_name
 
     def _check_serial_permissions(self, device_name: str) -> Tuple[bool, Optional[str]]:
-        """Check serial port device permissions"""
+        """Check serial port device permissions
+        
+        :param device_name: Device name to check
+        :return: Tuple of (has_permission, error_message)
+        """
         if platform.system() == "Windows":
             return True, None
         

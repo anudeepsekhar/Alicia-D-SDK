@@ -40,14 +40,13 @@ class SparkVisBridge:
     ):
         """Initialize SparkVis bridge.
         
-        Args:
-            robot: Alicia-D robot instance
-            host: WebSocket server host
-            port: WebSocket server port
-            output_file: CSV output file path (optional)
-            enable_robot_sync: Enable robot->UI state broadcasting
-            robot_sync_rate_hz: Robot state broadcast frequency in Hz
-            log_source: Data logging source ('ui', 'robot', or 'both')
+        :param robot: Alicia-D robot instance
+        :param host: WebSocket server host
+        :param port: WebSocket server port
+        :param output_file: CSV output file path (optional)
+        :param enable_robot_sync: Enable robot->UI state broadcasting
+        :param robot_sync_rate_hz: Robot state broadcast frequency in Hz
+        :param log_source: Data logging source ('ui', 'robot', or 'both')
         """
         self.robot = robot
         self.host = host
