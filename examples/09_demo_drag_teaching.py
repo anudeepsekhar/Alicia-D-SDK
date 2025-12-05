@@ -77,8 +77,8 @@ if __name__ == "__main__":
                                    formatter_class=argparse.RawDescriptionHelpFormatter,)
     # Robot configuration
     parser.add_argument('--port', type=str, default="", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
-    parser.add_argument('--speed_deg_s', type=float, default=30,  help="关节运动速度 (单位: 度/秒, 默认: 30.0)")
-    
+    parser.add_argument('--speed_deg_s', type=int, default=10,  help="关节运动速度 (单位: 度/秒，默认: 10，范围: 5-400度/秒)")
+
     parser.add_argument('--mode', choices=['manual', 'auto', 'replay_only'], default='auto', 
                        help="模式: manual(手动插值) 或 auto(自动快速) 或 replay_only(仅回放)")
     parser.add_argument('--sample-hz', type=float, default=300.0, help="自动模式采样频率")

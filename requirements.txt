@@ -7,5 +7,5 @@ omegaconf>=2.3.0
 websockets==13.1
 pythoncrc
 pycrc
-robocore @ git+https://github.com/Synria-Robotics/RoboCore.git
+synria-robocore==1.0.0
 synriard @ git+https://github.com/Synria-Robotics/Synria-Robot-Descriptions.git

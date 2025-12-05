@@ -294,7 +294,7 @@ class SimpleDragTeaching:
                         target_joints=point["q"],
                         gripper_value=gripper_value,
                         joint_format='rad',
-                        speed_deg_s=getattr(self.args, "speed_deg_s", 30.0),
+                        speed_deg_s=getattr(self.args, "speed_deg_s", 10),
                         wait_for_completion=False,  # 快速连续回放
                     )
 

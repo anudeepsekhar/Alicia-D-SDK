@@ -241,7 +241,7 @@ class SynriaRobotAPI:
 
     # ==================== Robot Control ====================                         
     
-    def set_home(self, speed_deg_s: int = 20):
+    def set_home(self, speed_deg_s: int = 10):
         """Move robot to home position and wait until near zero.
 
         :param speed_deg_s: Speed in degrees per second (0-360, required range)
@@ -255,7 +255,7 @@ class SynriaRobotAPI:
                             target_joints: Optional[List[float]] = None,
                             gripper_value: Optional[int] = None,
                             joint_format: str = 'rad',
-                            speed_deg_s: int = 20,
+                            speed_deg_s: int = 10,
                             tolerance: float = 0.03,
                             timeout: float = 10.0,
                             wait_for_completion: bool = True) -> bool:
@@ -304,7 +304,7 @@ class SynriaRobotAPI:
                        max_iters: int = 100,
                        multi_start: int = 0,
                        use_random_init: bool = False,
-                       speed_deg_s: float = 20.0,
+                       speed_deg_s: int = 10,
                        execute: bool = True) -> Dict:
         """Move end-effector to target pose using inverse kinematics.
 
@@ -452,7 +452,7 @@ class SynriaRobotAPI:
     
     def move_cartesian_linear(self,
                              target_pose: List[float],
-                             speed_deg_s: float = 20.0,
+                             speed_deg_s: int = 10,
                              duration: float = 2.0,
                              num_points: int = 50,
                              ik_method: str = 'dls'

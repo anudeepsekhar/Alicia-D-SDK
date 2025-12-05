@@ -73,8 +73,8 @@ if __name__ == "__main__":
     
     # Robot connection settings
     parser.add_argument('--port', type=str, default="", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
-    parser.add_argument('--speed_deg_s', type=float, default=8.0,  help="关节运动速度 (单位: 度/秒, 默认: 10.0)")
-    
+    parser.add_argument('--speed_deg_s', type=int, default=10,  help="关节运动速度 (单位: 度/秒，默认: 10，范围: 5-400度/秒)")
+
     # IK Configuration
     parser.add_argument('--end-pose', type=float, nargs=7, 
                        default=[+0.28778, -0.16163, +0.36082, +0.037734, +0.781503, -0.303739, +0.543665], 

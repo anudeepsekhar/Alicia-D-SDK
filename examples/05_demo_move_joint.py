@@ -53,6 +53,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="机械臂运动控制示例")
     
     parser.add_argument('--port', type=str, default="", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
-    parser.add_argument('--speed_deg_s', type=float, default=10.0,  help="关节运动速度 (单位: 度/秒, 默认: 20.0)")
+    parser.add_argument('--speed_deg_s', type=int, default=10,  help="关节运动速度 (单位: 度/秒，默认: 10，范围: 5-400度/秒)")
     args = parser.parse_args()
     main(args)

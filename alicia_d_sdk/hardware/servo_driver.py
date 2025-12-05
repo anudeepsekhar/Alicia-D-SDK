@@ -258,18 +258,20 @@ class ServoDriver:
     def set_joint_and_gripper(self,
                               joint_angles: Optional[List[float]] = None,
                               gripper_value: Optional[float] = None,
-                              speed_deg_s: float = 20.0) -> bool:
+                              speed_deg_s: int = 10) -> bool:
         """
         Unified method to set joints, gripper, or both in a single combined frame.
 
         :param joint_angles: Optional angle list (radians) for 6 joints. If None, keeps current joints (or zeros if state unavailable)
         :param gripper_value: Optional gripper value (0-100). If None, keeps current gripper (or 50.0 if state unavailable)
-        :param speed_deg_s: Speed in degrees per second (0-360, required range), default 20.0
+        :param speed_deg_s: Speed in degrees per second (4.39-439.45, will be clipped to valid range), default 20.0
         :return: True if successful
         """
 
-        if speed_deg_s < 0 or speed_deg_s > 360:
-            logger.error(f"Speed out of range: {speed_deg_s} deg/s (valid range: 0-360)")
+        # Speed validation is handled in _value_to_hardware_value_speed with automatic clipping
+        # Valid range: ~4.39-439.45 deg/s (maps to hardware 50-5000 ticks/s)
+        if speed_deg_s <= 0:
+            logger.error(f"Speed must be positive: {speed_deg_s} deg/s")
             return False
 
         frame = self._build_joint_frame(
@@ -289,13 +291,13 @@ class ServoDriver:
     def _build_joint_frame(self,
                            joint_angles: Optional[List[float]] = None,
                            gripper_value: Optional[float] = None,
-                           speed_deg_s: float = 10.0) -> List[int]:
+                           speed_deg_s: int = 10) -> List[int]:
         """
         Build combined joint + gripper + speed control frame (CMD=0x06, FUNC=0x03)
 
         :param joint_angles: Optional angle list (radians) for 6 joints. If None, keeps current joints (or zeros if state unavailable)
         :param gripper_value: Optional gripper value (0-100). If None, keeps current gripper (or 50.0 if state unavailable)
-        :param speed_deg_s: Speed in degrees per second (0-360, required range, maps to hardware 0-5500). The same speed is applied to all joints. The gripper is fixed at 5500
+        :param speed_deg_s: Speed in degrees per second (4.39-439.45, maps to hardware 50-5000 ticks/s, step 50). The same speed is applied to all joints. The gripper is fixed at 5500
         :return: Frame byte list
         """
         # 6 joints * 4 bytes (value + speed) + 1 gripper * 4 bytes (value + speed) = 28 bytes
@@ -384,25 +386,39 @@ class ServoDriver:
 
         return max(0, min(4095, value))
 
-    def _value_to_hardware_value_speed(self, speed_deg_s: float) -> int:
+    def _value_to_hardware_value_speed(self, speed_deg_s: int) -> int:
         """
-        Converts speed from degrees per second to hardware value (0-5500).
+        Converts speed from degrees per second to hardware value (50-5000, step 50).
+        Mapping: 360 deg/s = 4096 ticks/s, so 50 ticks/s ≈ 4.39 deg/s, 5000 ticks/s ≈ 439.45 deg/s.
 
-        :param speed_deg_s: The desired speed in degrees per second (0-360, required range)
-        :return: A corresponding raw integer speed value (0-5500)
+        :param speed_deg_s: The desired speed in degrees per second (4.39-439.45, required range)
+        :return: A corresponding raw integer speed value (50-5000, multiple of 50)
         """
-        MIN_SPEED_DEG_S = 0.0
-        MAX_SPEED_DEG_S = 360.0
-        MAX_HARDWARE_VALUE = 5500
+        # Hardware speed range: 50-5000 ticks/s (step 50)
+        MIN_HARDWARE_VALUE = 50
+        MAX_HARDWARE_VALUE = 5000
+        STEP_SIZE = 50
+
+        # Known mapping: 360 deg/s = 4096 ticks/s
+        # Calculate speed range based on hardware range
+        # Ratio: 360 / 4096 = 0.087890625 deg/(tick/s)
+        DEG_PER_TICK_PER_SEC = 360.0 / 4096.0
+        MIN_SPEED_DEG_S = MIN_HARDWARE_VALUE * DEG_PER_TICK_PER_SEC  # ≈ 4.39 deg/s
+        MAX_SPEED_DEG_S = MAX_HARDWARE_VALUE * DEG_PER_TICK_PER_SEC  # ≈ 439.45 deg/s
 
         # Validate and clip speed to required range
         if speed_deg_s < MIN_SPEED_DEG_S:
-            logger.warning(f"Speed below range: {speed_deg_s} deg/s (min {MIN_SPEED_DEG_S}), will be clipped to {MIN_SPEED_DEG_S}")
+            logger.warning(f"Speed below range: {speed_deg_s} deg/s (min {MIN_SPEED_DEG_S:.2f}), will be clipped to {MIN_SPEED_DEG_S:.2f}")
             speed_deg_s = MIN_SPEED_DEG_S
         elif speed_deg_s > MAX_SPEED_DEG_S:
-            logger.warning(f"Speed above range: {speed_deg_s} deg/s (max {MAX_SPEED_DEG_S}), will be clipped to {MAX_SPEED_DEG_S}")
+            logger.warning(f"Speed above range: {speed_deg_s} deg/s (max {MAX_SPEED_DEG_S:.2f}), will be clipped to {MAX_SPEED_DEG_S:.2f}")
             speed_deg_s = MAX_SPEED_DEG_S
 
-        hardware_value = int((speed_deg_s / MAX_SPEED_DEG_S) * MAX_HARDWARE_VALUE)
+        # Convert deg/s to ticks/s using the known ratio
+        hardware_value = speed_deg_s / DEG_PER_TICK_PER_SEC
 
-        return max(0, min(MAX_HARDWARE_VALUE, hardware_value))
+        # Round to nearest multiple of 50
+        hardware_value = round(hardware_value / STEP_SIZE) * STEP_SIZE
+        logger.debug(f"Speed: {speed_deg_s} deg/s, Hardware value: {hardware_value}")
+
+        return max(MIN_HARDWARE_VALUE, min(MAX_HARDWARE_VALUE, int(hardware_value)))

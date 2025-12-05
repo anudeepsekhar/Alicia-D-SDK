@@ -14,13 +14,13 @@ class HardwareExecutor:
     def execute(self,
                 joint_traj: List[List[float]],
                 interaction: bool = False,
-                speed_deg_s: float = 20.0):
+                speed_deg_s: int = 10):
         """
         Execute joint trajectory.
 
         :param joint_traj: Joint trajectory as a list of joint angle lists
         :param interaction: Whether to wait for user confirmation
-        :param speed_deg_s: Joint speed in degrees per second
+        :param speed_deg_s: Joint speed in degrees per second (5-400, default 10)
         """
 
         if interaction:
@@ -96,7 +96,7 @@ class CartesianWaypointPlanner:
 
     def execute_trajectory(self,
                            waypoints: List[List[float]],
-                           speed_deg_s: float = 20.0,
+                           speed_deg_s: int = 10,
                            move_duration: float = 3.0,
                            num_points: int = 150,
                            ik_method: str = 'dls',
@@ -106,7 +106,7 @@ class CartesianWaypointPlanner:
         Execute trajectory from waypoints.
 
         :param waypoints: Waypoints as [x, y, z, qx, qy, qz, qw]
-        :param speed_deg_s: Motion speed in degrees per second
+        :param speed_deg_s: Motion speed in degrees per second (5-400, default 10)
         :param move_duration: Movement time per waypoint in seconds
         :param num_points: Interpolation points per segment
         :param ik_method: IK method
