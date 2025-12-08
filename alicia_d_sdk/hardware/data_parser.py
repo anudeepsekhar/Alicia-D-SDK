@@ -497,12 +497,23 @@ class DataParser:
                 logger.error(f"Version ASCII parse exception: {e}")
                 return ""
 
+        def _bytes_to_decimal(b: List[int]) -> int:
+            """Convert little-endian byte array to decimal integer."""
+            result = 0
+            for i, byte in enumerate(b):
+                result |= (byte & 0xFF) << (i * 8)
+            return result
+
+        # Parse serial number as ASCII string
         serial_number = _bytes_to_ascii(serial_bytes)
-        hardware_raw = _bytes_to_ascii(hardware_bytes)
-        firmware_raw = _bytes_to_ascii(firmware_bytes)
-        hardware_str = self._hex_to_string(hardware_raw)
-        # Example: firmware_raw = "0610" -> "610" -> "6.1.0"
-        firmware_str = self._hex_to_string(firmware_raw)
+
+        # Parse hardware and firmware versions as little-endian decimal values
+        hardware_decimal = _bytes_to_decimal(hardware_bytes)
+        firmware_decimal = _bytes_to_decimal(firmware_bytes)
+
+        # Convert decimal values to version strings
+        hardware_str = self._decimal_to_version_string(hardware_decimal)
+        firmware_str = self._decimal_to_version_string(firmware_decimal)
 
         # Store firmware version (for upper-level API)
         with self._lock:
@@ -518,14 +529,14 @@ class DataParser:
 
         if self.debug_mode:
             logger.debug(
-                f"Version parsed: SN='{serial_number}', HW='{hardware_str}', FW_raw='{firmware_raw}', FW='{firmware_str}'"
+                f"Version parsed: SN='{serial_number}', HW={hardware_decimal}('{hardware_str}'), FW={firmware_decimal}('{firmware_str}')"
             )
 
         return {
             "type": "version_data",
             "serial_number": serial_number,
             "hardware_version": hardware_str,
-            "firmware_version_raw": firmware_raw,
+            "firmware_version_raw": firmware_decimal,
             "version": firmware_str,
             "timestamp": time.time(),
         }
@@ -565,20 +576,30 @@ class DataParser:
         # Directly map raw value to radians: 0–4095 -> [-π, π]
         return (value / 4096.0) * (2 * math.pi) - math.pi
 
-    def _hex_to_string(self, hex_value: int) -> str:
+    def _decimal_to_version_string(self, decimal_value: int) -> str:
         """
-        Convert hex value to ASCII string.
-
-        :param hex_value: Hex value string
+        Convert decimal value to version string.
+        :param decimal_value: Decimal version value
+        :return: Version string in format "X.YZ"
         """
-        compact = hex_value.lstrip("0") or "0"
-        if len(compact) == 3:
-            version_str = f"{compact[0]}.{compact[1]}.{compact[2]}"
-        elif len(compact) == 2:
-            version_str = f"{compact[0]}.{compact[1]}.0"
-        elif len(compact) == 1:
-            version_str = f"{compact[0]}.0.0"
+        if decimal_value < 0:
+            return "unknown"
+        
+        # Convert to string and pad with zeros if needed
+        decimal_str = str(decimal_value)
+        
+        if len(decimal_str) == 1:
+            # Single digit: 6 -> "0.06"
+            version_str = f"0.0{decimal_str}"
+        elif len(decimal_str) == 2:
+            # Two digits: 10 -> "0.10"
+            version_str = f"0.{decimal_str}"
+        elif len(decimal_str) >= 3:
+            # Three or more digits: 610 -> "6.10", 1234 -> "12.34"
+            major = decimal_str[:-2]
+            minor = decimal_str[-2:]
+            version_str = f"{major}.{minor}"
         else:
-            # Fallback: use raw string
-            version_str = hex_value or "unknown"
+            version_str = "unknown"
+        
         return version_str

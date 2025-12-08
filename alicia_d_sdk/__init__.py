@@ -30,9 +30,9 @@ from robocore.planning import (
     trapezoidal_velocity_profile
 )
 
-__version__ = "6.0.0"
+__version__ = "6.1.0"
 __author__ = "Synria Robotics"
-__description__ = "Alicia-D机械臂SDK v6.0.0 - Bridged with RoboCore"
+__description__ = "Alicia-D机械臂SDK v6.1.0 - Bridged with RoboCore"
 
 # Re-export RoboCore components for convenience
 __all__ = [
