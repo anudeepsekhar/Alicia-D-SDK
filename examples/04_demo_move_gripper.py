@@ -27,7 +27,7 @@ def main(args):
         if not robot.connect():
             return
         
-        # Get gripper value (0-100)
+        # Get gripper value (0-1000)
         gripper_value = robot.get_gripper()
         if gripper_value is not None:
             logger.info(f"Gripper value: {gripper_value:.1f}")

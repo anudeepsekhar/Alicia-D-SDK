@@ -280,6 +280,7 @@ class ServoDriver:
             speed_deg_s=speed_deg_s
         )
 
+
         # self.serial_comm._hex_print("Send combined control", frame)
         result = self.serial_comm.send_data(frame)
 
@@ -316,7 +317,6 @@ class ServoDriver:
 
         # Get current state for optional values
         current_state = self.data_parser.get_joint_state()
-
         if joint_angles is None:
             if current_state and current_state.angles:
                 effective_joints = current_state.angles

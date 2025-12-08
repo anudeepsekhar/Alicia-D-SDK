@@ -42,14 +42,11 @@ class SynriaRobotAPI:
         :param servo_driver: Servo driver instance
         :param robot_model: Robot model from RoboCore
         """
-        # 核心组件
         self.servo_driver = servo_driver
         self.data_parser = servo_driver.data_parser  # Direct access to data parser
         self.robot_model = robot_model
 
-        # 创建各层组件
         self.hardware_executor = HardwareExecutor(servo_driver)
-        # 默认参数
         self.robot_type = None
     
     # ==================== Connection Management ===================
@@ -58,7 +55,8 @@ class SynriaRobotAPI:
         """Connect to robot and detect firmware version.
         """
         result = self.servo_driver.connect()
-        # Load the version info from the json file
+        if result:
+            self.get_robot_state()
         return result
     
     def disconnect(self):
@@ -246,9 +244,9 @@ class SynriaRobotAPI:
 
         :param speed_deg_s: Speed in degrees per second (0-360, required range)
         """
-        time.sleep(0.1)
+        # time.sleep(0.1)
         home_joints = [0.0] * 6
-        self.set_robot_target(target_joints=home_joints, gripper_value=1000, speed_deg_s=speed_deg_s)
+        self.set_robot_target(target_joints=home_joints, gripper_value=1000, speed_deg_s=speed_deg_s, wait_for_completion=True)
 
     
     def set_robot_target(self,
@@ -256,7 +254,7 @@ class SynriaRobotAPI:
                             gripper_value: Optional[int] = None,
                             joint_format: str = 'rad',
                             speed_deg_s: int = 10,
-                            tolerance: float = 0.03,
+                            tolerance: float = 0.05,
                             timeout: float = 10.0,
                             wait_for_completion: bool = True) -> bool:
         """Set joint angles and/or gripper in a single combined command.
@@ -597,7 +595,7 @@ class SynriaRobotAPI:
             else:
                 joint_out = np.round(joints, 3)
                 unit = "rad"
-            logger.info(f"关节角度（{unit}): {joint_out.tolist()}, 夹爪开合度(%): {gripper}")
+            logger.info(f"关节角度（{unit}): {joint_out.tolist()}, 夹爪(0-1000): {gripper}")
             if status != "idle":
                 logger.info(f"按键状态：{status}")
 
@@ -606,8 +604,10 @@ class SynriaRobotAPI:
                 position = pose['position']
                 logger.info(f"位置(xyz /m): {np.round(position, 3).tolist()}, 四元数(qx, qy, qz, qw): {np.round(quaternion, 3).tolist()}")
 
-            logger.info(f"舵机温度（°C): {np.round(temperature, 1).tolist()}")
-            logger.info(f"舵机速度: {np.round(velocity, 1).tolist()}")
+            if temperature is not None:
+                logger.info(f"舵机温度（°C): {np.round(temperature, 1).tolist()}")
+            if velocity is not None:
+                logger.info(f"舵机速度 : {np.round(velocity, 1).tolist()}")
             
 
             print("\n")

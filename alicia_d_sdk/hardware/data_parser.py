@@ -261,8 +261,7 @@ class DataParser:
 
         # Map raw gripper value (0-1000) to percentage (0-100)
         # Hardware uses 0-1000 range, convert to 0-100 percentage
-        gripper_value = round(max(0.0, min(100.0, gripper_raw / 10.0)), 2)
-
+        gripper_value = int(max(0.0, min(1000, gripper_raw)))
         # Parse run status (last mandatory byte)
         run_status = data_bytes[14]
         run_status_map = {
@@ -364,7 +363,7 @@ class DataParser:
             low_byte = data_bytes[i * 2]
             high_byte = data_bytes[i * 2 + 1]
             velocity_raw = (low_byte & 0xFF) | ((high_byte & 0xFF) << 8)
-            # print("velocity_raw:", velocity_raw)
+            print("velocity_raw:", velocity_raw)
             velocities.append(float(velocity_raw))
 
         # Store velocity data
