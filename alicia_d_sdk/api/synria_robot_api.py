@@ -155,7 +155,7 @@ class SynriaRobotAPI:
         """Get current servo velocities.
         
         :param timeout: Maximum time to wait for response in seconds
-        :return: List of velocities in raw units for each servo, or None if failed
+        :return: List of velocities in degrees per second for each servo, or None if failed
         """
         if not self.servo_driver.acquire_info("velocity", wait=True, timeout=timeout):
             logger.error("Failed to get velocity data within timeout period")
@@ -607,7 +607,7 @@ class SynriaRobotAPI:
             if temperature is not None:
                 logger.info(f"舵机温度（°C): {np.round(temperature, 1).tolist()}")
             if velocity is not None:
-                logger.info(f"舵机速度 : {np.round(velocity, 1).tolist()}")
+                logger.info(f"舵机速度(deg/s) : {np.round(velocity, 1).tolist()}")
             
 
             print("\n")

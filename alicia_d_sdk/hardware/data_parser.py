@@ -59,7 +59,7 @@ class DataParser:
         self._temperature_data: Optional[List[float]] = None
         self._temperature_timestamp: Optional[float] = None
 
-        # Store velocity data (in raw units)
+        # Store velocity data (in degrees per second)
         self._velocity_data: Optional[List[float]] = None
         self._velocity_timestamp: Optional[float] = None
 
@@ -160,7 +160,7 @@ class DataParser:
         """
         Get current velocity data.
 
-        :return: Dictionary with keys: velocities (List of velocities in raw units), timestamp, or None if not available
+        :return: Dictionary with keys: velocities (List of velocities in degrees per second), timestamp, or None if not available
         """
         with self._lock:
             if self._velocity_data is None:
@@ -363,8 +363,10 @@ class DataParser:
             low_byte = data_bytes[i * 2]
             high_byte = data_bytes[i * 2 + 1]
             velocity_raw = (low_byte & 0xFF) | ((high_byte & 0xFF) << 8)
-            print("velocity_raw:", velocity_raw)
-            velocities.append(float(velocity_raw))
+            # Convert raw velocity to degrees per second
+            # Note: velocity_raw can exceed the expected limit of 5000
+            velocity_deg_s = self._raw_velocity_to_deg_per_sec(velocity_raw)
+            velocities.append(velocity_deg_s)
 
         # Store velocity data
         with self._lock:
@@ -375,7 +377,7 @@ class DataParser:
         self._velocity_event.set()
 
         if self.debug_mode:
-            logger.debug(f"Velocity data: {velocities}")
+            logger.debug(f"Velocity data (deg/s): {velocities}")
 
         return {
             "type": "velocity_data",
@@ -574,6 +576,34 @@ class DataParser:
 
         # Directly map raw value to radians: 0–4095 -> [-π, π]
         return (value / 4096.0) * (2 * math.pi) - math.pi
+
+    def _raw_velocity_to_deg_per_sec(self, velocity_raw: int) -> float:
+        """
+        Convert raw velocity value to degrees per second.
+        :param velocity_raw: Raw velocity value from hardware
+        :return: Velocity in degrees per second
+        """
+        # Known mapping: 360 deg/s = 4096 ticks/s
+        # Ratio: 360 / 4096 = 0.087890625 deg/(tick/s)
+        DEG_PER_TICK_PER_SEC = 360.0 / 4096.0
+        
+        # Expected hardware range: 50-5000 ticks/s
+        MAX_HARDWARE_VALUE = 5000
+        
+        # Handle abnormal values that exceed the expected limit
+        if velocity_raw > MAX_HARDWARE_VALUE:
+            # Clamp abnormal values to maximum expected value
+            velocity_raw = MAX_HARDWARE_VALUE
+            if self.debug_mode:
+                logger.debug(
+                    f"Velocity raw value exceeds expected limit (5000), "
+                    f"clamped to {MAX_HARDWARE_VALUE} before conversion"
+                )
+        
+        # Convert raw value to degrees per second
+        velocity_deg_s = velocity_raw * DEG_PER_TICK_PER_SEC
+        
+        return velocity_deg_s
 
     def _decimal_to_version_string(self, decimal_value: int) -> str:
         """
