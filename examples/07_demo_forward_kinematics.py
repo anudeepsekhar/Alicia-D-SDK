@@ -12,20 +12,19 @@ Features:
 
 import numpy as np
 import alicia_d_sdk
+import robocore as rc
 from robocore.utils.beauty_logger import beauty_print_array, beauty_print
 
 
 def main(args):
-    """Demonstrate forward kinematics.
-    
-    :param args: Command line arguments containing port, version, and gripper_type
-    """
-    # 创建机械臂实例
-    robot = alicia_d_sdk.create_robot(port=args.port)
-    
+    robot = alicia_d_sdk.create_robot(port=args.port, 
+                                      robot_version=args.robot_version, 
+                                      gripper_type=args.gripper_type, 
+                                      base_link=args.base_link, 
+                                      end_link=args.end_link)
+    rc.set_backend('numpy')
+
     robot_model = robot.robot_model
-    if not robot.connect():
-        return
     
     # 显示机器人模型信息
     robot_model.summary(show_chain=True)
@@ -33,9 +32,6 @@ def main(args):
     
     # 使用API的详细姿态获取方法
     pose_info = robot.get_pose()
-    if pose_info is None:
-        beauty_print("获取位姿失败")
-        return
     
     # 提取各个组件
     position_fk = pose_info['position']
@@ -70,7 +66,11 @@ if __name__ == '__main__':
     
     # Robot configuration
     parser.add_argument('--port', type=str, default="",   help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
-    
+    parser.add_argument('--robot_version', type=str, default="v5_6", help="机器人版本")
+    parser.add_argument('--gripper_type', type=str, default="50mm", help="夹爪类型")
+    parser.add_argument('--model_format', type=str, default="urdf", help="模型格式")
+    parser.add_argument('--base_link', type=str, default="base_link", help="基座链路名称, world 或 base_link等")
+    parser.add_argument('--end_link', type=str, default="tool0", help="末端执行器链路名称, tool0 或 Link6等")
     args = parser.parse_args()
     
 

@@ -43,6 +43,9 @@ def main(args):
         # # Test 3: Partially open
         robot.set_robot_target(gripper_value=500)
         time.sleep(1)
+        # Test 4: Open gripper
+        robot.set_robot_target(gripper_value=1000)
+        time.sleep(1)
 
         
     except KeyboardInterrupt:
