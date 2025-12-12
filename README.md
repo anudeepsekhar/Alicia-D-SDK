@@ -86,7 +86,8 @@
 │   ├── 06_demo_move_cartesian.py    # 笛卡尔运动
 │   ├── 07_demo_forward_kinematics.py  # 正向运动学
 │   ├── 08_demo_inverse_kinematics.py  # 逆向运动学
-│   └── 09_demo_drag_teaching.py     # 拖动示教
+│   ├── 09_demo_drag_teaching.py     # 拖动示教
+│   └── 10_demo_sparkvis.py          # SparkVis UI 双向同步
 ```
 
 ## 快速开始
@@ -103,7 +104,16 @@ python3 05_demo_move_joint.py      # 关节移动
 
 ## 文档
 
+**中文文档：**
 *   [安装指南](docs/installation.md)
 *   [示例说明](docs/examples.md)
 *   [API 参考](docs/api_reference.md)
+*   [迁移指南 (v6.0.0 → v6.1.0)](docs/migration_guide.md)
 *   [日志级别](docs/logger_levels.md)
+
+**English Documentation:**
+*   [Installation Guide](docs/installation_en.md)
+*   [Examples Guide](docs/examples_en.md)
+*   [API Reference](docs/api_reference_en.md)
+*   [Migration Guide (v6.0.0 → v6.1.0)](docs/migration_guide_en.md)
+*   [Logger Levels](docs/logger_levels_en.md)

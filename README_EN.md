@@ -89,7 +89,8 @@ The **Alicia-D SDK** is a Python toolkit for controlling the "Alicia-D" series o
 │   ├── 06_demo_move_cartesian.py    # Cartesian motion
 │   ├── 07_demo_forward_kinematics.py  # Forward kinematics
 │   ├── 08_demo_inverse_kinematics.py  # Inverse kinematics
-│   └── 09_demo_drag_teaching.py     # Drag teaching
+│   ├── 09_demo_drag_teaching.py     # Drag teaching
+│   └── 10_demo_sparkvis.py          # SparkVis UI bidirectional sync
 ```
 
 ## Quick Start
@@ -106,7 +107,16 @@ python3 05_demo_move_joint.py      # Joint movement
 
 ## Documentation
 
-*   [Installation Guide](docs/installation.md)
-*   [Examples Guide](docs/examples.md)
-*   [API Reference](docs/api_reference.md)
-*   [Logger Levels](docs/logger_levels.md)
+**English Documentation:**
+*   [Installation Guide](docs/installation_en.md)
+*   [Examples Guide](docs/examples_en.md)
+*   [API Reference](docs/api_reference_en.md)
+*   [Migration Guide (v6.0.0 → v6.1.0)](docs/migration_guide_en.md)
+*   [Logger Levels](docs/logger_levels_en.md)
+
+**中文文档：**
+*   [安装指南](docs/installation.md)
+*   [示例说明](docs/examples.md)
+*   [API 参考](docs/api_reference.md)
+*   [迁移指南 (v6.0.0 → v6.1.0)](docs/migration_guide.md)
+*   [日志级别](docs/logger_levels.md)

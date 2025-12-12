@@ -15,7 +15,7 @@
 
 ### 1. 克隆或下载项目
 ```bash
-git clone https://github.com/Synria-Robotics/Alicia-D-SDK.git -v6.1.0
+git clone https://github.com/Synria-Robotics/Alicia-D-SDK.git -b v6.1.0-dev
 cd Alicia-D-SDK
 ```
 
@@ -66,7 +66,7 @@ else:
 
 ```python
 # Linux
-robot = create_robot(port="/dev/ttyUSB0")
+robot = create_robot(port="/dev/ttyACM0")
 
 # Windows
 robot = create_robot(port="COM3")
@@ -79,7 +79,7 @@ robot = create_robot(port="COM3")
 - 将机械臂通过 USB 连接到计算机
 - 确保电源打开
 - 系统应自动识别串口设备，如：
-  - Linux: `/dev/ttyUSB0`, `/dev/ttyUSB1` ...
+  - Linux: `/dev/ttyACM0`, `/dev/ttyACM1` ...
   - Windows: `COM3`, `COM4` ...
 
 ---
@@ -114,7 +114,7 @@ python3 03_demo_read_state.py     # 读取机械臂状态
 
 手动指定波特率：
 ```python
-robot = create_robot(port="/dev/ttyUSB0")
+robot = create_robot(port="/dev/ttyACM0")
 ```
 
 ### 权限错误 (Permission denied)
