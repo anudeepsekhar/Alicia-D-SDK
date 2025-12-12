@@ -695,9 +695,9 @@ class SynriaRobotAPI:
         version = self.get_version(log=False)
         serial_number = version.get("serial_number")
         # ADFS for follower, ADLS for leader
-        if serial_number.startswith("ADFS"):
+        if serial_number.startswith("ADF"):
             return "follower"
-        elif serial_number.startswith("ADLS"):
+        elif serial_number.startswith("ADL"):
             return "leader"
         else:
             return None
