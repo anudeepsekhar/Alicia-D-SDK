@@ -616,7 +616,7 @@ class SynriaRobotAPI:
             try:
                 while True:
                     _print_once(robot_type)
-                    time.sleep(0.7)
+                    time.sleep(0.03)
             except KeyboardInterrupt:
                 logger.info("停止连续状态打印")
         else:
