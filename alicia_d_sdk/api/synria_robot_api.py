@@ -691,13 +691,18 @@ class SynriaRobotAPI:
 
 
     def _robot_type(self) -> str:
+        if self.robot_type is not None:
+            return self.robot_type
 
         version = self.get_version(log=False)
+        if version is None:
+            return None
+            
         serial_number = version.get("serial_number")
         # ADFS for follower, ADLS for leader
         if serial_number.startswith("ADF"):
-            return "follower"
+            self.robot_type = "follower"
         elif serial_number.startswith("ADL"):
-            return "leader"
-        else:
-            return None
+            self.robot_type = "leader"
+        
+        return self.robot_type
