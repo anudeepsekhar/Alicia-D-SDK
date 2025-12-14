@@ -15,7 +15,7 @@
 
 ### 1. 克隆或下载项目
 ```bash
-git clone https://github.com/Synria-Robotics/Alicia-D-SDK.git -b v6.1.0-dev
+git clone https://github.com/Synria-Robotics/Alicia-D-SDK.git -b v6.1.0-beta1
 cd Alicia-D-SDK
 ```
 
@@ -108,9 +108,7 @@ python3 03_demo_read_state.py     # 读取机械臂状态
   ```
 - 运行 `00_demo_read_version.py` 检测固件版本
 
-### 波特率问题
-- 新固件（6.x.x）：默认波特率 1000000
-- 旧固件（<6.x.x）：可能需要使用波特率 921600
+
 
 手动指定波特率：
 ```python

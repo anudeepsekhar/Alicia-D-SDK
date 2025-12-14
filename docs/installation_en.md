@@ -15,7 +15,7 @@ This guide will walk you through the installation and runtime environment config
 
 ### 1. Clone or Download the Project
 ```bash
-git clone https://github.com/Synria-Robotics/Alicia-D-SDK.git -b v6.1.0-dev
+git clone https://github.com/Synria-Robotics/Alicia-D-SDK.git -b v6.1.0-beta1
 cd Alicia-D-SDK
 ```
 
