@@ -26,10 +26,13 @@ conda create -n alicia python=3.8
 conda activate alicia
 ```
 
-安装依赖与 SDK：
+安装依赖与 SDK：(仅选择一种方式)
+
 ```bash
-# pip install -r requirements.txt
+# Local installation
 pip install -e .
+# Or install from remote pypi
+pip install --pre alicia_d_sdk
 ```
 
 ---
