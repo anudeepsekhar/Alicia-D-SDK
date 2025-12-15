@@ -254,7 +254,7 @@ class SynriaRobotAPI:
                             gripper_value: Optional[int] = None,
                             joint_format: str = 'rad',
                             speed_deg_s: int = 10,
-                            tolerance: float = 0.05,
+                            tolerance: float = 0.1,
                             timeout: float = 10.0,
                             wait_for_completion: bool = True) -> bool:
         """Set joint angles and/or gripper in a single combined command.
@@ -673,7 +673,7 @@ class SynriaRobotAPI:
                 if all(abs(a - b) <= tolerance for a, b in zip(current_joints, target_joints)):
                     # logger.info("已到达目标位置")
                     return True
-            time.sleep(0.05)
+            # time.sleep(0.0000000000000001)
         logger.warning("等待关节到目标附近超时")
         # time.sleep(10)
         joints = self.get_joints()

@@ -254,20 +254,54 @@ class SimpleDragTeaching:
         if not data:
             return
 
-        # 简单的时间戳节奏控制：
-        # 假设每个点都有 float 类型的 't' 字段，
-        # 以第一个点为基准，按照 (t_i - t_0) 的间隔进行回放。
-        base_t = float(data[0].get("t", 0.0))
-        start_wall_time = time.time()
+        # 获取目标速度和加速度参数
+        speed_deg_s = getattr(self.args, "speed_deg_s", 10)  # 目标速度，度/秒
+        acceleration_deg_s2 = 22.0  # 加速度，度/秒²
 
-        def _sleep_to_match_timestamp(point: Dict[str, Any]):
-            """根据记录的时间戳进行等待，使回放节奏与录制时一致"""
-            t_cur = float(point["t"])
-            target_elapsed = t_cur - base_t
-            now_elapsed = time.time() - start_wall_time
-            wait = target_elapsed - now_elapsed
-            if wait > 0:
-                time.sleep(wait)
+        def _sleep_based_on_velocity(point: Dict[str, Any], prev_joints: Optional[np.ndarray]):
+            """
+            Calculate wait time based on joint angle difference, target velocity and acceleration.
+            
+            :param point: Current waypoint with joint angles
+            :param prev_joints: Previous waypoint joint angles, None for first point
+            :return: Wait time in seconds
+            """
+            if prev_joints is None:
+                return 0.0
+
+            # Convert joint angles from radians to degrees
+            current_joints = np.array(point["q"])
+            prev_joints_array = np.array(prev_joints)
+
+            # Calculate angle difference for each joint (in degrees)
+            angle_diff_deg = np.abs(np.degrees(current_joints - prev_joints_array))
+
+            # Use a robust diff to avoid being dominated by a single joint
+            # 75th percentile lets most joints move smoothly while ignoring extreme outliers
+            effective_angle_diff = float(np.percentile(angle_diff_deg, 75))
+
+            if effective_angle_diff < 1e-6:  # Very small movement, no wait needed
+                return 0.0
+
+            # Calculate motion time based on acceleration and velocity
+            # If distance is large enough to reach target velocity
+            min_distance_to_reach_velocity = (speed_deg_s ** 2) / acceleration_deg_s2
+
+            if effective_angle_diff >= min_distance_to_reach_velocity:
+                # Trapezoidal profile: accelerate, constant velocity, decelerate
+                # Accelerate time: t_acc = v/a
+                # Accelerate distance: s_acc = v²/(2a)
+                # Constant velocity distance: s_const = Δθ - 2*s_acc = Δθ - v²/a
+                # Constant velocity time: t_const = s_const/v = (Δθ - v²/a)/v = Δθ/v - v/a
+                # Total time: t = 2*t_acc + t_const = 2*v/a + Δθ/v - v/a = v/a + Δθ/v
+                motion_time = speed_deg_s / acceleration_deg_s2 + effective_angle_diff / speed_deg_s
+            else:
+                # Triangular profile: accelerate then decelerate (never reach max velocity)
+                # Each half: Δθ/2 = 0.5 * a * (t/2)², so Δθ = a * t²/4
+                # Therefore: t = 2 * sqrt(Δθ / a)
+                motion_time = 2.0 * np.sqrt(effective_angle_diff / acceleration_deg_s2)
+
+            return motion_time
 
         print(f"\n=== 轨迹回放 ===")
         print(f"回放模式: {self.args.mode}")
@@ -297,29 +331,66 @@ class SimpleDragTeaching:
         time.sleep(0.1)
         print("[回放] 开始播放轨迹...")
 
-        # 重新设置起始时间，以便时间戳同步从播放轨迹时开始计算
-        start_wall_time = time.time()
+        # 初始化前一个点的关节角度为第一个点
+        prev_joints = data[0]["q"]
 
         if self.args.mode == 'auto':
             # 自动模式：使用直接设置，快速回放
             print("[回放] 使用直接设置模式（快速）")
             for i, point in enumerate(data):
                 try:
-                    # 根据时间戳控制节奏
-                    _sleep_to_match_timestamp(point)
+                    # 根据速度和角度差计算运动时间
+                    motion_time = _sleep_based_on_velocity(point, prev_joints if i > 0 else None)
 
                     # 获取夹爪值
                     gripper_value = point.get("grip", 0.0)
 
                     # 使用高级 API 统一控制关节和夹爪（避免直接依赖底层 driver）
                     # 关节数据在示教阶段按弧度记录，这里保持 joint_format='rad'
+                    # 使用 wait_for_completion=False 让命令异步执行，然后根据计算的时间等待
+                    start_time = time.time()
                     self.controller.set_robot_target(
                         target_joints=point["q"],
                         gripper_value=gripper_value,
                         joint_format='rad',
-                        speed_deg_s=getattr(self.args, "speed_deg_s", 10),
-                        wait_for_completion=False,  # 快速连续回放
+                        speed_deg_s=speed_deg_s,
+                        wait_for_completion=True,  # 异步执行，由时间控制节奏
                     )
+
+                    # 根据计算出的运动时间等待，确保运动有足够时间完成
+                    #
+                    # 【现象背后的原理】
+                    # 理论计算基于固定加速度22度/s²，但实际硬件行为更复杂：
+                    #
+                    # 1. 实际加速度可能大于理论值：
+                    #    - 控制器在高速时可能使用更激进的运动策略
+                    #    - 硬件实际加速度可能超过22度/s²（特别是高速运动时）
+                    #
+                    # 2. 速度越高，实际/理论时间比越小：
+                    #    - 低速(10度/s): 实际时间 ≈ 理论时间/2
+                    #    - 中速(30度/s): 实际时间 ≈ 理论时间/6
+                    #    - 高速(100度/s): 实际时间 ≈ 理论时间/20
+                    #    - 规律：实际时间 ≈ 理论时间 / (speed_deg_s / 5)
+                    #
+                    # 3. 物理原因：
+                    #    - 控制器内部可能有速度相关的优化算法
+                    #    - 高速时，加速度限制的影响相对减小，更容易达到目标速度
+                    #    - 可能存在非线性控制策略，速度越高，响应越快
+                    #
+                    # 4. 工程原因：
+                    #    - 控制器可能根据速度动态调整加速度限制
+                    #    - 通信和命令执行的开销在高速时占比更小
+                    #    - 实际运动曲线可能更接近理想曲线（减少平滑处理）
+                    if motion_time > 0:
+                        elapsed = time.time() - start_time
+                        remaining_time = motion_time - elapsed
+                        if remaining_time > 0:
+                            # 缩放系数 = speed_deg_s / 5，反映实际运动时间与理论时间的比例关系
+                            speed_factor = max(1.0, speed_deg_s / 5.0)
+                            # time.sleep(remaining_time/ speed_factor)
+
+                    # 更新前一个点的关节角度
+                    prev_joints = point["q"]
 
                     print(f"[回放] {i+1}/{len(data)}")
                 except Exception as e:
@@ -330,9 +401,10 @@ class SimpleDragTeaching:
             print("[回放] 使用插值运动模式（平滑）")
             for i, point in enumerate(data):
                 try:
-                    # 根据时间戳控制节奏
-                    _sleep_to_match_timestamp(point)
+                    # 根据速度和角度差计算运动时间
+                    motion_time = _sleep_based_on_velocity(point, prev_joints if i > 0 else None)
 
+                    start_time = time.time()
                     firmware_new = self.controller.firmware_new
                     if firmware_new:
                         self.controller.set_joint_target(point["q"])
@@ -347,6 +419,41 @@ class SimpleDragTeaching:
                             self.controller.set_gripper_target(value=gripper_value, wait_for_completion=False)
                         except:
                             pass
+
+                    # 根据计算出的运动时间等待，确保运动有足够时间完成
+                    #
+                    # 【现象背后的原理】
+                    # 理论计算基于固定加速度22度/s²，但实际硬件行为更复杂：
+                    #
+                    # 1. 实际加速度可能大于理论值：
+                    #    - 控制器在高速时可能使用更激进的运动策略
+                    #    - 硬件实际加速度可能超过22度/s²（特别是高速运动时）
+                    #
+                    # 2. 速度越高，实际/理论时间比越小：
+                    #    - 低速(10度/s): 实际时间 ≈ 理论时间/2
+                    #    - 中速(30度/s): 实际时间 ≈ 理论时间/6
+                    #    - 高速(100度/s): 实际时间 ≈ 理论时间/20
+                    #    - 规律：实际时间 ≈ 理论时间 / (speed_deg_s / 5)
+                    #
+                    # 3. 物理原因：
+                    #    - 控制器内部可能有速度相关的优化算法
+                    #    - 高速时，加速度限制的影响相对减小，更容易达到目标速度
+                    #    - 可能存在非线性控制策略，速度越高，响应越快
+                    #
+                    # 4. 工程原因：
+                    #    - 控制器可能根据速度动态调整加速度限制
+                    #    - 通信和命令执行的开销在高速时占比更小
+                    #    - 实际运动曲线可能更接近理想曲线（减少平滑处理）
+                    if motion_time > 0:
+                        elapsed = time.time() - start_time
+                        remaining_time = motion_time - elapsed
+                        if remaining_time > 0:
+                            # 缩放系数 = speed_deg_s / 5，反映实际运动时间与理论时间的比例关系
+                            speed_factor = max(1.0, speed_deg_s / 5.0)
+                            time.sleep(remaining_time / speed_factor)
+
+                    # 更新前一个点的关节角度
+                    prev_joints = point["q"]
 
                     print(f"[回放] {i+1}/{len(data)}")
 
