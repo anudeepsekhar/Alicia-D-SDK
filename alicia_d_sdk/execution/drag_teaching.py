@@ -277,6 +277,29 @@ class SimpleDragTeaching:
 
         print("[回放] 开始...")
 
+        # 先以速度10移动到第一个点
+        first_point = data[0]
+        first_gripper = first_point.get("grip", 0.0)
+        print("[回放] 移动到起始点（速度30）...")
+        try:
+
+            self.controller.set_robot_target(
+                target_joints=first_point["q"],
+                gripper_value=first_gripper,
+                joint_format='rad',
+                speed_deg_s=30,
+                wait_for_completion=True,
+            )
+        except Exception as e:
+            print(f"[警告] 移动到起始点失败: {e}")
+
+        # 等待0.1秒
+        time.sleep(0.1)
+        print("[回放] 开始播放轨迹...")
+
+        # 重新设置起始时间，以便时间戳同步从播放轨迹时开始计算
+        start_wall_time = time.time()
+
         if self.args.mode == 'auto':
             # 自动模式：使用直接设置，快速回放
             print("[回放] 使用直接设置模式（快速）")

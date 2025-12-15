@@ -162,7 +162,7 @@ class SerialComm:
                 data_bytes = bytes(data)
                 # Write data
                 bytes_written = self.serial_port.write(data_bytes)
-                time.sleep(0.01)
+                time.sleep(0.001)  # 必须 0.001， Mac上158hz
                 try:
                     self.serial_port.flush()
                 except Exception:
