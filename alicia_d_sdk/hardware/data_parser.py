@@ -609,26 +609,20 @@ class DataParser:
         """
         Convert decimal value to version string.
         :param decimal_value: Decimal version value
-        :return: Version string in format "X.YZ"
+        :return: Version string in format "X.Y.Z" (MAJOR.MINOR.PATCH)
         """
         if decimal_value < 0:
             return "unknown"
         
-        # Convert to string and pad with zeros if needed
         decimal_str = str(decimal_value)
         
         if len(decimal_str) == 1:
-            # Single digit: 6 -> "0.06"
-            version_str = f"0.0{decimal_str}"
+            version_str = f"0.0.{decimal_str}"
         elif len(decimal_str) == 2:
-            # Two digits: 10 -> "0.10"
-            version_str = f"0.{decimal_str}"
-        elif len(decimal_str) >= 3:
-            # Three or more digits: 610 -> "6.10", 1234 -> "12.34"
-            major = decimal_str[:-2]
-            minor = decimal_str[-2:]
-            version_str = f"{major}.{minor}"
+            version_str = f"{decimal_str[0]}.{decimal_str[1]}.0"
+        elif len(decimal_str) == 3:
+            version_str = f"{decimal_str[0]}.{decimal_str[1]}.{decimal_str[2]}"
         else:
-            version_str = "unknown"
+            version_str = f"{decimal_str[0]}.{decimal_str[1]}.{decimal_str[2:]}"
         
         return version_str
