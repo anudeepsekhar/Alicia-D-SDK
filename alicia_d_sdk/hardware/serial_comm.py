@@ -189,16 +189,34 @@ class SerialComm:
         :return: Complete data frame, returns None if not available
         """
         try:
+            # Check serial port status before any operation
+            # Don't auto-reconnect in read_frame to avoid unexpected reconnections
+            # Connection should be managed explicitly by connect()/disconnect()
             if not self.serial_port or not self.serial_port.is_open:
-                if not self.connect():
-                    return None
-            # Check if there is data to read
-            if self.serial_port.in_waiting == 0:
                 return None
-            available_bytes = self.serial_port.in_waiting
+
+            # Check if there is data to read (may raise OSError if port is closed)
+            try:
+                if self.serial_port.in_waiting == 0:
+                    return None
+                available_bytes = self.serial_port.in_waiting
+            except (OSError, AttributeError) as e:
+                # Port was closed between check and read
+                if hasattr(e, 'errno') and e.errno == 9:  # Bad file descriptor
+                    return None
+                raise
+
             max_read_size = 80
             read_size = min(available_bytes, max_read_size)
-            self._rx_buffer += self.serial_port.read(read_size)
+
+            # Read data (may raise OSError if port is closed)
+            try:
+                self._rx_buffer += self.serial_port.read(read_size)
+            except (OSError, AttributeError) as e:
+                # Port was closed during read
+                if hasattr(e, 'errno') and e.errno == 9:  # Bad file descriptor
+                    return None
+                raise
 
             while len(self._rx_buffer) >= 6:
                 if len(self._rx_buffer) > 200:
@@ -249,6 +267,13 @@ class SerialComm:
 
             return None
 
+        except (OSError, AttributeError) as e:
+            # Handle Bad file descriptor error gracefully (port closed)
+            if hasattr(e, 'errno') and e.errno == 9:  # Bad file descriptor
+                # Port was closed, this is expected during shutdown
+                return None
+            logger.error(f"Exception reading data: {str(e)}")
+            return None
         except Exception as e:
             logger.error(f"Exception reading data: {str(e)}")
             return None

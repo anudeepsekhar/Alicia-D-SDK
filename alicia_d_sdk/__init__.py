@@ -22,13 +22,13 @@ from alicia_d_sdk.execution import HardwareExecutor
 # Import from RoboCore for kinematics and modeling
 from robocore.modeling import RobotModel
 from robocore.kinematics import forward_kinematics, inverse_kinematics, jacobian
-from robocore.planning import (
-    cubic_polynomial_trajectory,
-    quintic_polynomial_trajectory,
-    linear_joint_trajectory,
-    linear_cartesian_trajectory,
-    trapezoidal_velocity_profile
-)
+# from robocore.planning import (
+#     cubic_polynomial_trajectory,
+#     quintic_polynomial_trajectory,
+#     linear_joint_trajectory,
+#     linear_cartesian_trajectory,
+#     trapezoidal_velocity_profile
+# )
 
 __version__ = "6.1.0"
 __author__ = "Synria Robotics"
@@ -69,6 +69,8 @@ def create_robot(
     robot_version: str = "v5_6",
     gripper_type: str = "50mm",
     debug_mode: bool = False,
+    base_link: str = None,
+    end_link: str = None,
 ) -> SynriaRobotAPI:
     """
     Create robot instance.
@@ -77,6 +79,8 @@ def create_robot(
     :param robot_version: Robot version (e.g., "v5_6", "v5_4")
     :param gripper_type: Gripper type (e.g., "50mm", "30mm")
     :param debug_mode: Debug mode
+    :param base_link: Base link
+    :param end_link: End link
     :return: SynriaRobotAPI instance
     """
     # 创建硬件层
@@ -86,8 +90,11 @@ def create_robot(
     try:
         from synriard import get_model_path
         urdf_path = get_model_path("Alicia_D", version=robot_version, variant=f"gripper_{gripper_type}")
-        end_link = 'tool0'
-        robot_model = RobotModel(str(urdf_path), end_link=end_link)
+        if base_link is None:
+            base_link = 'base_link'
+        if end_link is None:
+            end_link = 'tool0'
+        robot_model = RobotModel(str(urdf_path), base_link=base_link, end_link=end_link)
     except ImportError:
         print("Warning: synriard not found, using default URDF path")
         # Fallback to default path
@@ -103,5 +110,8 @@ def create_robot(
         servo_driver=servo_driver,
         robot_model=robot_model
     )
+
+    if not robot.connect():
+        raise ConnectionError("Failed to connect to the robot, please check the port and connection")
 
     return robot
