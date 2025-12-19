@@ -104,7 +104,7 @@ def main(args):
     if isinstance(err_norm, list):
         err_norm = err_norm[0] if err_norm else None
 
-    if ik_result['success']:
+    if args.force_execute:
         print(f"  迭代次数: {iters}")
         print(f"  位置误差: {pos_err:.6e} m")
         print(f"  姿态误差: {ori_err:.6e} rad")
@@ -159,11 +159,6 @@ def main(args):
             print(f"\n  错误信息: {ik_result['message']}")
     print("=" * 60 + "\n")
     
-    # 如果执行了移动，回到初始位置
-    if args.execute and ik_result['success']:
-        print("\n返回初始位置...")
-        robot.set_home(speed_deg_s=args.speed_deg_s)
-    
     robot.disconnect()
 
 
@@ -172,7 +167,7 @@ if __name__ == "__main__":
     
     # Robot connection settings
     parser.add_argument('--port', type=str, default="", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
-    parser.add_argument('--speed_deg_s', type=int, default=10,  help="关节运动速度 (单位: 度/秒，默认: 10，范围: 5-400度/秒)")
+    parser.add_argument('--speed_deg_s', type=int, default=20,  help="关节运动速度 (单位: 度/秒，默认: 10，范围: 5-400度/秒)")
     parser.add_argument('--robot_version', type=str, default="v5_6", help="机器人版本")
     parser.add_argument('--gripper_type', type=str, default="50mm", help="夹爪类型")
     parser.add_argument('--model_format', type=str, default="urdf", help="模型格式")
@@ -181,14 +176,14 @@ if __name__ == "__main__":
 
     # IK Configuration
     parser.add_argument('--end-pose', type=float, nargs=7, 
-                        default=[0.28778, -0.16163, +0.36082, +0.037734, +0.781503, -0.303739, +0.543665],
+                        default=[-0.2, -0.3, +0.3, +0.707, 0, -0.707, 0],
                        help='目标位姿 (7个浮点数: px py pz qx qy qz qw)')
     parser.add_argument('--method', type=str, default='dls', 
                        choices=['dls', 'pinv', 'transpose'],
                        help='IK方法: dls(阻尼最小二乘), pinv(伪逆), transpose(雅可比转置)')
-    parser.add_argument('--max-iters', type=int, default=100,  help='最大迭代次数 (默认: 100)')
+    parser.add_argument('--max-iters', type=int, default=500,  help='最大迭代次数 (默认: 100)')
     parser.add_argument('--tolerance', type=float, default=1e-4, help='位置和姿态容差 (默认: 1e-4)')
-    parser.add_argument('--num-inits', type=int, default=1,  help='初始猜测数量 (默认: 1)')
+    parser.add_argument('--num-inits', type=int, default=5,  help='初始猜测数量 (默认: 1)')
     parser.add_argument('--init-strategy', type=str, default='current',
                         choices=['zero', 'random', 'sobol', 'latin', 'center', 'uniform', 'current'],
                         help='初始猜测策略 (默认: current=使用当前关节角度)')
@@ -199,7 +194,8 @@ if __name__ == "__main__":
     parser.add_argument('--backend', type=str, default='numpy',
                         choices=['numpy', 'torch'],
                         help='计算后端 (默认: numpy)')
-    parser.add_argument('--execute', action='store_false', help='执行移动到求解的位置')
+    parser.add_argument('--execute', action='store_true', help='执行移动到求解的位置')
+    parser.add_argument('--force-execute', action='store_true', help='强制执行移动到求解的位置，不考虑是否成功')
     
     args = parser.parse_args()
     
