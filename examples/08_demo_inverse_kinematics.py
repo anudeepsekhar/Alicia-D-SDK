@@ -72,8 +72,8 @@ def main(args):
         q0,
         method=args.method,
         max_iters=args.max_iters,
-        pos_tol=args.tolerance,
-        ori_tol=args.tolerance,
+        pos_tol=args.pos_tol,
+        ori_tol=args.ori_tol,
         num_initial_guesses=args.num_inits,
         initial_guess_strategy=actual_strategy,
         initial_guess_scale=args.init_scale,
@@ -123,7 +123,8 @@ def main(args):
                 target_joints=q_ik,
                 joint_format='rad',
                 speed_deg_s=args.speed_deg_s,
-                wait_for_completion=True
+                wait_for_completion=True, 
+                timeout=10
             )
             if success:
                 beauty_print("✓ 机械臂已移动到目标位置")
@@ -176,14 +177,15 @@ if __name__ == "__main__":
 
     # IK Configuration
     parser.add_argument('--end-pose', type=float, nargs=7, 
-                        default=[-0.2, -0.3, +0.3, +0.707, 0, -0.707, 0],
+                        default=[0.25, 0.25, +0.5, 0.707, 0, 0, -0.707],
                        help='目标位姿 (7个浮点数: px py pz qx qy qz qw)')
     parser.add_argument('--method', type=str, default='dls', 
                        choices=['dls', 'pinv', 'transpose'],
                        help='IK方法: dls(阻尼最小二乘), pinv(伪逆), transpose(雅可比转置)')
     parser.add_argument('--max-iters', type=int, default=500,  help='最大迭代次数 (默认: 100)')
-    parser.add_argument('--tolerance', type=float, default=1e-4, help='位置和姿态容差 (默认: 1e-4)')
-    parser.add_argument('--num-inits', type=int, default=5,  help='初始猜测数量 (默认: 1)')
+    parser.add_argument('--pos-tol', type=float, default=1e-4, help='位置容差 (默认: 1e-4)')
+    parser.add_argument('--ori-tol', type=float, default=1e-3, help='姿态容差 (默认: 1e-3)')
+    parser.add_argument('--num-inits', type=int, default=10,  help='初始猜测数量 (默认: 10)')
     parser.add_argument('--init-strategy', type=str, default='current',
                         choices=['zero', 'random', 'sobol', 'latin', 'center', 'uniform', 'current'],
                         help='初始猜测策略 (默认: current=使用当前关节角度)')

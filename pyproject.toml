@@ -35,7 +35,7 @@ dependencies = [
     "websockets==13.1",
     "pythoncrc",
     "pycrc",
-    "synria-robocore==1.0.0",
+    "synria-robocore==2.0.0alpha1",
     # CRITICAL FIX: Changed from git URL to PyPI version
     "synriard>=1.0.1", 
 ]

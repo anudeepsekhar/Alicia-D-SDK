@@ -311,7 +311,7 @@ class SimpleDragTeaching:
 
         print("[回放] 开始...")
 
-        # 先以速度10移动到第一个点
+        # 先以速度30移动到第一个点
         first_point = data[0]
         first_gripper = first_point.get("grip", 0.0)
         print("[回放] 移动到起始点（速度30）...")
@@ -327,8 +327,8 @@ class SimpleDragTeaching:
         except Exception as e:
             print(f"[警告] 移动到起始点失败: {e}")
 
-        # 等待0.1秒
-        time.sleep(0.1)
+        # 等待0.001秒
+        time.sleep(0.001)
         print("[回放] 开始播放轨迹...")
 
         # 初始化前一个点的关节角度为第一个点
@@ -354,40 +354,17 @@ class SimpleDragTeaching:
                         gripper_value=gripper_value,
                         joint_format='rad',
                         speed_deg_s=speed_deg_s,
+                        tolerance=0.3,
                         wait_for_completion=True,  # 异步执行，由时间控制节奏
                     )
 
-                    # 根据计算出的运动时间等待，确保运动有足够时间完成
-                    #
-                    # 【现象背后的原理】
-                    # 理论计算基于固定加速度22度/s²，但实际硬件行为更复杂：
-                    #
-                    # 1. 实际加速度可能大于理论值：
-                    #    - 控制器在高速时可能使用更激进的运动策略
-                    #    - 硬件实际加速度可能超过22度/s²（特别是高速运动时）
-                    #
-                    # 2. 速度越高，实际/理论时间比越小：
-                    #    - 低速(10度/s): 实际时间 ≈ 理论时间/2
-                    #    - 中速(30度/s): 实际时间 ≈ 理论时间/6
-                    #    - 高速(100度/s): 实际时间 ≈ 理论时间/20
-                    #    - 规律：实际时间 ≈ 理论时间 / (speed_deg_s / 5)
-                    #
-                    # 3. 物理原因：
-                    #    - 控制器内部可能有速度相关的优化算法
-                    #    - 高速时，加速度限制的影响相对减小，更容易达到目标速度
-                    #    - 可能存在非线性控制策略，速度越高，响应越快
-                    #
-                    # 4. 工程原因：
-                    #    - 控制器可能根据速度动态调整加速度限制
-                    #    - 通信和命令执行的开销在高速时占比更小
-                    #    - 实际运动曲线可能更接近理想曲线（减少平滑处理）
-                    if motion_time > 0:
-                        elapsed = time.time() - start_time
-                        remaining_time = motion_time - elapsed
-                        if remaining_time > 0:
-                            # 缩放系数 = speed_deg_s / 5，反映实际运动时间与理论时间的比例关系
-                            speed_factor = max(1.0, speed_deg_s / 5.0)
-                            # time.sleep(remaining_time/ speed_factor)
+                    # if motion_time > 0:
+                    #     elapsed = time.time() - start_time
+                    #     remaining_time = motion_time - elapsed
+                    #     if remaining_time > 0:
+                    #         # 缩放系数 = speed_deg_s / 5，反映实际运动时间与理论时间的比例关系
+                    #         speed_factor = max(1.0, speed_deg_s / 5.0)
+                    #         # time.sleep(remaining_time/ speed_factor)
 
                     # 更新前一个点的关节角度
                     prev_joints = point["q"]

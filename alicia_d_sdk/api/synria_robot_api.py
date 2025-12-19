@@ -653,9 +653,7 @@ class SynriaRobotAPI:
                 if all(abs(a - b) <= tolerance for a, b in zip(current_joints, target_joints)):
                     # logger.info("已到达目标位置")
                     return True
-            # time.sleep(0.0000000000000001)
         logger.warning("等待关节到目标附近超时")
-        # time.sleep(10)
         joints = self.get_joints()
         logger.warning(f"目标关节角度: {target_joints}")
         logger.warning(f"关节角度: {joints}")
