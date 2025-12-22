@@ -169,8 +169,7 @@ if __name__ == "__main__":
     # Robot connection settings
     parser.add_argument('--port', type=str, default="", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
     parser.add_argument('--speed_deg_s', type=int, default=20,  help="关节运动速度 (单位: 度/秒，默认: 10，范围: 5-400度/秒)")
-    parser.add_argument('--robot_version', type=str, default="v5_6", help="机器人版本")
-    parser.add_argument('--gripper_type', type=str, default="50mm", help="夹爪类型")
+    parser.add_argument('--gripper_type', type=str, default= None, help="夹爪类型")
     parser.add_argument('--model_format', type=str, default="urdf", help="模型格式")
     parser.add_argument('--base_link', type=str, default="world", help="基座链路名称, world 或 base_link等")
     parser.add_argument('--end_link', type=str, default="tool0", help="末端执行器链路名称, tool0 或 Link6等")

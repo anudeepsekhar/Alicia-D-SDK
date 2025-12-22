@@ -10,14 +10,16 @@ Responsibilities:
 """
 
 import time
+import os
 from typing import List, Optional, Dict, Union, Tuple
 import numpy as np
-
+import json
 from robocore.kinematics import inverse_kinematics
 from robocore.modeling import RobotModel
 from robocore.transform import make_transform, quaternion_to_matrix
 from robocore.kinematics import forward_kinematics
 from robocore.transform import matrix_to_euler, matrix_to_quaternion
+from synriard import get_model_path
 # from robocore.planning.trajectory import (
 #     cubic_polynomial_trajectory,
 #     quintic_polynomial_trajectory,
@@ -39,17 +41,22 @@ class SynriaRobotAPI:
                  robot_model: RobotModel):
         """Initialize robot API.
 
-        :param servo_driver: Servo driver instance
-        :param robot_model: Robot model from RoboCore
+        :param servo_driver: Servo driver instance (low-level hardware)
+        :param robot_model: Pre-loaded robot model (RoboCore RobotModel)
         """
         self.servo_driver = servo_driver
         self.data_parser = servo_driver.data_parser  # Direct access to data parser
         self.robot_model = robot_model
 
+        # Higher-level helpers
         self.hardware_executor = HardwareExecutor(servo_driver)
         self.robot_type = None
+        connection = self.connect()
+        if not connection:
+            logger.error("Failed to connect to the robot, please check the port and connection")
+            raise ConnectionError("Failed to connect to the robot, please check the port and connection")
 
-    # ==================== Connection Management ===================
+        # ==================== Connection Management ===================
 
     def connect(self) -> bool:
         """Connect to robot and detect firmware version.
@@ -88,6 +95,7 @@ class SynriaRobotAPI:
             logger.error("Version info not available after successful acquisition")
             return None
 
+
         if log:
             logger.info(
                 "Version info: "
@@ -97,25 +105,24 @@ class SynriaRobotAPI:
             )
         return version_info
 
-    def get_robot_state(self, robot_type=None) -> Optional[Union[List[float], Tuple[List[float], bool, bool]]]:
+    def get_robot_state(self) -> Optional[Union[List[float], Tuple[List[float], bool, bool]]]:
         """Get current joint angles.
 
         :param robot_type: 'follower' or 'leader' or none for auto detection
         :return: Joint state or None if failed
         """
-        if robot_type is None:
-            robot_type = self._robot_type()
+
         self.servo_driver.acquire_info("joint", wait=True, timeout=1.0)
         joint_state = self.data_parser.get_joint_state()
         return joint_state
 
-    def get_joints(self, robot_type=None) -> Optional[List[float]]:
+    def get_joints(self) -> Optional[List[float]]:
         """Get current joint angles.
 
         :param robot_type: 'follower' or 'leader' or none for auto detection
         :return: List of joint angles in radians or None if failed
         """
-        joint_state = self.get_robot_state(robot_type)
+        joint_state = self.get_robot_state()
         if joint_state:
             return joint_state.angles
         return None
@@ -163,6 +170,51 @@ class SynriaRobotAPI:
             return None
 
         return vel_data['velocities']
+
+    def get_gripper_type(self, timeout: float = 1.0) -> Optional[str]:
+        """Get gripper travel range type.
+
+        :param timeout: Maximum time to wait for response in seconds
+        :return: Gripper type name (e.g., "50mm" or "100mm"), or None if failed
+        """
+        # JSON file path in the same folder as this module
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        json_file_path = os.path.join(current_dir, "gripper_type.json")
+
+        # 1) Try to load cached gripper type from JSON file (no serial communication)
+        if os.path.exists(json_file_path):
+            try:
+                with open(json_file_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                cached_type = data.get("type_name")
+                if isinstance(cached_type, str) and cached_type:
+                    self.gripper_type = cached_type
+                    return cached_type
+            except Exception as e:
+                logger.warning(f"Failed to load cached gripper type from JSON, will try hardware query: {e}")
+
+        # 2) If no valid cache, actively query hardware
+        if not self.servo_driver.acquire_info("gripper_type", wait=True, timeout=timeout):
+            logger.error("Failed to get gripper type data within timeout period")
+            return None
+
+        # Give the parser a brief moment to process the incoming frame
+
+        gripper_type_name = self.data_parser.get_gripper_type_data()
+        if gripper_type_name is None:
+            logger.error("Gripper type (50mm or 100mm) should be defined by parameters")
+            return None
+
+        self.gripper_type = gripper_type_name
+
+        # Save to JSON file in the same folder as this module
+        try:
+            with open(json_file_path, 'w', encoding='utf-8') as f:
+                json.dump({"type_name": gripper_type_name}, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logger.error(f"Failed to save gripper type data to JSON file: {e}")
+
+        return gripper_type_name
 
     def get_self_check(self, timeout: float = 1.0):
         """
@@ -554,8 +606,9 @@ class SynriaRobotAPI:
 
         def _print_once(robot_type):
             pose = None
-            state = self.get_robot_state(robot_type)
-            # get temperature and velocity as well
+            state = self.get_robot_state()
+            # get the gripper type
+            
             temperature = self.get_temperature()
             velocity = self.get_velocity()
             self.get_self_check()

@@ -44,10 +44,7 @@ def main(args):
     robot = alicia_d_sdk.create_robot(port=args.port)
 
     try:
-        # Connect to robot
-        if not robot.connect():
-            print("✗ 连接失败，请检查串口设置")
-            return
+
 
         # Optional: Set home position for safety
         try:

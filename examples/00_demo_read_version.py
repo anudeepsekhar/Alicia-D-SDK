@@ -17,11 +17,9 @@ def main(args):
     robot = alicia_d_sdk.create_robot(port=args.port)
 
     try:
-        # Connect to robot
-        if not robot.connect():
-            logger.error("Connection failed, please check serial port settings")
-            return
         firmware_version = robot.get_version()
+        gripper_type = robot.get_gripper_type()
+        logger.info(f"Gripper type: {gripper_type}")
 
     except KeyboardInterrupt:
         logger.info("\nOperation interrupted by user")

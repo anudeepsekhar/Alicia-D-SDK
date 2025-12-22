@@ -18,7 +18,6 @@ from robocore.utils.beauty_logger import beauty_print_array, beauty_print
 
 def main(args):
     robot = alicia_d_sdk.create_robot(port=args.port, 
-                                      robot_version=args.robot_version, 
                                       gripper_type=args.gripper_type, 
                                       base_link=args.base_link, 
                                       end_link=args.end_link)
@@ -66,7 +65,6 @@ if __name__ == '__main__':
     
     # Robot configuration
     parser.add_argument('--port', type=str, default="",   help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
-    parser.add_argument('--robot_version', type=str, default="v5_6", help="机器人版本")
     parser.add_argument('--gripper_type', type=str, default="50mm", help="夹爪类型")
     parser.add_argument('--model_format', type=str, default="urdf", help="模型格式")
     parser.add_argument('--base_link', type=str, default="base_link", help="基座链路名称, world 或 base_link等")

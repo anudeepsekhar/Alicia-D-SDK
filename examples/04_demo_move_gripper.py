@@ -23,10 +23,6 @@ def main(args):
     robot = alicia_d_sdk.create_robot(port=args.port)
     
     try:
-        # Connect to robot
-        if not robot.connect():
-            return
-        
         # Get gripper value (0-1000)
         gripper_value = robot.get_gripper()
         if gripper_value is not None:

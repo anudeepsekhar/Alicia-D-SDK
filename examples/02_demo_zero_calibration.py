@@ -21,11 +21,6 @@ def main(args):
     robot = alicia_d_sdk.create_robot(port=args.port)
     
     try:
-        # Connect to robot
-        if not robot.connect():
-            print("✗ Connection failed, please check serial port settings")
-            return
-
         robot.zero_calibration()
         
     

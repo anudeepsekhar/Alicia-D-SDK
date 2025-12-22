@@ -160,6 +160,7 @@ class SerialComm:
 
                 # Convert to byte array
                 data_bytes = bytes(data)
+                # self._hex_print("data_bytes", data_bytes)
                 # Write data
                 bytes_written = self.serial_port.write(data_bytes)
                 time.sleep(0.001)  # 必须 0.001， Mac上158hz

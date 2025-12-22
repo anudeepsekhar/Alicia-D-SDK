@@ -27,10 +27,7 @@ def main(args):
     )
     
     try:
-        # Connect to robot
-        if not robot.connect():
-            print("Failed to connect to robot.")
-            return
+
 
         print(f"\nBenchmark started (Duration: {args.duration}s)")
         print("-" * 50)

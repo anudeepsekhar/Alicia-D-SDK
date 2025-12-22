@@ -1,7 +1,6 @@
 import serial
 import time
 
-# 最后于 2025年12月13日 EonFb修改
 
 class fpsFlay:
     # Fps

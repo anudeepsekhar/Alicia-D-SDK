@@ -63,10 +63,6 @@ def main(args):
 
     robot = create_robot(port=args.port)
 
-    if not robot.connect():
-        print("Unable to connect to the robot")
-        return
-
     drag_teaching = SimpleDragTeaching(args, robot)
     drag_teaching.run()
 

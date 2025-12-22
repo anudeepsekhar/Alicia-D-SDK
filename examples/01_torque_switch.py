@@ -23,10 +23,6 @@ def main(args):
     )
     
     try:
-        # Connect to robot
-        if not robot.connect():
-            print("✗ Connection failed, please check serial port settings")
-            return
         logger.info("Please manually hold the robot arm.")
         logger.info("请托住机械臂以免其突然掉落。")
         input("Press Enter to disable torque...")

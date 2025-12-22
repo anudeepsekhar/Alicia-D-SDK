@@ -23,11 +23,6 @@ def main(args):
 
 
     try:
-        # Connect to robot
-        if not robot.connect():
-            print("✗ 连接失败，请检查串口设置")
-            return
-                
         # Set target joint positions in degrees
         target_joints_deg = [-30, 30.0, 30.0, 20.0, -20.0, 10.0]
         robot.set_home(speed_deg_s=args.speed_deg_s)

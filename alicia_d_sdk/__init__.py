@@ -17,18 +17,12 @@ Bridge with RoboCore:
 
 from alicia_d_sdk.api import SynriaRobotAPI
 from alicia_d_sdk.hardware import ServoDriver
-from alicia_d_sdk.execution import HardwareExecutor
 
 # Import from RoboCore for kinematics and modeling
 from robocore.modeling import RobotModel
 from robocore.kinematics import forward_kinematics, inverse_kinematics, jacobian
-# from robocore.planning import (
-#     cubic_polynomial_trajectory,
-#     quintic_polynomial_trajectory,
-#     linear_joint_trajectory,
-#     linear_cartesian_trajectory,
-#     trapezoidal_velocity_profile
-# )
+from synriard import get_model_path
+
 
 __version__ = "6.1.0"
 __author__ = "Synria Robotics"
@@ -66,52 +60,55 @@ __all__ = [
 
 def create_robot(
     port: str = "",
-    robot_version: str = "v5_6",
-    gripper_type: str = "50mm",
+    gripper_type: str = None,
     debug_mode: bool = False,
-    base_link: str = None,
-    end_link: str = None,
+    base_link: str = "base_link",
+    end_link: str = "tool0",
 ) -> SynriaRobotAPI:
     """
     Create robot instance.
 
     :param port: Serial port
-    :param robot_version: Robot version (e.g., "v5_6", "v5_4")
-    :param gripper_type: Gripper type (e.g., "50mm", "30mm")
+    :param gripper_type: Gripper type:
+        - explicit value such as "50mm" / "100mm" for user-defined configuration
+        - None to auto-select from saved JSON (if available) or default to "50mm"
     :param debug_mode: Debug mode
-    :param base_link: Base link
-    :param end_link: End link
+    :param base_link: Base link name in the robot model (default 'base_link')
+    :param end_link: End link name in the robot model (default 'tool0')
     :return: SynriaRobotAPI instance
     """
-    # 创建硬件层
     servo_driver = ServoDriver(port=port, debug_mode=debug_mode)
 
-    # 创建运动学层 (使用 RoboCore)
-    try:
-        from synriard import get_model_path
-        urdf_path = get_model_path("Alicia_D", version=robot_version, variant=f"gripper_{gripper_type}")
-        if base_link is None:
-            base_link = 'base_link'
-        if end_link is None:
-            end_link = 'tool0'
-        robot_model = RobotModel(str(urdf_path), base_link=base_link, end_link=end_link)
-    except ImportError:
-        print("Warning: synriard not found, using default URDF path")
-        # Fallback to default path
-        from pathlib import Path
-        default_urdf = Path(__file__).parent.parent / "assets" / "robot" / "urdf" / f"Alicia-D_{robot_version}" / "alicia_duo_with_gripper.urdf"
-        if default_urdf.exists():
-            robot_model = RobotModel(str(default_urdf), end_link='tool0')
-        else:
-            raise FileNotFoundError(f"Cannot find URDF file for {robot_version}")
 
-    # 创建用户层 (不再需要 ik_controller，直接使用 robocore.kinematics 函数)
+    if gripper_type is not None:
+        effective_gripper_type = gripper_type
+    else:
+        import json
+        from pathlib import Path
+
+        effective_gripper_type = "50mm"
+        json_path = Path(__file__).parent / "api" / "gripper_type.json"
+        if json_path.exists():
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                cached_type = data.get("type_name")
+                if isinstance(cached_type, str) and cached_type:
+                    effective_gripper_type = cached_type
+            except Exception:
+                pass
+
+
+    urdf_path = get_model_path(
+        "Alicia_D",
+        version="v5_6",
+        variant=f"gripper_{effective_gripper_type}",
+    )
+    robot_model = RobotModel(str(urdf_path), base_link=base_link, end_link=end_link)
+
     robot = SynriaRobotAPI(
         servo_driver=servo_driver,
-        robot_model=robot_model
+        robot_model=robot_model,
     )
-
-    if not robot.connect():
-        raise ConnectionError("Failed to connect to the robot, please check the port and connection")
 
     return robot

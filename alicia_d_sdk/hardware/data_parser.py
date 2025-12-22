@@ -63,6 +63,13 @@ class DataParser:
         self._velocity_data: Optional[List[float]] = None
         self._velocity_timestamp: Optional[float] = None
 
+        # Store gripper type data
+        self._gripper_type: Optional[int] = None
+        self._gripper_type_name_map = {
+            0x00: "50mm",
+            0x02: "100mm",
+        }
+
         # Event-based synchronization for async data acquisition
         # Events are set when corresponding data is received and parsed
         self._version_event = threading.Event()
@@ -71,6 +78,7 @@ class DataParser:
         self._temperature_event = threading.Event()
         self._velocity_event = threading.Event()
         self._self_check_event = threading.Event()
+        self._gripper_type_event = threading.Event()
 
         # Mapping from info type to corresponding event
         self._info_event_map = {
@@ -80,6 +88,7 @@ class DataParser:
             "temperature": self._temperature_event,
             "velocity": self._velocity_event,
             "self_check": self._self_check_event,
+            "gripper_type": self._gripper_type_event,
         }
 
         # Store self-check (servo health) data
@@ -108,6 +117,15 @@ class DataParser:
             else:
                 if self.debug_mode:
                     logger.debug(f"Unhandled function code in CMD_JOINT: 0x{func_code:02X}")
+                return None
+        elif cmd_id == self.CMD_GRIPPER:
+            # Check function code to determine which parser to use
+            func_code = frame[2]
+            if func_code == 0x0E:
+                return self._parse_gripper_type_data(frame)
+            else:
+                if self.debug_mode:
+                    logger.debug(f"Unhandled function code in CMD_GRIPPER: 0x{func_code:02X}")
                 return None
         elif cmd_id == self.CMD_ERROR:
             return self._parse_error_data(frame)
@@ -184,6 +202,21 @@ class DataParser:
                 "bits": list(self._self_check_bits),
                 "timestamp": self._self_check_timestamp,
             }
+
+    def get_gripper_type_data(self) -> Optional[str]:
+        """
+        Get current gripper type data.
+
+        :return: Gripper type name (str, e.g., "50mm" or "100mm"), or None if not available
+        """
+        with self._lock:
+            if self._gripper_type is None:
+                return None
+
+            return self._gripper_type_name_map.get(
+                self._gripper_type,
+                f"unknown(0x{self._gripper_type:02X})",
+            )
 
     def wait_for_info(self, info_type: str, timeout: float = 2.0) -> bool:
         """
@@ -430,6 +463,52 @@ class DataParser:
             "raw_mask": raw_mask,
             "bits": bits,
             "timestamp": self._self_check_timestamp,
+        }
+
+    def _parse_gripper_type_data(self, frame: List[int]) -> Dict:
+        """
+        Parse gripper type data frame (CMD=0x04, FUNC=0x0E).
+
+        :param frame: Complete data frame
+        """
+        data_len = frame[3]
+        expected_min_len = 4 + data_len + 2
+        if len(frame) < expected_min_len:
+            logger.warning(f"Gripper type frame length mismatch: LEN={data_len}, frame_len={len(frame)}")
+            return None
+
+        data_start = 4
+        data_end = data_start + data_len
+        data_bytes = frame[data_start:data_end]
+
+        if data_len < 1:
+            logger.warning(f"Gripper type DATA too short: expect ≥1 byte, got {data_len}")
+            return None
+
+        gripper_type_raw = data_bytes[0] & 0xFF
+
+        # Map gripper type values
+        type_name = self._gripper_type_name_map.get(
+            gripper_type_raw,
+            f"unknown(0x{gripper_type_raw:02X})",
+        )
+
+        # Store gripper type data
+        with self._lock:
+            self._gripper_type = gripper_type_raw
+            self._gripper_type_timestamp = time.time()
+
+        # Signal that gripper type data has been updated
+        self._gripper_type_event.set()
+
+        if self.debug_mode:
+            logger.debug(f"Gripper type: {type_name} (0x{gripper_type_raw:02X})")
+
+        return {
+            "type": "gripper_type_data",
+            "gripper_type": gripper_type_raw,
+            "type_name": type_name,
+            "timestamp": self._gripper_type_timestamp,
         }
 
     def _parse_error_data(self, frame: List[int]) -> Dict:
