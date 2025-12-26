@@ -23,7 +23,6 @@ from robocore.utils.backend import to_numpy
 
 def main(args):
     robot = alicia_d_sdk.create_robot(port=args.port,
-                                      robot_version=args.robot_version,
                                       gripper_type=args.gripper_type,
                                       base_link=args.base_link,
                                       end_link=args.end_link)
@@ -104,7 +103,13 @@ def main(args):
     if isinstance(err_norm, list):
         err_norm = err_norm[0] if err_norm else None
 
-    if args.force_execute:
+    # Check if IK succeeded
+    ik_success = ik_result.get('success', False)
+    if isinstance(ik_success, list):
+        ik_success = ik_success[0] if ik_success else False
+
+    if ik_success or args.force_execute:
+        # Success case - show detailed results
         print(f"  迭代次数: {iters}")
         print(f"  位置误差: {pos_err:.6e} m")
         print(f"  姿态误差: {ori_err:.6e} rad")
@@ -117,7 +122,7 @@ def main(args):
         print(f"  q_ik = {beauty_print_array(np.rad2deg(q_ik))}")
 
         # Execute motion if requested
-        if args.execute:
+        if args.execute or args.force_execute:
             print("\n执行移动到目标位置...")
             success = robot.set_robot_target(
                 target_joints=q_ik,
@@ -126,6 +131,7 @@ def main(args):
                 wait_for_completion=True, 
                 timeout=10
             )
+            # time.sleep(1)
             if success:
                 beauty_print("✓ 机械臂已移动到目标位置")
             else:
@@ -135,8 +141,8 @@ def main(args):
     else:
         # Failed case - show detailed error information
         print(f"  迭代次数: {iters}/{args.max_iters}")
-        print(f"  位置误差: {pos_err:.6e} m (容差: {args.tolerance:.6e} m)")
-        print(f"  姿态误差: {ori_err:.6e} rad (容差: {args.tolerance:.6e} rad)")
+        print(f"  位置误差: {pos_err:.6e} m (容差: {args.pos_tol:.6e} m)")
+        print(f"  姿态误差: {ori_err:.6e} rad (容差: {args.ori_tol:.6e} rad)")
         if err_norm is not None:
             print(f"  总误差: {err_norm:.6e}")
         print(f"  计算时间: {elapsed_time * 1000:.4f} ms")
@@ -145,9 +151,9 @@ def main(args):
         print("\n  可能的原因:")
         if iters >= args.max_iters:
             print("    - 达到最大迭代次数，可能目标位姿不可达或初始猜测不佳")
-        if pos_err > args.tolerance * 10:
+        if pos_err > args.pos_tol * 10:
             print(f"    - 位置误差较大 ({pos_err:.6e} m)，目标位置可能超出工作空间")
-        if ori_err > args.tolerance * 10:
+        if ori_err > args.ori_tol * 10:
             print(f"    - 姿态误差较大 ({ori_err:.6e} rad)，目标姿态可能不可达")
 
         print("\n  建议:")
@@ -168,15 +174,15 @@ if __name__ == "__main__":
     
     # Robot connection settings
     parser.add_argument('--port', type=str, default="", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
-    parser.add_argument('--speed_deg_s', type=int, default=20,  help="关节运动速度 (单位: 度/秒，默认: 10，范围: 5-400度/秒)")
+    parser.add_argument('--speed_deg_s', type=int, default=10,  help="关节运动速度 (单位: 度/秒，默认: 10，范围: 5-400度/秒)")
     parser.add_argument('--gripper_type', type=str, default= None, help="夹爪类型")
     parser.add_argument('--model_format', type=str, default="urdf", help="模型格式")
-    parser.add_argument('--base_link', type=str, default="world", help="基座链路名称, world 或 base_link等")
+    parser.add_argument('--base_link', type=str, default="base_link", help="基座链路名称, world 或 base_link等")
     parser.add_argument('--end_link', type=str, default="tool0", help="末端执行器链路名称, tool0 或 Link6等")
 
     # IK Configuration
     parser.add_argument('--end-pose', type=float, nargs=7, 
-                        default=[0.25, 0.25, +0.5, 0.707, 0, 0, -0.707],
+                        default=[0.26336, -0.17054, +0.4051, -0.560276, +0.357632, +0.745837, +0.043783],
                        help='目标位姿 (7个浮点数: px py pz qx qy qz qw)')
     parser.add_argument('--method', type=str, default='dls', 
                        choices=['dls', 'pinv', 'transpose'],

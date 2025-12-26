@@ -44,9 +44,6 @@ def main(args):
     robot = alicia_d_sdk.create_robot(port=args.port)
 
     try:
-
-
-        # Optional: Set home position for safety
         try:
             robot.set_home()
         except Exception:

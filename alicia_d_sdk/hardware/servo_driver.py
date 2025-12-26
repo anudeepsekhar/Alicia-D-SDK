@@ -222,7 +222,6 @@ class ServoDriver:
             event.clear()
 
         command = self.INFO_COMMAND_MAP[info_type]
-
         # If not waiting, just send once
         if not wait:
             success = self.serial_comm.send_data(command)

@@ -43,6 +43,11 @@ venv.bak/
 .DS_Store
 *.json
 
+
+# Data files
+*.csv
+
+
 logs/
 # Other
 # Thumbs.db

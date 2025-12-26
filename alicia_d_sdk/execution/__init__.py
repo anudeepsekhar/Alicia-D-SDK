@@ -1,6 +1,6 @@
-from alicia_d_sdk.execution.hardware_executor import HardwareExecutor, CartesianWaypointPlanner
+from alicia_d_sdk.execution.trajectory_executor import JointTrajectoryExecutor, CartesianTrajectoryExecutor
 
 __all__ = [
-    "HardwareExecutor",
-    "CartesianWaypointPlanner"
+    "JointTrajectoryExecutor",
+    "CartesianTrajectoryExecutor"
 ]

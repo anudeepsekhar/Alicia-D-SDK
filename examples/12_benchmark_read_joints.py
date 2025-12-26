@@ -22,7 +22,6 @@ def main(args):
     # Initialize robot instance
     robot = alicia_d_sdk.create_robot(
         port=args.port,
-        robot_version=args.robot_version,
         gripper_type=args.gripper_type
     )
     
@@ -111,7 +110,6 @@ if __name__ == '__main__':
     
     # Serial port settings
     parser.add_argument('--port', type=str, default="", help="Serial port (e.g. /dev/ttyUSB0 or COM3)")
-    parser.add_argument('--robot_version', type=str, default="v5_6", help="Robot version (default: v5_6)")
     parser.add_argument('--gripper_type', type=str, default="50mm", help="Gripper type (default: 50mm)")
     
     # Benchmark settings

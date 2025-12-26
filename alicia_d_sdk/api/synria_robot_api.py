@@ -11,7 +11,7 @@ Responsibilities:
 
 import time
 import os
-from typing import List, Optional, Dict, Union, Tuple
+from typing import List, Optional, Dict, Union, Tuple, Any
 import numpy as np
 import json
 from robocore.kinematics import inverse_kinematics
@@ -20,17 +20,9 @@ from robocore.transform import make_transform, quaternion_to_matrix
 from robocore.kinematics import forward_kinematics
 from robocore.transform import matrix_to_euler, matrix_to_quaternion
 from synriard import get_model_path
-# from robocore.planning.trajectory import (
-#     cubic_polynomial_trajectory,
-#     quintic_polynomial_trajectory,
-#     linear_joint_trajectory,
-#     linear_cartesian_trajectory,
-# )
+
 from alicia_d_sdk.hardware import ServoDriver
-from alicia_d_sdk.execution import HardwareExecutor
 from alicia_d_sdk.utils.logger import logger
-# from robocore.utils.control_utils import compute_steps_and_delay, validate_joint_list, check_and_clip_joint_limits
-from alicia_d_sdk.utils.calculate import calculate_movement_duration
 
 
 class SynriaRobotAPI:
@@ -49,7 +41,6 @@ class SynriaRobotAPI:
         self.robot_model = robot_model
 
         # Higher-level helpers
-        self.hardware_executor = HardwareExecutor(servo_driver)
         self.robot_type = None
         connection = self.connect()
         if not connection:
@@ -194,15 +185,15 @@ class SynriaRobotAPI:
                 logger.warning(f"Failed to load cached gripper type from JSON, will try hardware query: {e}")
 
         # 2) If no valid cache, actively query hardware
-        if not self.servo_driver.acquire_info("gripper_type", wait=True, timeout=timeout):
-            logger.error("Failed to get gripper type data within timeout period")
+        if not self.servo_driver.acquire_info("gripper_type", wait=False, timeout=timeout):
+            logger.w("Failed to get gripper type data within timeout period")
             return None
 
         # Give the parser a brief moment to process the incoming frame
 
         gripper_type_name = self.data_parser.get_gripper_type_data()
         if gripper_type_name is None:
-            logger.error("Gripper type (50mm or 100mm) should be defined by parameters")
+            logger.warning("Gripper type (50mm or 100mm) should be defined by parameters")
             return None
 
         self.gripper_type = gripper_type_name
@@ -430,134 +421,270 @@ class SynriaRobotAPI:
             return ik_result
 
     # ==================== Advanced Trajectory Methods ====================
-
-    def move_joint_trajectory(self,
-                              q_end: List[float],
-                              duration: float = 2.0,
-                              method: str = 'cubic',
-                              num_points: int = 100,
-                              visualize: bool = False) -> bool:
-        """Execute smooth joint trajectory to target position.
-
-        :param q_end: Target joint angles in radians
-        :param duration: Trajectory duration in seconds
-        :param method: Interpolation method, 'linear', 'cubic', or 'quintic'
-        :param num_points: Number of trajectory waypoints
-        :param visualize: Enable trajectory visualization
-        :return: True if successful
+    
+    def plan_joint_trajectory(
+        self,
+        waypoints: np.ndarray,
+        planner_type: str = 'b_spline',
+        duration: Optional[float] = None,
+        num_points: int = 800,
+        bspline_degree: int = 5,
+        segment_method: str = 'quintic',
+        duration_per_segment: Optional[float] = None,
+        num_points_per_segment: int = 100,
+        gripper_waypoints: Optional[np.ndarray] = None
+    ) -> Dict[str, Any]:
+        """Plan joint space trajectory through waypoints.
+        
+        :param waypoints: Array of joint waypoints [n_waypoints, n_dof] in radians
+        :param planner_type: Planner type, 'b_spline' or 'multi_segment'
+        :param duration: Total trajectory duration in seconds (for B-Spline)
+        :param num_points: Number of points in trajectory (for B-Spline)
+        :param bspline_degree: B-Spline degree, 3 (cubic) or 5 (quintic)
+        :param segment_method: Multi-segment method, 'cubic' or 'quintic'
+        :param duration_per_segment: Duration per segment in seconds (for Multi-Segment)
+        :param num_points_per_segment: Number of points per segment (for Multi-Segment)
+        :param gripper_waypoints: Optional array of gripper values [n_waypoints] (0-1000)
+        :return: Dictionary with trajectory data including 't', 'q', 'qd', 'qdd', and optionally 'gripper'
         """
-        q_start = self.get_joints()
-        if q_start is None:
-            logger.error("无法获取当前关节角度")
-            return False
-
-        q_start = np.array(q_start)
-        q_end = np.array(q_end)
-
-        # 检查关节限位
-        q_end, violations = check_and_clip_joint_limits(
-            joints=q_end.tolist(),
-            joint_limits=self.robot_model.joint_limits
-        )
-        q_end = np.array(q_end)
-
-        for joint_name, original, clipped in violations:
-            logger.warning(f"{joint_name} 超出限制：{original:.2f} -> {clipped:.2f}")
-
-        # 生成轨迹
-        logger.info(f"使用 {method} 插值生成关节轨迹 (时长: {duration}s, 点数: {num_points})")
-
-        if method == 'linear':
-            _, q, _, _ = linear_joint_trajectory(q_start, q_end, duration, num_points)
-        elif method == 'cubic':
-            _, q, _, _ = cubic_polynomial_trajectory(q_start, q_end, duration, num_points)
-        elif method == 'quintic':
-            _, q, _, _ = quintic_polynomial_trajectory(q_start, q_end, duration, num_points)
+        from robocore.planning import BSplinePlanner, MultiSegmentPlanner
+        from robocore.utils.backend import to_numpy
+        
+        waypoints = to_numpy(waypoints)
+        if waypoints.ndim == 1:
+            waypoints = waypoints.reshape(1, -1)
+        
+        if len(waypoints) < 2:
+            raise ValueError("Need at least 2 waypoints")
+        
+        # Create planner
+        if planner_type == 'b_spline':
+            planner = BSplinePlanner(degree=bspline_degree)
+        elif planner_type == 'multi_segment':
+            planner = MultiSegmentPlanner(method=segment_method)
         else:
-            logger.error(f"不支持的插值方法: {method}")
-            return False
-
-        # 执行轨迹
-        delay = duration / num_points
-        self.hardware_executor.delay = delay
-
-        result = self.hardware_executor.execute(
-            joint_traj=q.tolist(),
-            visualize=visualize
-        )
-
-        return result if result is not None else True
-
-    def move_cartesian_linear(self,
-                              target_pose: List[float],
-                              speed_deg_s: int = 10,
-                              duration: float = 2.0,
-                              num_points: int = 50,
-                              ik_method: str = 'dls'
-                              ) -> bool:
-        """Execute linear Cartesian trajectory to target pose.
-
-        :param target_pose: Target pose as [x, y, z, qx, qy, qz, qw]
-        :param speed_deg_s: Motion speed in degrees per second
-        :param duration: Trajectory duration in seconds
-        :param num_points: Number of trajectory waypoints
-        :param ik_method: IK solver method
-        :return: True if successful
-        """
-        # 获取当前位姿
-        current_pose_dict = self.get_pose()
-        if current_pose_dict is None:
-            logger.error("无法获取当前位姿")
-            return False
-
-        pose_start = current_pose_dict['transform']
-
-        # 构建目标位姿矩阵（仅基于末端位姿，不包含夹爪信息）
-        position = np.array(target_pose[:3])
-        quaternion = np.array(target_pose[3:])
-        rotation_matrix = quaternion_to_matrix(quaternion)
-        pose_end = make_transform(rotation_matrix, position)
-
-        # 获取当前关节角度作为IK初始猜测
-        q_init = self.get_joints()
-        if q_init is None:
-            logger.error("无法获取当前关节角度")
-            return False
-        q_init = np.array(q_init)
-
-        logger.info(f"生成笛卡尔直线轨迹 (时长: {duration}s, 点数: {num_points})")
-
-        # 生成轨迹
-        try:
-            _, _, q = linear_cartesian_trajectory(
-                self.robot_model,
-                pose_start,
-                pose_end,
-                duration,
-                num_points=num_points,
-                q_init=None,
-                ik_backend='numpy',
-                ik_method=ik_method,
-                max_iters=500,
-                pos_tol=1e-3,
-                ori_tol=1e-3
+            raise ValueError(f"Unknown planner type: {planner_type}. Must be 'b_spline' or 'multi_segment'")
+        
+        # Plan trajectory
+        if planner_type == 'b_spline':
+            trajectory = planner.plan(
+                waypoints=waypoints,
+                duration=duration,
+                num_points=num_points
             )
-        except Exception as e:
-            logger.error(f"轨迹规划失败: {e}")
-            return False
-
-        # 执行轨迹
-        delay = duration / num_points
-        self.hardware_executor.delay = delay
-
-        logger.info(f"执行笛卡尔轨迹 (总点数: {len(q)})")
-
-        result = self.hardware_executor.execute(
-            joint_traj=q.tolist(),
-            speed_deg_s=speed_deg_s,
+        else:  # multi_segment
+            if duration_per_segment is None:
+                duration_per_segment = 1.0
+            trajectory = planner.plan(
+                waypoints=waypoints,
+                durations=duration_per_segment,
+                num_points_per_segment=num_points_per_segment
+            )
+        
+        # Interpolate gripper values if provided
+        if gripper_waypoints is not None:
+            gripper_waypoints = to_numpy(gripper_waypoints)
+            t_waypoints = np.linspace(0, trajectory['t'][-1], len(gripper_waypoints))
+            t_traj = to_numpy(trajectory['t'])
+            # Use linear interpolation for gripper
+            gripper_trajectory = np.interp(t_traj, t_waypoints, gripper_waypoints)
+            # Clip to valid range [0, 1000]
+            gripper_trajectory = np.clip(gripper_trajectory, 0, 1000)
+            trajectory['gripper'] = gripper_trajectory
+        
+        # Add waypoints to trajectory for reference
+        trajectory['waypoints'] = waypoints
+        
+        return trajectory
+    
+    def plan_cartesian_trajectory(
+        self,
+        waypoints: np.ndarray,
+        duration: Optional[float] = None,
+        num_points: int = 100,
+        backend: str = 'numpy'
+    ) -> Dict[str, Any]:
+        """Plan Cartesian space spline trajectory through waypoints.
+        
+        :param waypoints: Array of waypoint poses [n_waypoints, 4, 4] (transformation matrices)
+                          or [n_waypoints, 3] (positions only, will use identity orientation)
+        :param duration: Total trajectory duration in seconds (optional, auto-estimated if None)
+        :param num_points: Number of points in trajectory
+        :param backend: Computation backend, 'numpy' or 'torch' (numpy recommended for smooth splines)
+        :return: Dictionary with 't', 'poses', 'positions', 'orientations', 'velocities', 'accelerations'
+        """
+        import robocore as rc
+        from robocore.planning import SplineCurvePlanner
+        from robocore.utils.backend import to_numpy
+        
+        # Set backend for planning
+        rc.set_backend(backend)
+        
+        # Ensure waypoints are numpy arrays
+        if isinstance(waypoints, list):
+            waypoints = np.array([to_numpy(wp) for wp in waypoints])
+        else:
+            waypoints = to_numpy(waypoints)
+        
+        # Create planner
+        planner = SplineCurvePlanner()
+        
+        # Plan trajectory
+        trajectory = planner.plan(
+            waypoints=waypoints,
+            duration=duration,
+            num_points=num_points
         )
+        
+        # Convert to numpy if needed
+        for key in ['t', 'positions', 'orientations', 'velocities', 'accelerations']:
+            if key in trajectory:
+                trajectory[key] = to_numpy(trajectory[key])
+        
+        if 'poses' in trajectory:
+            trajectory['poses'] = np.array([to_numpy(pose) for pose in trajectory['poses']])
+        
+        # Add waypoint positions for reference
+        if waypoints.ndim == 3 and waypoints.shape[1:] == (4, 4):
+            waypoint_positions = np.array([wp[:3, 3] for wp in waypoints])
+        elif waypoints.ndim == 2 and waypoints.shape[1] == 3:
+            waypoint_positions = waypoints
+        else:
+            waypoint_positions = None
+        
+        if waypoint_positions is not None:
+            trajectory['waypoints'] = waypoint_positions
+        
+        return trajectory
+    
+    def solve_ik_for_trajectory(
+        self,
+        target_poses: np.ndarray,
+        q_init: Optional[List[float]] = None,
+        method: str = 'dls',
+        max_iters: int = 100,
+        pos_tol: float = 1e-2,
+        ori_tol: float = 1e-2,
+        num_initial_guesses: int = 5,
+        initial_guess_strategy: str = 'random',
+        initial_guess_scale: float = 0.6,
+        random_seed: Optional[int] = None,
+        backend: str = 'numpy',
+        use_previous_solution: bool = True
+    ) -> Dict[str, Any]:
+        """Solve inverse kinematics for a sequence of Cartesian poses.
+        
+        :param target_poses: Array of target poses [n_poses, 4, 4] (transformation matrices)
+        :param q_init: Initial joint configuration (uses current joints if None)
+        :param method: IK solver method, 'dls', 'pinv', or 'transpose'
+        :param max_iters: Maximum IK iterations per pose
+        :param pos_tol: Position tolerance in meters
+        :param ori_tol: Orientation tolerance in radians
+        :param num_initial_guesses: Number of initial guesses for multi-start
+        :param initial_guess_strategy: Initial guess strategy ('zero', 'random', 'sobol', 'latin', 'center', 'uniform')
+        :param initial_guess_scale: Scale factor for initial guesses (0.0 to 1.0)
+        :param random_seed: Random seed for reproducibility
+        :param backend: Computation backend, 'numpy' or 'torch'
+        :param use_previous_solution: If True, use previous solution as initial guess (ensures continuity)
+        :return: Dictionary with 'joint_angles', 'ik_results', 'success_rate', 'statistics'
+        """
+        import robocore as rc
+        from robocore.kinematics.ik import inverse_kinematics
+        from robocore.utils.backend import to_numpy
+        import time
+        
+        # Set backend if specified (inverse_kinematics uses global backend)
+        if backend is not None:
+            rc.set_backend(backend, device=device if 'device' in locals() else 'cpu')
+        
+        target_poses = to_numpy(target_poses)
+        n_poses = len(target_poses)
+        
+        # Get initial joint configuration
+        if q_init is None:
+            q_init = self.get_joints()
+            if q_init is None:
+                raise ValueError("Cannot get current joint angles. Please provide q_init.")
+        
+        q_init = np.array(q_init)
+        q_current = q_init.copy()
+        
+        # Solve IK for each pose
+        ik_results = []
+        joint_angles = []
+        success_count = 0
+        
+        start_time = time.time()
+        
+        for i, target_pose in enumerate(target_poses):
+            # Use previous solution as initial guess if enabled
+            if use_previous_solution and i > 0:
+                q0 = q_current
+                # Use fewer initial guesses for subsequent poses (we have a good initial guess)
+                num_inits = min(5, num_initial_guesses) if num_initial_guesses > 1 else 1
+                strategy = 'random'
+            else:
+                q0 = q_init if i == 0 else q_current
+                num_inits = num_initial_guesses
+                strategy = initial_guess_strategy if i == 0 else 'random'
+            
+            # Solve IK (max_iters, pos_tol, ori_tol are passed via solver_kwargs)
+            result = inverse_kinematics(
+                self.robot_model,
+                target_pose,
+                q0=q0,
+                method=method,
+                num_initial_guesses=num_inits,
+                initial_guess_strategy=strategy,
+                initial_guess_scale=initial_guess_scale,
+                random_seed=random_seed,
+                max_iters=max_iters,
+                pos_tol=pos_tol,
+                ori_tol=ori_tol
+            )
+            
+            ik_results.append(result)
+            
+            if result['success']:
+                joint_angles.append(result['q'])
+                q_current = np.array(result['q'])
+                success_count += 1
+            else:
+                # Use previous solution if available, otherwise use zeros
+                if len(joint_angles) > 0:
+                    joint_angles.append(joint_angles[-1])
+                else:
+                    joint_angles.append(np.zeros(len(self.robot_model._chain_actuated)))
+        
+        ik_time = time.time() - start_time
+        
+        joint_angles = np.array(joint_angles)
+        success_rate = success_count / n_poses if n_poses > 0 else 0.0
+        
+        # Calculate statistics
+        pos_errors = [r['pos_err'] for r in ik_results if r['success']]
+        ori_errors = [r['ori_err'] for r in ik_results if r['success']]
+        
+        statistics = {
+            'total_poses': n_poses,
+            'successful': success_count,
+            'failed': n_poses - success_count,
+            'success_rate': success_rate,
+            'computation_time': ik_time,
+            'avg_time_per_pose': ik_time / n_poses if n_poses > 0 else 0.0,
+            'pos_error_mean': np.mean(pos_errors) if pos_errors else None,
+            'pos_error_max': np.max(pos_errors) if pos_errors else None,
+            'ori_error_mean': np.mean(ori_errors) if ori_errors else None,
+            'ori_error_max': np.max(ori_errors) if ori_errors else None
+        }
+        
+        return {
+            'joint_angles': joint_angles,
+            'ik_results': ik_results,
+            'success_rate': success_rate,
+            'statistics': statistics
+        }
 
-        return result if result is not None else True
 
     def torque_control(self, command: str, timeout: float = 1.0) -> bool:
         """Enable or disable robot torque.

@@ -2,67 +2,11 @@ import os
 import json
 import time
 import threading
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 import numpy as np
 
-
-def record_waypoints_manual(controller,
-                            get_state_fn: Optional[Callable] = None,
-                            format_fn: Optional[Callable] = None) -> List[Any]:
-    """
-    General manual waypoint recording function.
-
-    :param controller: Robot controller
-    :param get_state_fn: Custom state getter function, returns data to record. If None, uses default joint+gripper
-    :param format_fn: Custom formatting function for log output. If None, uses default format
-    :return: List of recorded waypoints
-    """
-    print("\n=== 手动记录模式 ===")
-    print("关闭扭矩后，拖动到目标位置按回车记录")
-
-    input("按回车开始...")
-    controller.torque_control('off')
-    print("[安全] 扭矩已关闭，可以拖动机械臂")
-
-    waypoints = []
-
-    try:
-        while True:
-            cmd = input(f"\n拖动到位置后按回车记录第{len(waypoints) + 1}个点，输入'q'结束: ").strip()
-            if cmd.lower() == 'q':
-                break
-
-            # 使用自定义或默认的状态获取函数
-            if get_state_fn:
-                state = get_state_fn(controller)
-            else:
-                # 默认：记录关节角度和夹爪状态
-                joints = controller.get_joints()
-                try:
-                    gripper = float(controller.get_gripper())
-                except:
-                    gripper = 0.0
-                state = {"t": time.time(), "q": joints, "grip": gripper}
-
-            if state:
-                waypoints.append(state)
-
-                # 使用自定义或默认的格式化函数输出日志
-                if format_fn:
-                    print(format_fn(len(waypoints), state))
-                else:
-                    # 默认格式
-                    if isinstance(state, dict) and 'q' in state:
-                        print(f"[记录] 第{len(waypoints)}个点: 关节{[round(j, 3) for j in state['q']]}, 夹爪{state.get('grip', 0):.3f}")
-                    else:
-                        print(f"[记录] 第{len(waypoints)}个点")
-
-    finally:
-        controller.torque_control('on')
-        print("[安全] 扭矩已重新开启")
-
-    return waypoints
+from alicia_d_sdk.utils.trajectory_utils import record_waypoints_manual
 
 
 class SimpleDragTeaching:
