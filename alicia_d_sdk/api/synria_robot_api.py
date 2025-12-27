@@ -30,7 +30,8 @@ class SynriaRobotAPI:
 
     def __init__(self,
                  servo_driver: ServoDriver,
-                 robot_model: RobotModel):
+                 robot_model: RobotModel,
+                 auto_connect: bool = True):
         """Initialize robot API.
 
         :param servo_driver: Servo driver instance (low-level hardware)
@@ -42,21 +43,29 @@ class SynriaRobotAPI:
 
         # Higher-level helpers
         self.robot_type = None
-        connection = self.connect()
-        if not connection:
-            logger.error("Failed to connect to the robot, please check the port and connection")
-            raise ConnectionError("Failed to connect to the robot, please check the port and connection")
+        if auto_connect:
+            self.connect()
 
         # ==================== Connection Management ===================
 
     def connect(self) -> bool:
-        """Connect to robot and detect firmware version.
-        """
+        """Connect to robot and detect firmware version."""
+        if self.is_connected():
+            return True
+            
         result = self.servo_driver.connect()
         if result:
-            self.get_robot_state()
-        return result
-
+            try:
+                # Initialize state
+                self.get_robot_state()
+                self._robot_type()
+                logger.info("Synria Robot Connected successfully.")
+                return True
+            except Exception as e:
+                logger.error(f"Hardware initialization failed after serial connection: {e}")
+                return False
+        return False
+        
     def disconnect(self):
         """Disconnect from robot and stop update threads."""
         self.servo_driver.stop_update_thread()

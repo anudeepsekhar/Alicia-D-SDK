@@ -62,6 +62,7 @@ def create_robot(
     port: str = "",
     gripper_type: str = None,
     debug_mode: bool = False,
+    auto_connect: bool = True,
     base_link: str = "base_link",
     end_link: str = "tool0",
 ) -> SynriaRobotAPI:
@@ -109,6 +110,7 @@ def create_robot(
     robot = SynriaRobotAPI(
         servo_driver=servo_driver,
         robot_model=robot_model,
+        auto_connect=auto_connect
     )
 
     return robot
