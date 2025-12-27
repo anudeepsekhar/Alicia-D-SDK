@@ -15,7 +15,7 @@
 
 ### 1. 克隆或下载项目
 ```bash
-git clone https://github.com/Synria-Robotics/Alicia-D-SDK.git -b v6.1.0-beta1
+git clone https://github.com/Synria-Robotics/Alicia-D-SDK.git -b v6.1.0
 cd Alicia-D-SDK
 ```
 
@@ -26,13 +26,11 @@ conda create -n alicia python=3.8
 conda activate alicia
 ```
 
-安装依赖与 SDK：(仅选择一种方式)
+安装依赖与 SDK：
 
 ```bash
 # Local installation
 pip install -e .
-# Or install from remote pypi
-pip install --pre alicia_d_sdk
 ```
 
 ---

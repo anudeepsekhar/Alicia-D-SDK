@@ -83,11 +83,14 @@
 │   ├── 03_demo_read_state.py        # 读取状态
 │   ├── 04_demo_move_gripper.py      # 夹爪控制
 │   ├── 05_demo_move_joint.py        # 关节运动
-│   ├── 06_demo_move_cartesian.py    # 笛卡尔运动
-│   ├── 07_demo_forward_kinematics.py  # 正向运动学
-│   ├── 08_demo_inverse_kinematics.py  # 逆向运动学
-│   ├── 09_demo_drag_teaching.py     # 拖动示教
-│   └── 10_demo_sparkvis.py          # SparkVis UI 双向同步
+│   ├── 06_demo_forward_kinematics.py  # 正向运动学
+│   ├── 07_demo_inverse_kinematics.py  # 逆向运动学
+│   ├── 08_demo_drag_teaching.py     # 拖动示教
+│   ├── 09_demo_joint_traj.py        # 关节空间轨迹规划
+│   ├── 10_demo_cartesian_traj.py    # 笛卡尔空间轨迹规划
+│   ├── 11_demo_sparkvis.py          # SparkVis UI 双向同步
+│   ├── 12_benchmark_read_joints.py  # 关节读取性能测试
+│   └── 13_utmostFPS.py              # 最大帧率测试
 ```
 
 ## 快速开始

@@ -14,11 +14,14 @@ examples/
 ├── 03_demo_read_state.py            # 读取状态
 ├── 04_demo_move_gripper.py          # 夹爪控制
 ├── 05_demo_move_joint.py            # 关节空间运动
-├── 06_demo_move_cartesian.py        # 笛卡尔空间运动
-├── 07_demo_forward_kinematics.py    # 正向运动学
-├── 08_demo_inverse_kinematics.py    # 逆向运动学
-├── 09_demo_drag_teaching.py         # 拖动示教
-└── 10_demo_sparkvis.py              # SparkVis UI 双向同步
+├── 06_demo_forward_kinematics.py    # 正向运动学
+├── 07_demo_inverse_kinematics.py    # 逆向运动学
+├── 08_demo_drag_teaching.py         # 拖动示教
+├── 09_demo_joint_traj.py            # 关节空间轨迹规划
+├── 10_demo_cartesian_traj.py        # 笛卡尔空间轨迹规划
+├── 11_demo_sparkvis.py              # SparkVis UI 双向同步
+├── 12_benchmark_read_joints.py      # 关节读取性能测试
+└── 13_utmostFPS.py                  # 最大帧率测试
 ```
 
 ## 📜 例程列表
@@ -140,31 +143,9 @@ python 05_demo_move_joint.py --speed_deg_s 10
 
 ---
 
-### 6. `06_demo_move_cartesian.py`
-多点笛卡尔轨迹规划。支持手动拖动示教记录多个路径点，然后执行连续或逐步的轨迹运动。
-
-**参数说明：**
-- `--port`: 串口端口（可选）
-- `--speed_deg_s`: 关节运动速度（度/秒），默认 10
-- `--move_duration`: 每个路径点的移动时间（秒），默认 3.0
-- `--num_points`: 轨迹插值点数，默认 200
-- `--ik_method`: 逆运动学求解方法，可选 `dls`、`pinv`、`lm`，默认 `dls`
-- `--visualize`: 启用轨迹可视化
-
-**功能说明：**
-- 先移动到初始位置（home）
-- 手动拖动记录路径点（使用 `CartesianWaypointPlanner`）
-- 选择执行模式：连续执行或逐步执行
-- 使用逆运动学求解并执行轨迹
-
-**使用方式：**
-```bash
-python 06_demo_move_cartesian.py --speed_deg_s 10 --move_duration 3.0 --num_points 200 --ik_method dls
-```
-
 ---
 
-### 7. `07_demo_forward_kinematics.py`
+### 6. `06_demo_forward_kinematics.py`
 正运动学求解。根据当前关节角度计算末端执行器的位姿，显示位置、旋转矩阵、欧拉角、四元数等多种表示形式。
 
 **参数说明：**
@@ -183,7 +164,7 @@ python 07_demo_forward_kinematics.py
 
 ---
 
-### 8. `08_demo_inverse_kinematics.py`
+### 7. `07_demo_inverse_kinematics.py`
 演示逆向运动学求解：根据给定的末端目标位姿，计算并可选地执行关节角度。支持多种IK求解方法和多起点优化。
 
 **参数说明：**
@@ -215,7 +196,7 @@ python 08_demo_inverse_kinematics.py --execute
 
 ---
 
-### 9. `09_demo_drag_teaching.py`
+### 8. `08_demo_drag_teaching.py`
 拖动示教演示：通过手动拖动机械臂来录制一系列轨迹点，并可以回放。支持手动插值、自动快速和仅回放三种模式。
 
 **参数说明：**
@@ -249,7 +230,94 @@ python 09_demo_drag_teaching.py --mode replay_only --save-motion my_demo
 
 ---
 
-### 10. `10_demo_sparkvis.py`
+### 9. `09_demo_joint_traj.py`
+**关节空间轨迹规划与执行**
+
+演示如何使用关节空间轨迹规划生成平滑的关节轨迹，并通过多个路径点执行。
+
+**参数说明：**
+- `--port`: 串口端口（可选）
+- `--gripper_type`: 夹爪类型，默认 `50mm`
+- `--base_link`: 基座链路名称，默认 `base_link`
+- `--end_link`: 末端执行器链路名称，默认 `tool0`
+- `--no-record`: 禁用记录模式
+- `--save-file`: 保存记录的路径点文件路径
+- `--waypoints-file`: 从JSON文件加载路径点
+- `--num-waypoints`: 随机生成的路径点数量，默认 6
+- `--planner`: 规划器类型，可选 `b_spline` 或 `multi_segment`，默认 `b_spline`
+- `--duration`: 轨迹持续时间（B-Spline），默认 2.0 秒
+- `--num-points`: 轨迹点数（B-Spline），默认 800
+- `--bspline-degree`: B-Spline 度数，可选 3 或 5，默认 5
+- `--speed-deg-s`: 关节运动速度（度/秒），默认 20
+- `--plot`: 禁用轨迹可视化
+
+**功能说明：**
+- 支持手动记录路径点或从文件加载
+- 使用 B-Spline 或 Multi-Segment 规划器生成平滑轨迹
+- 支持夹爪轨迹插值
+- 可视化轨迹（可选）
+
+**使用方式：**
+```bash
+# 使用默认参数运行
+python 09_demo_joint_traj.py
+
+# 从文件加载路径点
+python 09_demo_joint_traj.py --waypoints-file waypoints.json
+
+# 使用 Multi-Segment 规划器
+python 09_demo_joint_traj.py --planner multi_segment
+```
+
+---
+
+### 10. `10_demo_cartesian_traj.py`
+**笛卡尔空间轨迹规划与执行**
+
+演示如何使用笛卡尔空间样条轨迹规划生成平滑的末端执行器轨迹，并通过逆运动学求解执行。
+
+**参数说明：**
+- `--port`: 串口端口（可选）
+- `--gripper_type`: 夹爪类型，默认 `50mm`
+- `--base_link`: 基座链路名称，默认 `base_link`
+- `--end_link`: 末端执行器链路名称，默认 `tool0`
+- `--no-record`: 禁用记录模式
+- `--save-file`: 保存记录的路径点文件路径
+- `--waypoints-file`: 从JSON文件加载路径点
+- `--num-waypoints`: 随机生成的路径点数量，默认 2
+- `--duration`: 轨迹持续时间（秒），默认 1.0
+- `--num-points`: 轨迹点数，默认 10
+- `--method`: IK方法，可选 `dls`、`pinv`、`transpose`，默认 `dls`
+- `--max-iters`: 最大IK迭代次数，默认 100
+- `--pos-tol`: 位置容差（米），默认 1e-2
+- `--ori-tol`: 姿态容差（弧度），默认 1e-2
+- `--num-inits`: 初始猜测数量，默认 5
+- `--init-strategy`: 初始猜测策略，默认 `current`
+- `--speed-deg-s`: 关节运动速度（度/秒），默认 20
+- `--plot`: 禁用轨迹可视化
+
+**功能说明：**
+- 支持手动记录笛卡尔路径点或从文件加载
+- 使用样条曲线生成平滑的笛卡尔轨迹
+- 批量求解逆运动学（确保连续性）
+- 验证路径点是否被准确通过
+- 可视化轨迹和IK结果（可选）
+
+**使用方式：**
+```bash
+# 使用默认参数运行
+python 10_demo_cartesian_traj.py
+
+# 从文件加载路径点
+python 10_demo_cartesian_traj.py --waypoints-file cartesian_waypoints.json
+
+# 增加轨迹点数以提高平滑度
+python 10_demo_cartesian_traj.py --num-points 100
+```
+
+---
+
+### 11. `11_demo_sparkvis.py`
 SparkVis UI 双向同步和数据记录。启动 WebSocket 服务器，实现 UI ↔ 机器人双向同步，支持数据记录到 CSV 文件。
 
 **参数说明：**
@@ -269,17 +337,58 @@ SparkVis UI 双向同步和数据记录。启动 WebSocket 服务器，实现 UI
 **使用方式：**
 ```bash
 # 基本使用（需要先启动 SparkVis 后端和 Web 服务器）
-python 10_demo_sparkvis.py
+python 11_demo_sparkvis.py
 
 # 启用机器人状态同步并记录数据
-python 10_demo_sparkvis.py --enable-robot-sync --output-file data.csv --log-source both
+python 11_demo_sparkvis.py --enable-robot-sync --output-file data.csv --log-source both
 ```
 
 **注意**: 使用此功能需要同时运行：
 1. SparkVis 后端服务器：`cd SparkVis && python backend_server.py`
 2. SparkVis Web 服务器：`cd SparkVis && python -m http.server 8080`
-3. 此机器人桥接脚本：`python 10_demo_sparkvis.py`
+3. 此机器人桥接脚本：`python 11_demo_sparkvis.py`
 4. 在浏览器中访问：`http://localhost:8080`
+
+---
+
+### 12. `12_benchmark_read_joints.py`
+**关节读取性能测试**
+
+测试关节角度读取的API调用频率和实际数据更新频率。
+
+**参数说明：**
+- `--port`: 串口端口（可选）
+- `--gripper_type`: 夹爪类型，默认 `50mm`
+- `--duration`: 测试持续时间（秒），默认 5.0
+- `--fast`: 启用快速模式（设置更新间隔为1ms）
+
+**功能说明：**
+- 测试API读取频率（从Python内存读取缓存数据的速度）
+- 测试数据更新频率（从机器人实际接收新数据的速率）
+- 显示串口统计信息（处理的帧数、丢弃的帧数等）
+
+**使用方式：**
+```bash
+# 基本测试（5秒）
+python 12_benchmark_read_joints.py
+
+# 快速模式测试
+python 12_benchmark_read_joints.py --fast --duration 10
+```
+
+---
+
+### 13. `13_utmostFPS.py`
+**最大帧率测试**
+
+测试串口通信的最大发送和接收帧率。
+
+**功能说明：**
+- 测试串口通信的极限性能
+- 显示发送帧率、接收帧率和同步率
+- 适用于性能优化和硬件测试
+
+**注意**: 此脚本包含硬编码的串口路径，需要根据实际环境修改。
 
 ---
 

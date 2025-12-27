@@ -86,11 +86,14 @@ The **Alicia-D SDK** is a Python toolkit for controlling the "Alicia-D" series o
 │   ├── 03_demo_read_state.py        # Read state
 │   ├── 04_demo_move_gripper.py      # Gripper control
 │   ├── 05_demo_move_joint.py        # Joint motion
-│   ├── 06_demo_move_cartesian.py    # Cartesian motion
-│   ├── 07_demo_forward_kinematics.py  # Forward kinematics
-│   ├── 08_demo_inverse_kinematics.py  # Inverse kinematics
-│   ├── 09_demo_drag_teaching.py     # Drag teaching
-│   └── 10_demo_sparkvis.py          # SparkVis UI bidirectional sync
+│   ├── 06_demo_forward_kinematics.py  # Forward kinematics
+│   ├── 07_demo_inverse_kinematics.py  # Inverse kinematics
+│   ├── 08_demo_drag_teaching.py     # Drag teaching
+│   ├── 09_demo_joint_traj.py        # Joint space trajectory planning
+│   ├── 10_demo_cartesian_traj.py    # Cartesian space trajectory planning
+│   ├── 11_demo_sparkvis.py          # SparkVis UI bidirectional sync
+│   ├── 12_benchmark_read_joints.py  # Joint reading performance benchmark
+│   └── 13_utmostFPS.py              # Maximum FPS test
 ```
 
 ## Quick Start

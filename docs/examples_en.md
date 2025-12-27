@@ -14,11 +14,14 @@ examples/
 ├── 03_demo_read_state.py            # Read state
 ├── 04_demo_move_gripper.py          # Gripper control
 ├── 05_demo_move_joint.py            # Joint space motion
-├── 06_demo_move_cartesian.py        # Cartesian space motion
-├── 07_demo_forward_kinematics.py    # Forward kinematics
-├── 08_demo_inverse_kinematics.py    # Inverse kinematics
-├── 09_demo_drag_teaching.py         # Drag teaching
-└── 10_demo_sparkvis.py              # SparkVis UI bidirectional sync
+├── 06_demo_forward_kinematics.py    # Forward kinematics
+├── 07_demo_inverse_kinematics.py    # Inverse kinematics
+├── 08_demo_drag_teaching.py         # Drag teaching
+├── 09_demo_joint_traj.py            # Joint space trajectory planning
+├── 10_demo_cartesian_traj.py        # Cartesian space trajectory planning
+├── 11_demo_sparkvis.py              # SparkVis UI bidirectional sync
+├── 12_benchmark_read_joints.py      # Joint reading performance benchmark
+└── 13_utmostFPS.py                  # Maximum FPS test
 ```
 
 ## 📜 Example List
@@ -140,31 +143,9 @@ python 05_demo_move_joint.py --port /dev/ttyUSB0 --speed_deg_s 10
 
 ---
 
-### 6. `06_demo_move_cartesian.py`
-Multi-point Cartesian trajectory planning. Supports manual drag teaching to record multiple waypoints, then execute continuous or step-by-step trajectory motion.
-
-**Parameters:**
-- `--port`: Serial port (optional)
-- `--speed_deg_s`: Joint motion speed (degrees/second), default 10
-- `--move_duration`: Movement time for each waypoint (seconds), default 3.0
-- `--num_points`: Trajectory interpolation points, default 200
-- `--ik_method`: Inverse kinematics solving method, optional `dls`, `pinv`, `lm`, default `dls`
-- `--visualize`: Enable trajectory visualization
-
-**Features:**
-- First move to initial position (home)
-- Manual drag to record waypoints (using `CartesianWaypointPlanner`)
-- Choose execution mode: continuous or step-by-step
-- Use inverse kinematics to solve and execute trajectory
-
-**Usage:**
-```bash
-python 06_demo_move_cartesian.py --port /dev/ttyUSB0 --speed_deg_s 10 --move_duration 3.0 --num_points 200 --ik_method dls
-```
-
 ---
 
-### 7. `07_demo_forward_kinematics.py`
+### 6. `06_demo_forward_kinematics.py`
 Forward kinematics solving. Calculate end-effector pose based on current joint angles, display position, rotation matrix, Euler angles, quaternion and other representation forms.
 
 **Parameters:**
@@ -183,7 +164,7 @@ python 07_demo_forward_kinematics.py --port /dev/ttyUSB0
 
 ---
 
-### 8. `08_demo_inverse_kinematics.py`
+### 7. `07_demo_inverse_kinematics.py`
 Demonstrate inverse kinematics solving: Calculate and optionally execute joint angles based on given end-effector target pose. Supports multiple IK solving methods and multi-start optimization.
 
 **Parameters:**
@@ -214,7 +195,7 @@ python 08_demo_inverse_kinematics.py --execute --speed_deg_s 10
 
 ---
 
-### 9. `09_demo_drag_teaching.py`
+### 8. `08_demo_drag_teaching.py`
 Drag teaching demonstration: Record a series of trajectory points by manually dragging the robot arm, and can replay. Supports manual interpolation, automatic fast, and replay-only modes.
 
 **Parameters:**
@@ -248,7 +229,94 @@ python 09_demo_drag_teaching.py --mode replay_only --save-motion my_demo
 
 ---
 
-### 10. `10_demo_sparkvis.py`
+### 9. `09_demo_joint_traj.py`
+**Joint Space Trajectory Planning and Execution**
+
+Demonstrates how to generate smooth joint trajectories using joint space trajectory planning and execute through multiple waypoints.
+
+**Parameters:**
+- `--port`: Serial port (optional)
+- `--gripper_type`: Gripper type, default `50mm`
+- `--base_link`: Base link name, default `base_link`
+- `--end_link`: End-effector link name, default `tool0`
+- `--no-record`: Disable recording mode
+- `--save-file`: Path to save recorded waypoints file
+- `--waypoints-file`: Load waypoints from JSON file
+- `--num-waypoints`: Number of waypoints for random generation, default 6
+- `--planner`: Planner type, optional `b_spline` or `multi_segment`, default `b_spline`
+- `--duration`: Trajectory duration (B-Spline), default 2.0 seconds
+- `--num-points`: Number of trajectory points (B-Spline), default 800
+- `--bspline-degree`: B-Spline degree, optional 3 or 5, default 5
+- `--speed-deg-s`: Joint motion speed (degrees/second), default 20
+- `--plot`: Disable trajectory visualization
+
+**Features:**
+- Supports manual waypoint recording or loading from file
+- Uses B-Spline or Multi-Segment planner to generate smooth trajectories
+- Supports gripper trajectory interpolation
+- Optional trajectory visualization
+
+**Usage:**
+```bash
+# Run with default parameters
+python 09_demo_joint_traj.py
+
+# Load waypoints from file
+python 09_demo_joint_traj.py --waypoints-file waypoints.json
+
+# Use Multi-Segment planner
+python 09_demo_joint_traj.py --planner multi_segment
+```
+
+---
+
+### 10. `10_demo_cartesian_traj.py`
+**Cartesian Space Trajectory Planning and Execution**
+
+Demonstrates how to generate smooth end-effector trajectories using Cartesian space spline trajectory planning and execute through inverse kinematics solving.
+
+**Parameters:**
+- `--port`: Serial port (optional)
+- `--gripper_type`: Gripper type, default `50mm`
+- `--base_link`: Base link name, default `base_link`
+- `--end_link`: End-effector link name, default `tool0`
+- `--no-record`: Disable recording mode
+- `--save-file`: Path to save recorded waypoints file
+- `--waypoints-file`: Load waypoints from JSON file
+- `--num-waypoints`: Number of waypoints for random generation, default 2
+- `--duration`: Trajectory duration (seconds), default 1.0
+- `--num-points`: Number of trajectory points, default 10
+- `--method`: IK method, optional `dls`, `pinv`, `transpose`, default `dls`
+- `--max-iters`: Maximum IK iterations, default 100
+- `--pos-tol`: Position tolerance (meters), default 1e-2
+- `--ori-tol`: Orientation tolerance (radians), default 1e-2
+- `--num-inits`: Number of initial guesses, default 5
+- `--init-strategy`: Initial guess strategy, default `current`
+- `--speed-deg-s`: Joint motion speed (degrees/second), default 20
+- `--plot`: Disable trajectory visualization
+
+**Features:**
+- Supports manual Cartesian waypoint recording or loading from file
+- Uses spline curves to generate smooth Cartesian trajectories
+- Batch inverse kinematics solving (ensures continuity)
+- Verifies that waypoints are accurately passed through
+- Optional trajectory and IK results visualization
+
+**Usage:**
+```bash
+# Run with default parameters
+python 10_demo_cartesian_traj.py
+
+# Load waypoints from file
+python 10_demo_cartesian_traj.py --waypoints-file cartesian_waypoints.json
+
+# Increase trajectory points for smoother motion
+python 10_demo_cartesian_traj.py --num-points 100
+```
+
+---
+
+### 11. `11_demo_sparkvis.py`
 SparkVis UI bidirectional synchronization and data logging. Start WebSocket server to achieve UI ↔ Robot bidirectional sync, supports data logging to CSV file.
 
 **Parameters:**
@@ -268,17 +336,58 @@ SparkVis UI bidirectional synchronization and data logging. Start WebSocket serv
 **Usage:**
 ```bash
 # Basic usage (need to start SparkVis backend and web server first)
-python 10_demo_sparkvis.py 
+python 11_demo_sparkvis.py 
 
 # Enable robot state sync and log data
-python 10_demo_sparkvis.py  --enable-robot-sync --output-file data.csv --log-source both
+python 11_demo_sparkvis.py  --enable-robot-sync --output-file data.csv --log-source both
 ```
 
 **Note**: Using this feature requires running simultaneously:
 1. SparkVis backend server: `cd SparkVis && python backend_server.py`
 2. SparkVis web server: `cd SparkVis && python -m http.server 8080`
-3. This robot bridge script: `python 10_demo_sparkvis.py --port /dev/ttyUSB0`
+3. This robot bridge script: `python 11_demo_sparkvis.py --port /dev/ttyUSB0`
 4. Open browser and visit: `http://localhost:8080`
+
+---
+
+### 12. `12_benchmark_read_joints.py`
+**Joint Reading Performance Benchmark**
+
+Tests the API call frequency and actual data update frequency for reading joint angles.
+
+**Parameters:**
+- `--port`: Serial port (optional)
+- `--gripper_type`: Gripper type, default `50mm`
+- `--duration`: Test duration (seconds), default 5.0
+- `--fast`: Enable fast mode (set update interval to 1ms)
+
+**Features:**
+- Tests API read frequency (speed of reading cached data from Python memory)
+- Tests data update frequency (actual rate of new data arriving from robot)
+- Displays serial statistics (frames processed, frames dropped, etc.)
+
+**Usage:**
+```bash
+# Basic test (5 seconds)
+python 12_benchmark_read_joints.py
+
+# Fast mode test
+python 12_benchmark_read_joints.py --fast --duration 10
+```
+
+---
+
+### 13. `13_utmostFPS.py`
+**Maximum FPS Test**
+
+Tests the maximum send and receive frame rate for serial communication.
+
+**Features:**
+- Tests the extreme performance of serial communication
+- Displays send frame rate, receive frame rate, and sync rate
+- Suitable for performance optimization and hardware testing
+
+**Note**: This script contains hardcoded serial port path and needs to be modified according to the actual environment.
 
 ---
 

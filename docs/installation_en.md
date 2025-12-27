@@ -15,7 +15,7 @@ This guide will walk you through the installation and runtime environment config
 
 ### 1. Clone or Download the Project
 ```bash
-git clone https://github.com/Synria-Robotics/Alicia-D-SDK.git -b v6.1.0-beta1
+git clone https://github.com/Synria-Robotics/Alicia-D-SDK.git -b v6.1.0
 cd Alicia-D-SDK
 ```
 
@@ -26,12 +26,10 @@ conda create -n alicia python=3.8
 conda activate alicia
 ```
 
-Install dependencies and SDK (Choose one of the following):
+Install dependencies and SDK:
 ```bash
 # Local installation
 pip install -e .
-# Or install from remote pypi
-pip install --pre alicia_d_sdk```
 ```
 
 ---

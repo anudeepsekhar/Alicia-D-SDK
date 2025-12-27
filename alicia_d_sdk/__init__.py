@@ -1,5 +1,5 @@
 """
-Alicia-D SDK v6.0.0 - 与 RoboCore 桥接
+Alicia-D SDK v6.1.0 - 与 RoboCore 桥接
 
 架构层次：
 - 用户层: SynriaRobotAPI (统一用户接口)
