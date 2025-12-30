@@ -35,7 +35,7 @@ def main(args):
 
     # Get initial guess
     if args.init_strategy == 'current':
-        q0 = robot.get_joints()
+        q0 = robot.get_robot_state("joint")
         if q0 is None:
             print("✗ 无法获取当前关节角度")
             robot.disconnect()
@@ -124,7 +124,7 @@ def main(args):
         # Execute motion if requested
         if args.execute or args.force_execute:
             print("\n执行移动到目标位置...")
-            success = robot.set_robot_target(
+            success = robot.set_robot_state(
                 target_joints=q_ik,
                 joint_format='rad',
                 speed_deg_s=args.speed_deg_s,
@@ -175,7 +175,7 @@ if __name__ == "__main__":
     # Robot connection settings
     parser.add_argument('--port', type=str, default="", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
     parser.add_argument('--speed_deg_s', type=int, default=10,  help="关节运动速度 (单位: 度/秒，默认: 10，范围: 5-400度/秒)")
-    parser.add_argument('--gripper_type', type=str, default= None, help="夹爪类型")
+    parser.add_argument('--gripper_type', type=str, default= "50mm", help="夹爪类型")
     parser.add_argument('--model_format', type=str, default="urdf", help="模型格式")
     parser.add_argument('--base_link', type=str, default="base_link", help="基座链路名称, world 或 base_link等")
     parser.add_argument('--end_link', type=str, default="tool0", help="末端执行器链路名称, tool0 或 Link6等")
@@ -188,7 +188,7 @@ if __name__ == "__main__":
                        choices=['dls', 'pinv', 'transpose'],
                        help='IK方法: dls(阻尼最小二乘), pinv(伪逆), transpose(雅可比转置)')
     parser.add_argument('--max-iters', type=int, default=500,  help='最大迭代次数 (默认: 100)')
-    parser.add_argument('--pos-tol', type=float, default=1e-4, help='位置容差 (默认: 1e-4)')
+    parser.add_argument('--pos-tol', type=float, default=1e-3, help='位置容差 (默认: 1e-3)')
     parser.add_argument('--ori-tol', type=float, default=1e-3, help='姿态容差 (默认: 1e-3)')
     parser.add_argument('--num-inits', type=int, default=10,  help='初始猜测数量 (默认: 10)')
     parser.add_argument('--init-strategy', type=str, default='current',

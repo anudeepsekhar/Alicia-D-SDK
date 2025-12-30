@@ -63,20 +63,22 @@ def record_waypoints_manual(controller,
             if get_state_fn:
                 state = get_state_fn(controller)
             else:
-                # 默认：记录关节角度和夹爪状态
-                joints = controller.get_joints()
-                try:
-                    gripper = float(controller.get_gripper())
-                except:
+                # 默认：记录关节角度和夹爪状态（使用统一API一次性获取）
+                robot_state = controller.get_robot_state("joint_gripper")
+                if robot_state is not None:
+                    joints = robot_state.angles
+                    gripper = robot_state.gripper
+                else:
+                    joints = None
                     gripper = 0.0
-                state = {"t": time.time(), "q": joints, "grip": gripper}
+                state = {"t": time.time(), "q": joints, "grip": gripper} if joints is not None else None
 
             if state:
                 waypoints.append(state)
 
                 # 使用自定义或默认的格式化函数输出日志
                 if format_fn:
-                    print(format_fn(len(waypoints), state))
+                    format_fn(len(waypoints), state)  # Call function, don't print return value
                 else:
                     # 默认格式
                     if isinstance(state, dict) and 'q' in state:
@@ -189,17 +191,14 @@ def record_joint_waypoints_manual(robot) -> Tuple[Optional[np.ndarray], Optional
     """
     # Define custom state getter for joint waypoints
     def get_joint_state(controller):
-        joints = controller.get_joints()
-        if joints is None:
-            beauty_print("✗ 无法获取当前关节角度", type="warning")
+        # Get joint and gripper together in a single call (more efficient)
+        robot_state = controller.get_robot_state("joint_gripper")
+        if robot_state is None:
+            beauty_print("✗ 无法获取当前关节角度和夹爪状态", type="warning")
             return None
         
-        gripper = controller.get_gripper()
-        if gripper is None:
-            beauty_print("✗ 无法获取当前夹爪状态", type="warning")
-            gripper = 0.0  # Default to closed
-        
-        joints = to_numpy(joints)
+        joints = to_numpy(robot_state.angles)
+        gripper = robot_state.gripper
         return {"q": joints, "grip": float(gripper)}
     
     # Define custom formatter for joint waypoints
@@ -444,9 +443,11 @@ def load_or_generate_joint_waypoints(robot, robot_model, args) -> Tuple[np.ndarr
     
     # Get current joint angles and gripper as starting point (optional)
     if args.use_current_joints:
-        q_start = robot.get_joints()
-        g_start = robot.get_gripper()
-        if q_start is not None:
+        # Get joint and gripper together in a single call (more efficient)
+        robot_state = robot.get_robot_state("joint_gripper")
+        if robot_state is not None:
+            q_start = robot_state.angles
+            g_start = robot_state.gripper
             waypoints.append(to_numpy(q_start))
             gripper_waypoints.append(float(g_start) if g_start is not None else 500.0)
             beauty_print(f"Using current joint angles and gripper as first waypoint:")

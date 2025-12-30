@@ -29,8 +29,8 @@ examples/
 ### 0. `00_demo_read_version.py`
 **Read Robot Firmware Version**
 - Always run this script first to detect firmware version before use
-- If version is 6.x.x, SDK will automatically use new firmware mode (direct control)
-- If version is below 6.x.x, SDK will use old firmware mode (interpolation control)
+- Uses `get_robot_state("version")` to get version information
+- Uses `get_robot_state("gripper_type")` to get gripper type
 - If timeout or no version output is displayed, baud rate may need adjustment
 
 **Usage:**
@@ -114,7 +114,8 @@ Gripper control: Control gripper to open or close to specified angle. Gripper va
 
 **Features:**
 - Automatic demo execution: fully open → fully close → half open
-- Uses `set_robot_target(gripper_value=...)` to control gripper
+- Uses `set_robot_state(gripper_value=...)` to control gripper
+- Uses `get_robot_state("gripper")` to read current gripper value
 - Supports waiting for gripper motion completion
 
 **Usage:**
@@ -133,7 +134,7 @@ Use joint space motion to control robot arm movement to set angles. Supports deg
 
 **Features:**
 - Automatic demo execution: home → move to target angle → home
-- Uses unified joint and gripper target interface `set_robot_target()`
+- Uses unified joint and gripper target interface `set_robot_state()`
 - Supports `wait_for_completion=True` to wait for motion completion
 
 **Usage:**

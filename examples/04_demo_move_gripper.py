@@ -24,23 +24,23 @@ def main(args):
     
     try:
         # Get gripper value (0-1000)
-        gripper_value = robot.get_gripper()
+        gripper_value = robot.get_robot_state("gripper")
         if gripper_value is not None:
             logger.info(f"Gripper value: {gripper_value:.1f}")
         else:
             logger.warning("Failed to read gripper value")
         
         # Test 1: Open gripper
-        robot.set_robot_target(gripper_value=1000)
+        robot.set_robot_state(gripper_value=1000)
         time.sleep(1)
         # Test 2: Close gripper
-        robot.set_robot_target(gripper_value=0)
+        robot.set_robot_state(gripper_value=0)
         time.sleep(1)
         # # Test 3: Partially open
-        robot.set_robot_target(gripper_value=500)
+        robot.set_robot_state(gripper_value=500)
         time.sleep(1)
         # Test 4: Open gripper
-        robot.set_robot_target(gripper_value=1000)
+        robot.set_robot_state(gripper_value=1000)
         time.sleep(1)
 
         

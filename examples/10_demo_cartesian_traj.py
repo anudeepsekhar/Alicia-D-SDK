@@ -99,7 +99,7 @@ def main(args):
     beauty_print("[3] Solving Inverse Kinematics", type="module", centered=False)
     
     # Get initial joint configuration
-    q0 = robot.get_joints() if args.init_strategy == 'current' else None
+    q0 = robot.get_robot_state("joint") if args.init_strategy == 'current' else None
     actual_strategy = 'random' if (q0 is not None and args.init_strategy == 'current') else args.init_strategy
     
     if q0 is not None:
@@ -209,7 +209,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=666, help='Random seed')
     
     # Execution
-    parser.add_argument('--speed-deg-s', type=int, default=20, help="关节运动速度 (度/秒)")
+    parser.add_argument('--speed-deg-s', type=int, default=30, help="关节运动速度 (度/秒)")
     parser.add_argument('--timeout', type=float, default=10.0, help='Timeout per command (seconds)')
     
     # Other

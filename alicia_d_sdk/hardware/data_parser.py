@@ -74,7 +74,6 @@ class DataParser:
         # Events are set when corresponding data is received and parsed
         self._version_event = threading.Event()
         self._joint_event = threading.Event()
-        self._gripper_event = threading.Event()
         self._temperature_event = threading.Event()
         self._velocity_event = threading.Event()
         self._self_check_event = threading.Event()
@@ -83,8 +82,7 @@ class DataParser:
         # Mapping from info type to corresponding event
         self._info_event_map = {
             "version": self._version_event,
-            "joint": self._joint_event,
-            "gripper": self._gripper_event,
+            "joint_gripper": self._joint_event,
             "temperature": self._temperature_event,
             "velocity": self._velocity_event,
             "self_check": self._self_check_event,
@@ -148,75 +146,52 @@ class DataParser:
                 return None
             return copy.deepcopy(self._joint_states)
 
-    def get_version_info(self) -> Optional[Dict[str, str]]:
+    def get_info(self, info_type: str):
         """
-        Get full version information.
+        Unified getter for parsed information, for cooperation with high-level APIs.
 
-        :return: Dictionary with keys: serial_number, hardware_version, firmware_version, or None if not available
-        """
-        with self._lock:
-            if self._version_info is None:
-                return None
-
-            return dict(self._version_info)
-
-    def get_temperature_data(self) -> Optional[Dict[str, any]]:
-        """
-        Get current temperature data.
-
-        :return: Dictionary with keys: temperatures (List of temperatures in Celsius), timestamp, or None if not available
+        :param info_type: 'joint_gripper' | 'joint' | 'gripper' | 'version' | 'temperature' | 'velocity' | 'self_check' | 'gripper_type'
+        :return: Parsed data for the given type, or None if unavailable
         """
         with self._lock:
-            if self._temperature_data is None:
-                return None
-            return {
-                "temperatures": list(self._temperature_data),
-                "timestamp": self._temperature_timestamp
-            }
-
-    def get_velocity_data(self) -> Optional[Dict[str, any]]:
-        """
-        Get current velocity data.
-
-        :return: Dictionary with keys: velocities (List of velocities in degrees per second), timestamp, or None if not available
-        """
-        with self._lock:
-            if self._velocity_data is None:
-                return None
-            return {
-                "velocities": list(self._velocity_data),
-                "timestamp": self._velocity_timestamp
-            }
-
-    def get_self_check_data(self) -> Optional[Dict[str, any]]:
-        """
-        Get latest machine self-check (servo health) result.
-
-        :return: Dictionary with keys: raw_mask (Integer bit mask, LSB = servo 1), bits (List[bool], True = OK, False = fault), timestamp, or None if not available
-        """
-        with self._lock:
-            if self._self_check_raw_mask is None or self._self_check_bits is None:
-                return None
-            return {
-                "raw_mask": int(self._self_check_raw_mask),
-                "bits": list(self._self_check_bits),
-                "timestamp": self._self_check_timestamp,
-            }
-
-    def get_gripper_type_data(self) -> Optional[str]:
-        """
-        Get current gripper type data.
-
-        :return: Gripper type name (str, e.g., "50mm" or "100mm"), or None if not available
-        """
-        with self._lock:
-            if self._gripper_type is None:
-                return None
-
-            return self._gripper_type_name_map.get(
-                self._gripper_type,
-                f"unknown(0x{self._gripper_type:02X})",
-            )
+            if info_type == "joint_gripper":
+                js = self._joint_states
+                if js.angles is None or js.timestamp is None:
+                    return None
+                return copy.deepcopy(js)
+            elif info_type == "joint":
+                js = self._joint_states
+                if js.angles is None or js.timestamp is None:
+                    return None
+                return list(js.angles)
+            elif info_type == "gripper":
+                js = self._joint_states
+                if js.angles is None or js.timestamp is None:
+                    return None
+                return js.gripper
+            elif info_type == "version":
+                return dict(self._version_info) if self._version_info else None
+            elif info_type == "temperature":
+                return list(self._temperature_data) if self._temperature_data else None
+            elif info_type == "velocity":
+                return list(self._velocity_data) if self._velocity_data else None
+            elif info_type == "self_check":
+                if self._self_check_raw_mask is None or self._self_check_bits is None:
+                    return None
+                return {
+                    "raw_mask": int(self._self_check_raw_mask),
+                    "bits": list(self._self_check_bits),
+                    "timestamp": self._self_check_timestamp,
+                }
+            elif info_type == "gripper_type":
+                if self._gripper_type is None:
+                    return None
+                return self._gripper_type_name_map.get(
+                    self._gripper_type,
+                    f"unknown(0x{self._gripper_type:02X})",
+                )
+            else:
+                raise ValueError(f"Unsupported info type: {info_type}")
 
     def wait_for_info(self, info_type: str, timeout: float = 2.0) -> bool:
         """

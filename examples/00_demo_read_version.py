@@ -17,9 +17,18 @@ def main(args):
     robot = alicia_d_sdk.create_robot(port=args.port)
 
     try:
-        firmware_version = robot.get_version()
-        gripper_type = robot.get_gripper_type()
-        logger.info(f"Gripper type: {gripper_type}")
+        robot_version = robot.get_robot_state("version")
+        if robot_version:
+            logger.info(
+                "Version info: "
+                f"Unique ID = {robot_version.get('serial_number')}, "
+                f"Hardware Version = {robot_version.get('hardware_version')}, "
+                f"Firmware Version = {robot_version.get('firmware_version')}"
+            )
+        
+        gripper_type = robot.get_robot_state("gripper_type")
+        if gripper_type:
+            logger.info(f"Gripper type: {gripper_type}")
 
     except KeyboardInterrupt:
         logger.info("\nOperation interrupted by user")

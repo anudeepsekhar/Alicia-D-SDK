@@ -77,7 +77,6 @@ if __name__ == "__main__":
 
     parser.add_argument('--mode', choices=['manual', 'auto', 'replay_only'], default='auto',
                        help="模式: manual(手动插值) 或 auto(自动快速) 或 replay_only(仅回放)")
-    parser.add_argument('--sample-hz', type=float, default=100.0, help="自动模式采样频率")
     parser.add_argument('--save-motion', default='my_demo', help="动作名称 (录制模式: 新动作名; 回放模式: 已有动作名)")
     parser.add_argument('--list-motions', action='store_true',  help="列出所有可用的动作并退出")
     args = parser.parse_args()

@@ -153,7 +153,7 @@ if __name__ == '__main__':
                         help='Multi-segment method')
     
     # Execution
-    parser.add_argument('--speed-deg-s', type=int, default=20, help="关节运动速度 (度/秒)")
+    parser.add_argument('--speed-deg-s', type=int, default=30, help="关节运动速度 (度/秒)")
     parser.add_argument('--timeout', type=float, default=10.0, help='Timeout per command (seconds)')
     
     # Other

@@ -52,18 +52,22 @@ class SimpleDragTeaching:
             while recording.is_set():
                 try:
                     current_time = time.time() - start_time
-                    joints = self.controller.get_joints()
-                    try:
-                        gripper = float(self.controller.get_gripper())
-                    except:
+                    # Get joint and gripper together in a single call (more efficient)
+                    state = self.controller.get_robot_state("joint_gripper")
+                    if state is not None:
+                        joints = state.angles
+                        gripper = state.gripper
+                    else:
+                        joints = None
                         gripper = 0.0
 
-                    point = {
-                        "t": current_time,
-                        "q": joints,
-                        "grip": gripper
-                    }
-                    trajectory.append(point)
+                    if joints is not None:
+                        point = {
+                            "t": current_time,
+                            "q": joints,
+                            "grip": gripper
+                        }
+                        trajectory.append(point)
 
                 except Exception as e:
                     print(f"[警告] 记录失败: {e}")
@@ -261,7 +265,7 @@ class SimpleDragTeaching:
         print("[回放] 移动到起始点（速度30）...")
         try:
 
-            self.controller.set_robot_target(
+            self.controller.set_robot_state(
                 target_joints=first_point["q"],
                 gripper_value=first_gripper,
                 joint_format='rad',
@@ -293,7 +297,7 @@ class SimpleDragTeaching:
                     # 关节数据在示教阶段按弧度记录，这里保持 joint_format='rad'
                     # 使用 wait_for_completion=False 让命令异步执行，然后根据计算的时间等待
                     start_time = time.time()
-                    self.controller.set_robot_target(
+                    self.controller.set_robot_state(
                         target_joints=point["q"],
                         gripper_value=gripper_value,
                         joint_format='rad',
@@ -326,20 +330,21 @@ class SimpleDragTeaching:
                     motion_time = _sleep_based_on_velocity(point, prev_joints if i > 0 else None)
 
                     start_time = time.time()
-                    firmware_new = self.controller.firmware_new
-                    if firmware_new:
-                        self.controller.set_joint_target(point["q"])
-                    else:
-                        self.controller.set_joint_target_interplotation(point["q"], joint_format='rad', speed_factor=1.0, T_default=0.5, n_steps_ref=50)
-
-                    # 设置夹爪
+                    # 获取夹爪值
                     gripper_value = point.get("grip", 0.0)
-                    if gripper_value is not None:
-                        try:
-                            # 夹爪值已经是0-100范围，直接使用
-                            self.controller.set_gripper_target(value=gripper_value, wait_for_completion=False)
-                        except:
-                            pass
+                    
+                    # 使用统一的 set_robot_state 接口同时设置关节和夹爪
+                    # 注意：gripper_value 在记录时可能是 0-1000 范围，需要确保范围正确
+                    try:
+                        self.controller.set_robot_state(
+                            target_joints=point["q"],
+                            gripper_value=int(gripper_value) if gripper_value is not None else None,
+                            joint_format='rad',
+                            speed_deg_s=speed_deg_s,
+                            wait_for_completion=False
+                        )
+                    except Exception as e:
+                        print(f"[警告] 设置关节/夹爪失败: {e}")
 
                     # 根据计算出的运动时间等待，确保运动有足够时间完成
                     #

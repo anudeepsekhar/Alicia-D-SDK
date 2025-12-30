@@ -29,8 +29,8 @@ examples/
 ### 0. `00_demo_read_version.py`
 **读取机械臂固件版本号**
 - 在使用前务必先运行此脚本检测固件版本
-- 如果版本号为 6.x.x，SDK将自动使用新固件模式（直接控制）
-- 如果版本号低于 6.x.x，SDK将使用旧固件模式（插值控制）
+- 使用 `get_robot_state("version")` 获取版本信息
+- 使用 `get_robot_state("gripper_type")` 获取夹爪类型
 - 如果显示超时或没有版本号输出，可能需要调整波特率
 
 **使用方式：**
@@ -114,7 +114,8 @@ python 03_demo_read_state.py --single
 
 **功能说明：**
 - 演示自动执行：完全张开 → 完全闭合 → 半开
-- 使用 `set_robot_target(gripper_value=...)` 控制夹爪
+- 使用 `set_robot_state(gripper_value=...)` 控制夹爪
+- 使用 `get_robot_state("gripper")` 读取当前夹爪值
 - 支持等待夹爪运动完成
 
 **使用方式：**
@@ -133,7 +134,7 @@ python 04_demo_move_gripper.py
 
 **功能说明：**
 - 演示自动执行：回零 → 移动到目标角度 → 回零
-- 使用统一的关节和夹爪目标接口 `set_robot_target()`
+- 使用统一的关节和夹爪目标接口 `set_robot_state()`
 - 支持 `wait_for_completion=True` 等待运动完成
 
 **使用方式：**

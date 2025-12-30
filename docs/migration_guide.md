@@ -15,12 +15,12 @@
 - **新版本**: 夹爪值范围 0-1000（0为完全闭合，1000为完全张开）
 
 ### 3. 新增统一接口
-- 新增 `set_robot_target()` 方法，可同时设置关节角度和夹爪位置
+- 新增 `set_robot_state()` 方法，可同时设置关节角度和夹爪位置
 
-### 4. 状态获取增强
-- 新增 `get_robot_state()` 返回完整状态对象
-- 新增 `get_temperature()`、`get_velocity()`、`get_self_check()` 方法
-- `get_version()` 现在返回完整版本信息字典
+### 4. 统一状态获取接口
+- **新版本**: 使用统一的 `get_robot_state(info_type)` 接口获取所有状态信息
+- 旧方法 `get_joints()`, `get_gripper()`, `get_version()`, `get_temperature()`, `get_velocity()`, `get_self_check()` 已移除
+- `get_robot_state()` 根据 `info_type` 参数返回不同类型的数据
 
 ---
 
@@ -59,14 +59,14 @@ robot.set_gripper_target(command='open')  # 完全打开
 #### v6.1.0 代码
 ```python
 # 夹爪值范围 0-1000
-robot.set_robot_target(gripper_value=500)  # 50% 开合（推荐使用统一接口）
+robot.set_robot_state(gripper_value=500)  # 50% 开合（推荐使用统一接口）
 robot.set_gripper_target(value=500)  # 仍然支持，但值范围已改变
 robot.set_gripper_target(command='open')  # 仍然支持
 ```
 
 **迁移说明**:
 - 旧值需要乘以 10：`value=50` → `gripper_value=500`
-- 推荐使用新的 `set_robot_target()` 统一接口
+- 推荐使用新的 `set_robot_state()` 统一接口
 
 ---
 
@@ -82,7 +82,7 @@ robot.set_gripper_target(value=50)
 #### v6.1.0 代码
 ```python
 # 使用统一接口同时设置
-robot.set_robot_target(
+robot.set_robot_state(
     target_joints=target_joints,
     gripper_value=500,
     joint_format='deg',
@@ -109,33 +109,34 @@ version = robot.get_firmware_version()
 
 #### v6.1.0 代码
 ```python
-# 方式1：获取完整状态（推荐）
-state = robot.get_robot_state()
+# 统一接口：获取完整状态（推荐）
+state = robot.get_robot_state("joint_gripper")
 joints = state.angles
 gripper = state.gripper
-run_status = state.run_status_text  # 新增：运行状态
+run_status = state.run_status_text  # 运行状态
 
-# 方式2：分别获取（仍然支持）
-joints = robot.get_joints()
-gripper = robot.get_gripper()
+# 统一接口：分别获取
+joints = robot.get_robot_state("joint")  # 仅获取关节角度
+gripper = robot.get_robot_state("gripper")  # 仅获取夹爪值
 
-# 版本信息（增强）
-version_info = robot.get_version()  # 返回字典
+# 版本信息
+version_info = robot.get_robot_state("version")  # 返回字典
 serial_number = version_info['serial_number']
 hardware_version = version_info['hardware_version']
 firmware_version = version_info['firmware_version']
 
-# 新增状态获取方法
-temperatures = robot.get_temperature()  # 舵机温度
-velocities = robot.get_velocity()  # 舵机速度
-self_check = robot.get_self_check()  # 自检状态
+# 其他状态信息
+temperatures = robot.get_robot_state("temperature")  # 舵机温度
+velocities = robot.get_robot_state("velocity")  # 舵机速度
+self_check = robot.get_robot_state("self_check")  # 自检状态
+gripper_type = robot.get_robot_state("gripper_type")  # 夹爪类型
 ```
 
-**新增功能**:
-- `run_status_text`: 运行状态文本（"idle", "locked", "sync", "overheat" 等）
-- `get_temperature()`: 获取舵机温度
-- `get_velocity()`: 获取舵机速度
-- `get_self_check()`: 执行机器自检
+**迁移说明**:
+- 所有状态获取方法已统一为 `get_robot_state(info_type)`
+- `info_type` 参数决定返回的数据类型
+- 使用 `"joint_gripper"` 可一次性获取关节和夹爪数据（更高效）
+- 旧方法 `get_joints()`, `get_gripper()`, `get_version()`, `get_temperature()`, `get_velocity()`, `get_self_check()` 已移除
 
 ---
 
@@ -234,7 +235,7 @@ if robot.connect():
     
     # 使用统一接口同时设置关节和夹爪
     target_joints = [0.5, 0.3, -0.2, 0.1, 0.0, 0.0]
-    robot.set_robot_target(
+    robot.set_robot_state(
         target_joints=target_joints,
         gripper_value=500,  # 50% 开合（旧值50 * 10）
         joint_format='rad',
@@ -261,15 +262,19 @@ print(f"Joints: {joints}, Gripper: {gripper}")
 ```python
 robot.connect()
 
-# 获取完整状态
-state = robot.get_robot_state()
+# 使用统一接口获取完整状态
+state = robot.get_robot_state("joint_gripper")
 print(f"Joints: {state.angles}")
 print(f"Gripper: {state.gripper}")
-print(f"Status: {state.run_status_text}")  # 新增
+print(f"Status: {state.run_status_text}")
+
+# 或分别获取
+joints = robot.get_robot_state("joint")
+gripper = robot.get_robot_state("gripper")
 
 # 获取额外信息
-temperatures = robot.get_temperature()
-velocities = robot.get_velocity()
+temperatures = robot.get_robot_state("temperature")
+velocities = robot.get_robot_state("velocity")
 print(f"Temperatures: {temperatures}")
 print(f"Velocities: {velocities}")
 ```
@@ -286,10 +291,12 @@ print(f"Velocities: {velocities}")
    - 所有夹爪值需要乘以 10
    - 例如：`value=50` → `gripper_value=500`
 
-3. **向后兼容性**:
-   - `get_joints()` 和 `get_gripper()` 仍然可用
-   - `set_gripper_target()` 仍然可用，但值范围已改变
-   - 建议使用新的统一接口 `set_robot_target()`
+3. **API 变更**:
+   - `get_joints()`, `get_gripper()`, `get_version()`, `get_temperature()`, `get_velocity()`, `get_self_check()` 已移除
+   - 统一使用 `get_robot_state(info_type)` 接口
+   - `set_joint_target()`, `set_gripper_target()`, `set_joint_target_interplotation()` 已移除
+   - 统一使用 `set_robot_state()` 接口
+   - `set_pose_target()` 已重命名为 `set_pose()`
 
 4. **版本检查**:
    - 升级后建议运行 `00_demo_read_version.py` 验证版本

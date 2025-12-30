@@ -51,7 +51,7 @@ def main(args):
         
         while time.perf_counter() < end_time:
             # 1. API Call
-            joints = robot.get_joints()
+            joints = robot.get_robot_state("joint")
             count_api_calls += 1
             
             # 2. Check for data update
@@ -110,7 +110,7 @@ if __name__ == '__main__':
     
     # Serial port settings
     parser.add_argument('--port', type=str, default="", help="Serial port (e.g. /dev/ttyUSB0 or COM3)")
-    parser.add_argument('--gripper_type', type=str, default="50mm", help="Gripper type (default: 50mm)")
+    parser.add_argument('--gripper_type', type=str, default=None, help="Gripper type (50mm or 100mm)")
     
     # Benchmark settings
     parser.add_argument('--duration', type=float, default=5.0, help="Benchmark duration in seconds (default: 5.0)")

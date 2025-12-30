@@ -1,7 +1,10 @@
 """
-API Layer - 用户层
+API Layer - User Interface
 
-提供简洁统一的用户接口，包括高级运动命令、状态查询、系统控制等。
+Provides a concise and unified user interface, including:
+- High-level motion commands (joint control, Cartesian trajectories)
+- State query interfaces (joint angles, gripper state, end-effector pose)
+- System control functions (torque control, zero calibration)
 """
 
 from alicia_d_sdk.api.synria_robot_api import SynriaRobotAPI

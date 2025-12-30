@@ -15,12 +15,12 @@ This guide will help you migrate your code from `alicia_d_sdk` v6.0.0 to v6.1.0.
 - **New Version**: Gripper value range 0-1000 (0 is fully closed, 1000 is fully open)
 
 ### 3. New Unified Interface
-- New `set_robot_target()` method that can set joint angles and gripper position simultaneously
+- New `set_robot_state()` method that can set joint angles and gripper position simultaneously
 
-### 4. Enhanced Status Retrieval
-- New `get_robot_state()` returns complete state object
-- New `get_temperature()`, `get_velocity()`, `get_self_check()` methods
-- `get_version()` now returns complete version info dictionary
+### 4. Unified Status Retrieval Interface
+- **New Version**: Use unified `get_robot_state(info_type)` interface for all status information
+- Old methods `get_joints()`, `get_gripper()`, `get_version()`, `get_temperature()`, `get_velocity()`, `get_self_check()` have been removed
+- `get_robot_state()` returns different data types based on `info_type` parameter
 
 ---
 
@@ -59,14 +59,14 @@ robot.set_gripper_target(command='open')  # Fully open
 #### v6.1.0 Code
 ```python
 # Gripper value range 0-1000
-robot.set_robot_target(gripper_value=500)  # 50% open (recommended unified interface)
+robot.set_robot_state(gripper_value=500)  # 50% open (recommended unified interface)
 robot.set_gripper_target(value=500)  # Still supported, but value range changed
 robot.set_gripper_target(command='open')  # Still supported
 ```
 
 **Migration Notes**:
 - Old values need to be multiplied by 10: `value=50` → `gripper_value=500`
-- Recommended to use new unified `set_robot_target()` interface
+- Recommended to use new unified `set_robot_state()` interface
 
 ---
 
@@ -82,7 +82,7 @@ robot.set_gripper_target(value=50)
 #### v6.1.0 Code
 ```python
 # Use unified interface to set both simultaneously
-robot.set_robot_target(
+robot.set_robot_state(
     target_joints=target_joints,
     gripper_value=500,
     joint_format='deg',
@@ -109,33 +109,34 @@ version = robot.get_firmware_version()
 
 #### v6.1.0 Code
 ```python
-# Method 1: Get complete state (recommended)
-state = robot.get_robot_state()
+# Unified interface: Get complete state (recommended)
+state = robot.get_robot_state("joint_gripper")
 joints = state.angles
 gripper = state.gripper
-run_status = state.run_status_text  # New: run status
+run_status = state.run_status_text  # Run status
 
-# Method 2: Get separately (still supported)
-joints = robot.get_joints()
-gripper = robot.get_gripper()
+# Unified interface: Get separately
+joints = robot.get_robot_state("joint")  # Joint angles only
+gripper = robot.get_robot_state("gripper")  # Gripper value only
 
-# Version info (enhanced)
-version_info = robot.get_version()  # Returns dictionary
+# Version info
+version_info = robot.get_robot_state("version")  # Returns dictionary
 serial_number = version_info['serial_number']
 hardware_version = version_info['hardware_version']
 firmware_version = version_info['firmware_version']
 
-# New status retrieval methods
-temperatures = robot.get_temperature()  # Servo temperatures
-velocities = robot.get_velocity()  # Servo velocities
-self_check = robot.get_self_check()  # Self-check status
+# Other status information
+temperatures = robot.get_robot_state("temperature")  # Servo temperatures
+velocities = robot.get_robot_state("velocity")  # Servo velocities
+self_check = robot.get_robot_state("self_check")  # Self-check status
+gripper_type = robot.get_robot_state("gripper_type")  # Gripper type
 ```
 
-**New Features**:
-- `run_status_text`: Run status text ("idle", "locked", "sync", "overheat", etc.)
-- `get_temperature()`: Get servo temperatures
-- `get_velocity()`: Get servo velocities
-- `get_self_check()`: Execute machine self-check
+**Migration Notes**:
+- All status retrieval methods are now unified as `get_robot_state(info_type)`
+- `info_type` parameter determines the return data type
+- Use `"joint_gripper"` to get both joint and gripper data in one call (more efficient)
+- Old methods `get_joints()`, `get_gripper()`, `get_version()`, `get_temperature()`, `get_velocity()`, `get_self_check()` have been removed
 
 ---
 
@@ -234,7 +235,7 @@ if robot.connect():
     
     # Use unified interface to set both joint and gripper
     target_joints = [0.5, 0.3, -0.2, 0.1, 0.0, 0.0]
-    robot.set_robot_target(
+    robot.set_robot_state(
         target_joints=target_joints,
         gripper_value=500,  # 50% open (old value 50 * 10)
         joint_format='rad',
@@ -261,15 +262,19 @@ print(f"Joints: {joints}, Gripper: {gripper}")
 ```python
 robot.connect()
 
-# Get complete state
-state = robot.get_robot_state()
+# Use unified interface to get complete state
+state = robot.get_robot_state("joint_gripper")
 print(f"Joints: {state.angles}")
 print(f"Gripper: {state.gripper}")
-print(f"Status: {state.run_status_text}")  # New
+print(f"Status: {state.run_status_text}")
+
+# Or get separately
+joints = robot.get_robot_state("joint")
+gripper = robot.get_robot_state("gripper")
 
 # Get additional information
-temperatures = robot.get_temperature()
-velocities = robot.get_velocity()
+temperatures = robot.get_robot_state("temperature")
+velocities = robot.get_robot_state("velocity")
 print(f"Temperatures: {temperatures}")
 print(f"Velocities: {velocities}")
 ```
@@ -286,10 +291,12 @@ print(f"Velocities: {velocities}")
    - All gripper values need to be multiplied by 10
    - Example: `value=50` → `gripper_value=500`
 
-3. **Backward Compatibility**:
-   - `get_joints()` and `get_gripper()` are still available
-   - `set_gripper_target()` is still available, but value range has changed
-   - Recommended to use new unified interface `set_robot_target()`
+3. **API Changes**:
+   - `get_joints()`, `get_gripper()`, `get_version()`, `get_temperature()`, `get_velocity()`, `get_self_check()` have been removed
+   - Use unified `get_robot_state(info_type)` interface
+   - `set_joint_target()`, `set_gripper_target()`, `set_joint_target_interplotation()` have been removed
+   - Use unified `set_robot_state()` interface
+   - `set_pose_target()` has been renamed to `set_pose()`
 
 4. **Version Check**:
    - After upgrade, recommend running `00_demo_read_version.py` to verify version

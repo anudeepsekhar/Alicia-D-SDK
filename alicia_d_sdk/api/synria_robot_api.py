@@ -22,6 +22,7 @@ from robocore.transform import matrix_to_euler, matrix_to_quaternion
 from synriard import get_model_path
 
 from alicia_d_sdk.hardware import ServoDriver
+from alicia_d_sdk.hardware.data_parser import JointState
 from alicia_d_sdk.utils.logger import logger
 
 
@@ -40,6 +41,7 @@ class SynriaRobotAPI:
         self.servo_driver = servo_driver
         self.data_parser = servo_driver.data_parser  # Direct access to data parser
         self.robot_model = robot_model
+        self.debug_mode = servo_driver.debug_mode  # Access debug mode from servo driver
 
         # Higher-level helpers
         self.robot_type = None
@@ -57,7 +59,7 @@ class SynriaRobotAPI:
         if result:
             try:
                 # Initialize state
-                self.get_robot_state()
+                self.get_robot_state("joint_gripper")
                 self._robot_type()
                 logger.info("Synria Robot Connected successfully.")
                 return True
@@ -77,178 +79,42 @@ class SynriaRobotAPI:
         return self.servo_driver.serial_comm.is_connected()
 
     # ==================== Get Robot Information ====================
-    def get_version(self, timeout: float = 1.0, log: bool = True) -> Optional[Dict[str, str]]:
-        """
-        Get full version information (serial number, hardware version, firmware version).
 
+    def get_robot_state(self, info_type: str = "joint_gripper", timeout: float = 1.0) -> Optional[Union[JointState, Dict, List[float], str, float]]:
+        """
+        Unified API to get robot state information.
+        
+        :param info_type: Type of information to get. Options:
+            - "joint_gripper": Returns JointState (arm joint angles, gripper value, timestamp, run_status_text)
+            - "joint": Returns List[float] of arm joint angles (radians) only
+            - "gripper": Returns float gripper value (0-1000) only
+            - "version": Returns Dict with serial_number, hardware_version, firmware_version
+            - "temperature": Returns List[float] of temperatures in Celsius
+            - "velocity": Returns List[float] of velocities in degrees per second
+            - "gripper_type": Returns str (e.g., "50mm" or "100mm") or None if unavailable
+            - "self_check": Returns Dict with self-check data (or None if failed)
         :param timeout: Maximum time to wait for response in seconds
-        :param log: Whether to log version info
-        :return: Dictionary with version info or None if failed
+        :return: Requested data or None if failed
         """
-        # Request version info and wait for response
-        if not self.servo_driver.acquire_info("version", wait=True, timeout=timeout):
-            logger.error("Failed to get version info within timeout period")
+        # Special handling for gripper_type: try cache first, then hardware query
+        if info_type == "gripper_type":
+            return self._get_gripper_type_with_cache(timeout)
+        
+        # Joint and gripper are acquired together from hardware using the "joint" command
+        if info_type in ("joint_gripper", "joint", "gripper"):
+            if not self.servo_driver.acquire_info("joint_gripper", wait=True, timeout=timeout):
+                logger.error(f"Failed to get joint/gripper data within timeout period")
+                return None
+            return self.data_parser.get_info(info_type)
+        
+        # Other info types map directly to hardware commands
+        if not self.servo_driver.acquire_info(info_type, wait=True, timeout=timeout):
+            logger.error(f"Failed to get {info_type} data within timeout period")
             return None
-
-        version_info = self.data_parser.get_version_info()
-        if version_info is None:
-            logger.error("Version info not available after successful acquisition")
-            return None
-
-
-        if log:
-            logger.info(
-                "Version info: "
-                f"Unique ID = {version_info.get('serial_number')}, "
-                f"Hardware Version = {version_info.get('hardware_version')}, "
-                f"Firmware Version = {version_info.get('firmware_version')}"
-            )
-        return version_info
-
-    def get_robot_state(self) -> Optional[Union[List[float], Tuple[List[float], bool, bool]]]:
-        """Get current joint angles.
-
-        :param robot_type: 'follower' or 'leader' or none for auto detection
-        :return: Joint state or None if failed
-        """
-
-        self.servo_driver.acquire_info("joint", wait=True, timeout=1.0)
-        joint_state = self.data_parser.get_joint_state()
-        return joint_state
-
-    def get_joints(self) -> Optional[List[float]]:
-        """Get current joint angles.
-
-        :param robot_type: 'follower' or 'leader' or none for auto detection
-        :return: List of joint angles in radians or None if failed
-        """
-        joint_state = self.get_robot_state()
-        if joint_state:
-            return joint_state.angles
-        return None
-
-    def get_gripper(self) -> Optional[float]:
-        """Get current gripper position.
-
-        :return: Gripper value from 0 (closed) to 100 (open) or None if failed
-        """
-        joint_state = self.get_robot_state()
-        if joint_state:
-            return joint_state.gripper
-        return None
-
-    def get_temperature(self, timeout: float = 5.0) -> Optional[List[float]]:
-        """Get current servo temperatures.
-
-        :param timeout: Maximum time to wait for response in seconds
-        :return: List of temperatures in Celsius for each servo, or None if failed
-        """
-        if not self.servo_driver.acquire_info("temperature", wait=True, timeout=timeout):
-            logger.error("Failed to get temperature data within timeout period")
-            return None
-
-        temp_data = self.data_parser.get_temperature_data()
-        if temp_data is None:
-            logger.error("Temperature data not available after successful acquisition")
-            return None
-
-        return temp_data['temperatures']
-
-    def get_velocity(self, timeout: float = 1.0) -> Optional[List[float]]:
-        """Get current servo velocities.
-
-        :param timeout: Maximum time to wait for response in seconds
-        :return: List of velocities in degrees per second for each servo, or None if failed
-        """
-        if not self.servo_driver.acquire_info("velocity", wait=True, timeout=timeout):
-            logger.error("Failed to get velocity data within timeout period")
-            return None
-
-        vel_data = self.data_parser.get_velocity_data()
-        if vel_data is None:
-            logger.error("Velocity data not available after successful acquisition")
-            return None
-
-        return vel_data['velocities']
-
-    def get_gripper_type(self, timeout: float = 1.0) -> Optional[str]:
-        """Get gripper travel range type.
-
-        :param timeout: Maximum time to wait for response in seconds
-        :return: Gripper type name (e.g., "50mm" or "100mm"), or None if failed
-        """
-        # JSON file path in the same folder as this module
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        json_file_path = os.path.join(current_dir, "gripper_type.json")
-
-        # 1) Try to load cached gripper type from JSON file (no serial communication)
-        if os.path.exists(json_file_path):
-            try:
-                with open(json_file_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                cached_type = data.get("type_name")
-                if isinstance(cached_type, str) and cached_type:
-                    self.gripper_type = cached_type
-                    return cached_type
-            except Exception as e:
-                logger.warning(f"Failed to load cached gripper type from JSON, will try hardware query: {e}")
-
-        # 2) If no valid cache, actively query hardware
-        if not self.servo_driver.acquire_info("gripper_type", wait=False, timeout=timeout):
-            logger.w("Failed to get gripper type data within timeout period")
-            return None
-
-        # Give the parser a brief moment to process the incoming frame
-
-        gripper_type_name = self.data_parser.get_gripper_type_data()
-        if gripper_type_name is None:
-            logger.warning("Gripper type (50mm or 100mm) should be defined by parameters")
-            return None
-
-        self.gripper_type = gripper_type_name
-
-        # Save to JSON file in the same folder as this module
-        try:
-            with open(json_file_path, 'w', encoding='utf-8') as f:
-                json.dump({"type_name": gripper_type_name}, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            logger.error(f"Failed to save gripper type data to JSON file: {e}")
-
-        return gripper_type_name
-
-    def get_self_check(self, timeout: float = 1.0):
-        """
-        Execute machine self-check (servo health) and return detailed status.
-
-        :param timeout: Maximum time to wait for response in seconds
-        :return: Dict with keys: robot_type, raw_mask, servo_status_bits, all_ok, faulty_ids, timestamp, or None if failed
-        """
-        if not self.servo_driver.acquire_info("self_check", wait=True, timeout=timeout):
-            logger.error("Failed to get self-check data within timeout period")
-            return None
-
-        sc_data = self.data_parser.get_self_check_data()
-
-        robot_type = self._robot_type()
-        if robot_type == "leader":
-            bits_full = sc_data["bits"][:6]
-        elif robot_type == "follower":
-            bits_full = sc_data["bits"][:10]
-        else:
-            logger.error("Invalid robot type")
-            return None
-        if sc_data is None:
-            logger.error("Self-check data not available after successful acquisition")
-            return None
-
-        # check if the bits_full is all True
-        if all(bits_full):
-            logger.info("All servos are OK")
-        else:
-            # print the faulty servo ids
-            faulty_ids = [i + 1 for i, bit in enumerate(bits_full) if not bit]
-            logger.warning(f"Broken servo IDs: {faulty_ids}")
-            return None
+        
+        result = self.data_parser.get_info(info_type)
+        
+        return result
 
     def get_pose(self) -> Optional[Union[List[float], Dict]]:
         """Get current end-effector pose.
@@ -256,7 +122,7 @@ class SynriaRobotAPI:
         :return: Dictionary with position, rotation, euler_xyz, quaternion_xyzw, transform, or None if failed
         """
 
-        joint_angles = self.get_joints()
+        joint_angles = self.get_robot_state("joint")
         if joint_angles is None:
             logger.error("无法获取关节角度")
             return None
@@ -289,9 +155,9 @@ class SynriaRobotAPI:
         """
         # time.sleep(0.1)
         home_joints = [0.0] * 6
-        self.set_robot_target(target_joints=home_joints, gripper_value=1000, speed_deg_s=speed_deg_s, wait_for_completion=True)
+        self.set_robot_state(target_joints=home_joints, gripper_value=1000, speed_deg_s=speed_deg_s, wait_for_completion=True)
 
-    def set_robot_target(self,
+    def set_robot_state(self,
                             target_joints: Optional[List[float]] = None,
                             gripper_value: Optional[int] = None,
                             joint_format: str = 'rad',
@@ -334,7 +200,7 @@ class SynriaRobotAPI:
         # Either waiting was not requested, or only gripper was commanded.
         return True
 
-    def set_pose_target(self,
+    def set_pose(self,
                         target_pose: List[float],
                         backend: str = 'numpy',
                         method: str = 'dls',
@@ -372,7 +238,7 @@ class SynriaRobotAPI:
             if display:
                 logger.info("使用随机初始值")
         else:
-            q_init = self.get_joints()
+            q_init = self.get_robot_state("joint")
             if q_init is None:
                 return {
                     'success': False,
@@ -411,7 +277,7 @@ class SynriaRobotAPI:
 
             # Execute motion if requested
             if execute:
-                result = self.set_robot_target(target_joints=ik_result['q'], joint_format='rad', speed_deg_s=speed_deg_s, wait_for_completion=True)
+                result = self.set_robot_state(target_joints=ik_result['q'], joint_format='rad', speed_deg_s=speed_deg_s, wait_for_completion=True)
                 ik_result['motion_executed'] = result
             else:
                 ik_result['motion_executed'] = False
@@ -604,14 +470,14 @@ class SynriaRobotAPI:
         
         # Set backend if specified (inverse_kinematics uses global backend)
         if backend is not None:
-            rc.set_backend(backend, device=device if 'device' in locals() else 'cpu')
+            rc.set_backend(backend)
         
         target_poses = to_numpy(target_poses)
         n_poses = len(target_poses)
         
         # Get initial joint configuration
         if q_init is None:
-            q_init = self.get_joints()
+            q_init = self.get_robot_state("joint")
             if q_init is None:
                 raise ValueError("Cannot get current joint angles. Please provide q_init.")
         
@@ -742,12 +608,12 @@ class SynriaRobotAPI:
 
         def _print_once(robot_type):
             pose = None
-            state = self.get_robot_state()
+            state = self.get_robot_state("joint_gripper")
             # get the gripper type
             
-            temperature = self.get_temperature()
-            velocity = self.get_velocity()
-            self.get_self_check()
+            temperature = self.get_robot_state("temperature", timeout=5.0)
+            velocity = self.get_robot_state("velocity")
+            self.get_robot_state("self_check")
             if state is None:
                 logger.warning("无法获取关节状态")
                 return
@@ -837,13 +703,13 @@ class SynriaRobotAPI:
         # logger.info(f"{log_prefix}...")
 
         while time.time() - start_time < timeout:
-            current_joints = self.get_joints()
+            current_joints = self.get_robot_state("joint")
             if current_joints is not None:
                 if all(abs(a - b) <= tolerance for a, b in zip(current_joints, target_joints)):
                     # logger.info("已到达目标位置")
                     return True
         logger.warning("等待关节到目标附近超时")
-        joints = self.get_joints()
+        joints = self.get_robot_state("joint")
         logger.warning(f"目标关节角度: {target_joints}")
         logger.warning(f"关节角度: {joints}")
 
@@ -859,7 +725,7 @@ class SynriaRobotAPI:
         if self.robot_type is not None:
             return self.robot_type
 
-        version = self.get_version(log=False)
+        version = self.get_robot_state("version")
         if version is None:
             return None
             
@@ -871,3 +737,57 @@ class SynriaRobotAPI:
             self.robot_type = "leader"
         
         return self.robot_type
+
+    def _get_gripper_type_with_cache(self, timeout: float = 1.0) -> Optional[str]:
+        """Get gripper type with caching support.
+        
+        First tries to load from JSON cache, then queries hardware if needed.
+        Returns None with warning if hardware query fails (non-critical).
+        
+        :param timeout: Maximum time to wait for hardware response in seconds
+        :return: Gripper type name (e.g., "50mm" or "100mm"), or None if unavailable
+        """
+        # JSON file path in the same folder as this module
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        json_file_path = os.path.join(current_dir, "gripper_type.json")
+        
+        # 1) Try to load cached gripper type from JSON file (no serial communication)
+        if os.path.exists(json_file_path):
+            try:
+                with open(json_file_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                cached_type = data.get("type_name")
+                if isinstance(cached_type, str) and cached_type:
+                    return cached_type
+            except Exception as e:
+                logger.warning(f"Failed to load cached gripper type from JSON, will try hardware query: {e}")
+        
+        # 2) If no valid cache, actively query hardware
+        # Try with wait=True first to get response reliably
+        if not self.servo_driver.acquire_info("gripper_type", wait=True, timeout=timeout):
+            logger.warning("Failed to get gripper_type data within timeout period")
+            return None
+        
+        result = self.data_parser.get_info("gripper_type")
+        if result is None:
+            logger.warning("Gripper type (50mm or 100mm) should be defined by parameters")
+            return None
+        
+        # Save to JSON file for future use
+        self._save_gripper_type_to_json(result)
+        
+        return result
+    
+    def _save_gripper_type_to_json(self, gripper_type: str):
+        """Save gripper type to JSON file in the same folder as this module."""
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        json_file_path = os.path.join(current_dir, "gripper_type.json")
+        
+        try:
+            with open(json_file_path, 'w', encoding='utf-8') as f:
+                json.dump({"type_name": gripper_type}, f, indent=2, ensure_ascii=False)
+            if self.debug_mode:
+                logger.debug(f"Saved gripper type '{gripper_type}' to {json_file_path}")
+        except Exception as e:
+            logger.error(f"Failed to save gripper type to JSON file: {e}")
+

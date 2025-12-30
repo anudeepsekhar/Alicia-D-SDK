@@ -36,7 +36,7 @@ class ServoDriver:
         "torque_on": [0xAA, 0x05, 0x00, 0x01, 0x01, 0xF9, 0xFF],
         "torque_off": [0xAA, 0x05, 0x00, 0x01, 0x00, 0x6F, 0xFF],
         # Joint information acquisition (position and status)
-        "joint": [0xAA, 0x06, 0x00, 0x01, 0xFE, 0x9A, 0xFF],
+        "joint_gripper": [0xAA, 0x06, 0x00, 0x01, 0xFE, 0x9A, 0xFF],
         # Temperature information acquisition
         "temperature": [0xAA, 0x06, 0x01, 0x01, 0xFE, 0xAD, 0xFF],
         # Velocity information acquisition
@@ -60,28 +60,11 @@ class ServoDriver:
         self.serial_comm = SerialComm(lock=self._lock, port=port, debug_mode=debug_mode)
         self.data_parser = DataParser(lock=self._lock, debug_mode=debug_mode)
 
-        # Number of servos
-        self.servo_count = 9
+
         self.joint_count = 6
-
-        # Servo mapping table: joint index -> servo index
-        # 6 joints of the arm are mapped to 9 servos
-        # [joint1, joint1(duplicate), joint2, joint2(reversed), joint3, joint3(reversed), joint4, joint5, joint6]
-        self.joint_to_servo_map = [
-            (0, 1.0),    # joint 1 -> servo 1 (normal)
-            (0, 1.0),    # joint 1 -> servo 2 (duplicate)
-            (1, 1.0),    # joint 2 -> servo 3 (normal)
-            (1, -1.0),   # joint 2 -> servo 4 (reversed)
-            (2, 1.0),    # joint 3 -> servo 5 (normal)
-            (2, -1.0),   # joint 3 -> servo 6 (reversed)
-            (3, 1.0),    # joint 4 -> servo 7 (normal)
-            (4, 1.0),    # joint 5 -> servo 8 (normal)
-            (5, 1.0),    # joint 6 -> servo 9 (normal)
-        ]
-
         # State update thread related
         self._update_thread = None
-        self.thread_update_interval = 0.005  # Update interval in seconds
+        self.thread_update_interval = 0.001  # Update interval in seconds
         self._stop_thread = threading.Event()
         self._thread_running = False
 
@@ -124,7 +107,7 @@ class ServoDriver:
         if result:
             # Start state update thread after successful connection
             self.start_update_thread()
-            self.wait_for_valid_state()
+            # self.wait_for_valid_state()
         return result
 
     def disconnect(self):

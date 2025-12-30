@@ -47,7 +47,7 @@ class _BaseTrajectoryExecutor:
     ):
         """Initialize base trajectory executor.
         
-        :param robot: Robot controller instance (must have set_robot_target method)
+        :param robot: Robot controller instance (must have set_robot_state method)
         :param speed_deg_s: Joint speed in degrees per second
         :param tolerance: Joint tolerance in radians for reaching target
         :param timeout: Timeout for each motion command in seconds
@@ -121,7 +121,7 @@ class _BaseTrajectoryExecutor:
         beauty_print("Moving to starting position...")
         first_gripper = int(gripper_values[0]) if gripper_values is not None else None
         
-        success = self.robot.set_robot_target(
+        success = self.robot.set_robot_state(
             target_joints=joint_angles[0],
             gripper_value=first_gripper,
             joint_format='rad',
@@ -161,7 +161,7 @@ class _BaseTrajectoryExecutor:
                     point_target_time = self.trajectory_start_time + trajectory_times[i]
             
             # Send command
-            success = self.robot.set_robot_target(
+            success = self.robot.set_robot_state(
                 target_joints=joint_angles[i],
                 gripper_value=gripper_val,
                 joint_format='rad',
@@ -252,7 +252,7 @@ class JointTrajectoryExecutor(_BaseTrajectoryExecutor):
     ):
         """Initialize joint trajectory executor.
         
-        :param robot: Robot controller instance (must have set_robot_target method)
+        :param robot: Robot controller instance (must have set_robot_state method)
         :param speed_deg_s: Joint speed in degrees per second
         :param tolerance: Joint tolerance in radians for reaching target
         :param timeout: Timeout for each motion command in seconds
@@ -326,7 +326,7 @@ class CartesianTrajectoryExecutor(_BaseTrajectoryExecutor):
     ):
         """Initialize Cartesian trajectory executor.
         
-        :param robot: Robot controller instance (must have set_robot_target method)
+        :param robot: Robot controller instance (must have set_robot_state method)
         :param speed_deg_s: Joint speed in degrees per second
         :param tolerance: Joint tolerance in radians for reaching target
         :param timeout: Timeout for each motion command in seconds
