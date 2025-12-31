@@ -1,5 +1,6 @@
-from alicia_d_sdk.utils.logger.beauty_logger import *
+from .beauty_logger import *
 from datetime import datetime
+from .beauty_logger import hex_print
 
 # 创建统一的日志文件，使用日期时间命名
 _log_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

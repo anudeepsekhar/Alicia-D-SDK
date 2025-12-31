@@ -191,8 +191,6 @@ class SerialComm:
         """
         try:
             # Check serial port status before any operation
-            # Don't auto-reconnect in read_frame to avoid unexpected reconnections
-            # Connection should be managed explicitly by connect()/disconnect()
             if not self.serial_port or not self.serial_port.is_open:
                 return None
 

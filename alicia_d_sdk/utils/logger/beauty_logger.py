@@ -1,5 +1,5 @@
 import os
-
+from typing import List
 
 # 定义日志级别常量
 class LogLevel:
@@ -19,12 +19,12 @@ class BeautyLogger:
 
     def __init__(self, log_dir: str, log_name: str = 'rofunc.log', verbose: bool = True, min_level: int = LogLevel.INFO):
         """
-        Initialize Alicia-D-SDK lightweight logger.
+        Alicia-D-SDK轻量级日志器
 
-        :param log_dir: Log file save path
-        :param log_name: Log file name
-        :param verbose: Whether to print logs to console
-        :param min_level: Minimum log level
+        :param log_dir: 日志文件保存路径
+        :param log_name: 日志文件名
+        :param verbose: 是否在控制台打印日志
+        :param min_level: 最小日志级别
         """
         self.log_dir = log_dir
         self.log_name = log_name
@@ -33,25 +33,25 @@ class BeautyLogger:
         self.min_level = min_level
 
         os.makedirs(self.log_dir, exist_ok=True)
-
+        
     def _write_log(self, content, type):
-        with open(self.log_path, "a", encoding="utf-8") as f:
+        with open(self.log_path, "a") as f:
             f.write(" Alicia-D-SDK:{}] {}\n".format(type.upper(), content))
 
     def _should_print(self, level: int) -> bool:
         """
-        Check if log should be printed.
+        检查是否应该打印日志
 
-        :param level: Log level to check
-        :return: Whether should print
+        :param level: 要检查的日志级别
+        :return: 是否应该打印
         """
         return self.verbose and level >= self.min_level
 
     def set_min_level(self, level: int):
         """
-        Set minimum log level.
+        设置最小日志级别
 
-        :param level: Minimum log level
+        :param level: 最小日志级别
         """
         if level < LogLevel.DEBUG or level > LogLevel.SUCCESS:
             raise ValueError("Invalid log level. Must be between LogLevel.DEBUG and LogLevel.SUCCESS")
@@ -59,10 +59,10 @@ class BeautyLogger:
 
     def warning(self, content, local_verbose=True):
         """
-        Print warning message.
+        打印警告消息
 
-        :param content: Warning message content
-        :param local_verbose: Whether to print to console
+        :param content: 警告消息内容
+        :param local_verbose: 是否在控制台打印
         """
         if self._should_print(LogLevel.WARNING) and local_verbose:
             beauty_print(content, type="warning")
@@ -70,10 +70,10 @@ class BeautyLogger:
 
     def module(self, content, local_verbose=True):
         """
-        Print module message.
+        打印模块消息
 
-        :param content: Module message content
-        :param local_verbose: Whether to print to console
+        :param content: 模块消息内容
+        :param local_verbose: 是否在控制台打印
         """
         if self._should_print(LogLevel.MODULE) and local_verbose:
             beauty_print(content, type="module")
@@ -81,10 +81,10 @@ class BeautyLogger:
 
     def info(self, content, local_verbose=True):
         """
-        Print info message.
+        打印信息消息
 
-        :param content: Info message content
-        :param local_verbose: Whether to print to console
+        :param content: 信息消息内容
+        :param local_verbose: 是否在控制台打印
         """
         if self._should_print(LogLevel.INFO) and local_verbose:
             beauty_print(content, type="info")
@@ -92,35 +92,33 @@ class BeautyLogger:
 
     def debug(self, content, local_verbose=True):
         """
-        Print debug message.
-
-        :param content: Debug message content
-        :param local_verbose: Whether to print to console
+        打印调试消息
+        
+        :param content: 调试消息内容
+        :param local_verbose: 是否在控制台打印
         """
         if self._should_print(LogLevel.DEBUG) and local_verbose:
             beauty_print(content, type="debug")
         self._write_log(content, type="debug")
 
-    def error(self, content, local_verbose=True, raise_exception=True):
+    def error(self, content, local_verbose=True):
         """
-        Print error message.
-
-        :param content: Error message content
-        :param local_verbose: Whether to print to console
-        :param raise_exception: Whether to raise exception
+        打印错误消息
+        
+        :param content: 错误消息内容
+        :param local_verbose: 是否在控制台打印
         """
         if self._should_print(LogLevel.ERROR) and local_verbose:
             beauty_print(content, type="error")
         self._write_log(content, type="error")
-        if raise_exception:
-            raise Exception(content)
+        raise Exception(content)
 
     def success(self, content, local_verbose=True):
         """
-        Print success message.
-
-        :param content: Success message content
-        :param local_verbose: Whether to print to console
+        打印成功消息
+        
+        :param content: 成功消息内容
+        :param local_verbose: 是否在控制台打印
         """
         if self._should_print(LogLevel.SUCCESS) and local_verbose:
             beauty_print(content, type="success")
@@ -129,10 +127,10 @@ class BeautyLogger:
 
 def beauty_print(content, type: str = None):
     """
-    Print content with different colors.
+    使用不同颜色打印内容
 
-    :param content: Content to print
-    :param type: Supported types: "warning", "module", "info", "error", "debug", "success"
+    :param content: 要打印的内容
+    :param type: 支持 "warning", "module", "info", "error", "debug", "success"
     """
     if type is None:
         type = "info"
@@ -150,3 +148,15 @@ def beauty_print(content, type: str = None):
         print("\033[1;32m [Alicia-D-SDK:SUCCESS] {}\033[0m".format(content))  # For success (green)
     else:
         raise ValueError("Invalid level")
+
+
+def hex_print(logger: BeautyLogger, title: str, data: List[int]):
+    """
+    print the data in hex format
+    :param logger: the logger
+    :param title: the title of the data
+    :param data: the data to print
+    :return: None
+    """
+    hex_buf = ' '.join(f"{b:02X}" for b in data)
+    logger.info(f"{title}: {hex_buf}")

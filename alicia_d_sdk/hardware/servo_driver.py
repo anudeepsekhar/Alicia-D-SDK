@@ -5,7 +5,7 @@ from typing import List, Optional, Dict
 
 from alicia_d_sdk.hardware.serial_comm import SerialComm
 from alicia_d_sdk.hardware.data_parser import DataParser
-from alicia_d_sdk.utils.logger import logger
+from alicia_d_sdk.utils.logger import logger, hex_print
 
 
 class ServoDriver:

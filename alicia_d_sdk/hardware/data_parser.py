@@ -22,7 +22,6 @@ class DataParser:
 
     # Command IDs
     CMD_GRIPPER = 0x04     # Gripper control and travel feedback
-    CMD_GRIPPER_V6 = 0x12  # Gripper control for V6 firmware
     CMD_ZERO_POS = 0x03    # Set current position as zero
     CMD_JOINT = 0x06       # Joint angle feedback and control
     CMD_VERSION = 0x01     # Firmware version feedback
