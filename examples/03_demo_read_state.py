@@ -1,14 +1,30 @@
+# Copyright (c) 2025 Synria Robotics Co., Ltd.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
+# Author: Synria Robotics Team
+# Website: https://synriarobotics.ai
+
 """
 Demo: Read and print robot state
-
-Copyright (c) 2025 Synria Robotics Co., Ltd.
-Licensed under GPL v3.0
 
 Features:
 - Read joint angles (radians or degrees)
 - Read end-effector pose
 - Read gripper state
 - Support single or continuous printing
+- Configurable reading frequency (FPS) for continuous mode
 """
 
 import alicia_d_sdk
@@ -30,8 +46,8 @@ def main(args):
         if args.single:
             robot.print_state(continuous=False, output_format=args.format)
         else:
-            # Print robot state continuously
-            robot.print_state(continuous=True, output_format=args.format)
+            # Print robot state continuously with specified FPS
+            robot.print_state(continuous=True, output_format=args.format, fps=args.fps)
         
     except KeyboardInterrupt:
         print("\n✗ Reading interrupted")
@@ -54,7 +70,8 @@ if __name__ == '__main__':
     parser.add_argument('--gripper_type', type=str, default="50mm",  help="夹爪型号 (默认: 50mm)")
     # Display settings
     parser.add_argument('--format', type=str, default='deg', choices=['rad', 'deg'], help="Angle display format: rad(radians) or deg(degrees)")
-    parser.add_argument('--single', action='store_true',  help="Print state once (default: continuous print)")         
+    parser.add_argument('--single', action='store_true',  help="Print state once (default: continuous print)")
+    parser.add_argument('--fps', type=float, default=30.0, help="Target frames per second for continuous mode (default: 200 Hz)")         
     
     args = parser.parse_args()
     

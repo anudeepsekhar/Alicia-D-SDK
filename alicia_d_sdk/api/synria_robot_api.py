@@ -1,3 +1,21 @@
+# Copyright (c) 2025 Synria Robotics Co., Ltd.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
+# Author: Synria Robotics Team
+# Website: https://synriarobotics.ai
+
 """
 SynriaRobotAPI - User-level API
 
@@ -23,8 +41,8 @@ from synriard import get_model_path
 
 from alicia_d_sdk.hardware import ServoDriver
 from alicia_d_sdk.hardware.data_parser import JointState
-from alicia_d_sdk.utils.logger import logger
-
+from alicia_d_sdk.utils import logger
+from alicia_d_sdk.utils import precise_sleep
 
 class SynriaRobotAPI:
     """Synria robot arm API - provides unified user interface"""
@@ -598,11 +616,12 @@ class SynriaRobotAPI:
         self.servo_driver.acquire_info("torque_on", wait=True, timeout=1.0)
         return True
 
-    def print_state(self, continuous: bool = False, output_format: str = "deg"):
+    def print_state(self, continuous: bool = False, output_format: str = "deg", fps: float = 200.0):
         """Print current robot state.
 
         :param continuous: Print continuously if True, once if False
         :param output_format: Angle format, 'deg' or 'rad'
+        :param fps: Target frames per second for continuous mode. Default 200 Hz
         """
         robot_type = self._robot_type()
 
@@ -649,11 +668,17 @@ class SynriaRobotAPI:
 
             print("\n")
         if continuous:
-            logger.info("开始连续状态打印，按 Ctrl+C 停止")
+            # For high frequency (>= 100 Hz), use smaller spin_threshold for better efficiency
+            # For 200 Hz (5ms interval), use 2ms spin_threshold to allow some sleep time
+            interval = 1 / fps
+            spin_threshold = 0.002 if interval <= 0.010 else 0.010  # 2ms for high freq, 10ms for low freq
+            logger.info(f"开始连续状态打印，按 Ctrl+C 停止 (目标FPS: {fps})")
             try:
                 while True:
+                    start_time = time.perf_counter()
                     _print_once(robot_type)
-                    time.sleep(0.03)
+                    dt_time = time.perf_counter() - start_time
+                    precise_sleep(interval - dt_time, spin_threshold=spin_threshold)
             except KeyboardInterrupt:
                 logger.info("停止连续状态打印")
         else:
