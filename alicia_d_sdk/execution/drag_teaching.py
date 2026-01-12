@@ -25,6 +25,7 @@ from datetime import datetime
 import numpy as np
 
 from alicia_d_sdk.utils.trajectory_utils import record_waypoints_manual
+from alicia_d_sdk.utils import precise_sleep
 
 
 class SimpleDragTeaching:
@@ -39,7 +40,7 @@ class SimpleDragTeaching:
         if self.args.save_motion:
             print(f"动作名: {self.args.save_motion}")
         if self.args.mode == 'auto':
-            print(f"采样频率: {self.args.sample_hz} Hz")
+            print(f"采样频率: {getattr(self.args, 'sample_hz', 100.0)} Hz")
         # 显示回放/运动速度
         if hasattr(self.args, "speed_deg_s"):
             print(f"关节速度: {self.args.speed_deg_s} deg/s")
@@ -64,40 +65,34 @@ class SimpleDragTeaching:
 
         def record_loop():
             """后台记录线程"""
-            dt = 1.0 / self.args.sample_hz
-            start_time = time.time()
+            sample_hz = getattr(self.args, 'sample_hz', 100.0)
+            interval = 1.0 / sample_hz
+            # For high frequency (>= 100 Hz), use smaller spin_threshold for better efficiency
+            # For lower frequencies, use larger spin_threshold to reduce CPU usage
+            spin_threshold = 0.002 if interval <= 0.010 else 0.010  # 2ms for high freq, 10ms for low freq
+            recording_start_time = time.time()
 
             while recording.is_set():
+                loop_start = time.perf_counter()
                 try:
-                    current_time = time.time() - start_time
-                    # Get joint and gripper together in a single call (more efficient)
                     state = self.controller.get_robot_state("joint_gripper")
-                    if state is not None:
-                        joints = state.angles
-                        gripper = state.gripper
-                    else:
-                        joints = None
-                        gripper = 0.0
-
-                    if joints is not None:
-                        point = {
-                            "t": current_time,
-                            "q": joints,
-                            "grip": gripper
-                        }
-                        trajectory.append(point)
-
+                    if state is not None and state.angles is not None:
+                        trajectory.append({
+                            "t": time.time() - recording_start_time,
+                            "q": state.angles,
+                            "grip": state.gripper
+                        })
                 except Exception as e:
                     print(f"[警告] 记录失败: {e}")
 
-                time.sleep(dt)
+                # Calculate time taken by the sampling operation and use precise_sleep
+                precise_sleep(interval - (time.perf_counter() - loop_start), spin_threshold=spin_threshold)
 
         try:
             input("开始拖动，按回车开始记录...")
             recording.set()
             thread = threading.Thread(target=record_loop, daemon=True)
             thread.start()
-            print(f"[记录中] 频率 {self.args.sample_hz} Hz...")
 
             input("按回车停止记录...")
             recording.clear()
@@ -113,13 +108,6 @@ class SimpleDragTeaching:
     def replay_only_mode(self) -> Optional[List[Dict[str, Any]]]:
         """仅回放模式 - 加载已有数据"""
         print("\n=== 仅回放模式 ===")
-
-        # 检查动作名是否提供
-        if not self.args.save_motion:
-            print("[错误] 回放模式需要指定动作名")
-            print("请使用 --save-motion <motion_name> 参数")
-            print("或使用 --list-motions 查看可用动作")
-            return None
 
         # 加载数据
         save_dir = os.path.join("example_motions", self.args.save_motion)
@@ -201,10 +189,12 @@ class SimpleDragTeaching:
             "motion": self.args.save_motion,
             "mode": self.args.mode,  # 保存记录时的模式
             "created_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            "sample_hz": self.args.sample_hz,
             "count": len(data),
             "description": "拖动示教轨迹"
         }
+        # 只有auto模式才保存采样频率
+        if self.args.mode == 'auto':
+            meta["sample_hz"] = getattr(self.args, 'sample_hz', 100.0)
 
         meta_path = os.path.join(save_dir, "meta.json")
         with open(meta_path, 'w', encoding='utf-8') as f:
@@ -277,15 +267,13 @@ class SimpleDragTeaching:
 
         print("[回放] 开始...")
 
-        # 先以速度30移动到第一个点
+        # 移动到起始点
         first_point = data[0]
-        first_gripper = first_point.get("grip", 0.0)
         print("[回放] 移动到起始点（速度30）...")
         try:
-
             self.controller.set_robot_state(
                 target_joints=first_point["q"],
-                gripper_value=first_gripper,
+                gripper_value=first_point.get("grip", 0.0),
                 joint_format='rad',
                 speed_deg_s=30,
                 wait_for_completion=True,
@@ -293,7 +281,6 @@ class SimpleDragTeaching:
         except Exception as e:
             print(f"[警告] 移动到起始点失败: {e}")
 
-        # 等待0.001秒
         time.sleep(0.001)
         print("[回放] 开始播放轨迹...")
 
@@ -305,34 +292,14 @@ class SimpleDragTeaching:
             print("[回放] 使用直接设置模式（快速）")
             for i, point in enumerate(data):
                 try:
-                    # 根据速度和角度差计算运动时间
-                    motion_time = _sleep_based_on_velocity(point, prev_joints if i > 0 else None)
-
-                    # 获取夹爪值
-                    gripper_value = point.get("grip", 0.0)
-
-                    # 使用高级 API 统一控制关节和夹爪（避免直接依赖底层 driver）
-                    # 关节数据在示教阶段按弧度记录，这里保持 joint_format='rad'
-                    # 使用 wait_for_completion=False 让命令异步执行，然后根据计算的时间等待
-                    start_time = time.time()
                     self.controller.set_robot_state(
                         target_joints=point["q"],
-                        gripper_value=gripper_value,
+                        gripper_value=point.get("grip", 0.0),
                         joint_format='rad',
                         speed_deg_s=speed_deg_s,
                         tolerance=0.3,
-                        wait_for_completion=True,  # 异步执行，由时间控制节奏
+                        wait_for_completion=True,
                     )
-
-                    # if motion_time > 0:
-                    #     elapsed = time.time() - start_time
-                    #     remaining_time = motion_time - elapsed
-                    #     if remaining_time > 0:
-                    #         # 缩放系数 = speed_deg_s / 5，反映实际运动时间与理论时间的比例关系
-                    #         speed_factor = max(1.0, speed_deg_s / 5.0)
-                    #         # time.sleep(remaining_time/ speed_factor)
-
-                    # 更新前一个点的关节角度
                     prev_joints = point["q"]
 
                     print(f"[回放] {i+1}/{len(data)}")
@@ -344,59 +311,26 @@ class SimpleDragTeaching:
             print("[回放] 使用插值运动模式（平滑）")
             for i, point in enumerate(data):
                 try:
-                    # 根据速度和角度差计算运动时间
                     motion_time = _sleep_based_on_velocity(point, prev_joints if i > 0 else None)
-
                     start_time = time.time()
-                    # 获取夹爪值
-                    gripper_value = point.get("grip", 0.0)
                     
-                    # 使用统一的 set_robot_state 接口同时设置关节和夹爪
-                    # 注意：gripper_value 在记录时可能是 0-1000 范围，需要确保范围正确
-                    try:
-                        self.controller.set_robot_state(
-                            target_joints=point["q"],
-                            gripper_value=int(gripper_value) if gripper_value is not None else None,
-                            joint_format='rad',
-                            speed_deg_s=speed_deg_s,
-                            wait_for_completion=False
-                        )
-                    except Exception as e:
-                        print(f"[警告] 设置关节/夹爪失败: {e}")
+                    self.controller.set_robot_state(
+                        target_joints=point["q"],
+                        gripper_value=int(point.get("grip", 0.0)) if point.get("grip") is not None else None,
+                        joint_format='rad',
+                        speed_deg_s=speed_deg_s,
+                        wait_for_completion=False
+                    )
 
-                    # 根据计算出的运动时间等待，确保运动有足够时间完成
-                    #
-                    # 【现象背后的原理】
-                    # 理论计算基于固定加速度22度/s²，但实际硬件行为更复杂：
-                    #
-                    # 1. 实际加速度可能大于理论值：
-                    #    - 控制器在高速时可能使用更激进的运动策略
-                    #    - 硬件实际加速度可能超过22度/s²（特别是高速运动时）
-                    #
-                    # 2. 速度越高，实际/理论时间比越小：
-                    #    - 低速(10度/s): 实际时间 ≈ 理论时间/2
-                    #    - 中速(30度/s): 实际时间 ≈ 理论时间/6
-                    #    - 高速(100度/s): 实际时间 ≈ 理论时间/20
-                    #    - 规律：实际时间 ≈ 理论时间 / (speed_deg_s / 5)
-                    #
-                    # 3. 物理原因：
-                    #    - 控制器内部可能有速度相关的优化算法
-                    #    - 高速时，加速度限制的影响相对减小，更容易达到目标速度
-                    #    - 可能存在非线性控制策略，速度越高，响应越快
-                    #
-                    # 4. 工程原因：
-                    #    - 控制器可能根据速度动态调整加速度限制
-                    #    - 通信和命令执行的开销在高速时占比更小
-                    #    - 实际运动曲线可能更接近理想曲线（减少平滑处理）
+                    # Wait based on calculated motion time with speed factor adjustment
+                    # Speed factor accounts for actual vs theoretical time ratio at different speeds
                     if motion_time > 0:
                         elapsed = time.time() - start_time
                         remaining_time = motion_time - elapsed
                         if remaining_time > 0:
-                            # 缩放系数 = speed_deg_s / 5，反映实际运动时间与理论时间的比例关系
                             speed_factor = max(1.0, speed_deg_s / 5.0)
                             time.sleep(remaining_time / speed_factor)
 
-                    # 更新前一个点的关节角度
                     prev_joints = point["q"]
 
                     print(f"[回放] {i+1}/{len(data)}")

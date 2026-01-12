@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "alicia_d_sdk"
-version = "6.1.0"
+version = "6.1.0rc1"
 description = "Python SDK for controlling the Alicia D robotic arm."
 readme = "README.md"
 requires-python = ">=3.7"
@@ -35,8 +35,8 @@ dependencies = [
     "websockets==13.1",
     "pythoncrc",
     "pycrc",
+    "synriard>=1.0.3rc1",  # Allow pre-release versions
     "robocore @ git+https://github.com/Synria-Robotics/RoboCore.git@v2.0.0",
-    "synriard @ git+https://github.com/Synria-Robotics/Synria-Robot-Descriptions.git", 
 ]
 
 [project.urls]

@@ -89,6 +89,7 @@ if __name__ == "__main__":
     # Robot configuration
     parser.add_argument('--port', type=str, default="", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
     parser.add_argument('--speed_deg_s', type=int, default=15,  help="关节运动速度 (单位: 度/秒，默认: 15，范围: 10-80度/秒)")
+    parser.add_argument('--sample_hz', type=float, default=100.0, help="采样频率 (单位: Hz，默认: 100.0，仅用于auto模式)")
 
     parser.add_argument('--mode', choices=['manual', 'auto', 'replay_only'], default='auto',
                        help="模式: manual(手动插值) 或 auto(自动快速) 或 replay_only(仅回放)")

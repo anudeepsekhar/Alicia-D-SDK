@@ -184,24 +184,46 @@ class ServoDriver:
         }
 
     def _update_loop(self):
-        """Main loop of state update thread"""
-
+        """Main loop of state update thread (supports responsive polling)"""
         while not self._stop_thread.is_set():
-            time.sleep(self.thread_update_interval)
             try:
-                with self._lock:
-                    # Read one frame
-                    frame = self.serial_comm.read_frame()
-                if frame == 9999999:
-                    logger.error("Severe serial communication error detected, robot arm may be disconnected", raise_exception=False)
-                    break
-                if frame:
-                    self.data_parser.parse_frame(frame)
+                # Read and process all available frames in one iteration
+                frames_read = 0
+                max_frames_per_iteration = 10  # Limit to prevent blocking too long
 
+                while frames_read < max_frames_per_iteration and not self._stop_thread.is_set():
+                    with self._lock:
+                        frame = self.serial_comm.read_frame()
+                    
+                    if frame is None:
+                        # No more frames available, break inner loop
+                        break
+                    
+                    # Handle severe communication error
+                    if frame == 9999999:
+                        try:
+                            logger.error("Severe serial communication error detected, robot arm may be disconnected")
+                        except Exception:
+                            pass  # Logger raises exception, but we want to continue to break
+                        break
+                    
+                    if frame:
+                        self.data_parser.parse_frame(frame)
+                        frames_read += 1
+                
+                # If we read frames, continue immediately (no sleep) for better responsiveness
+                # Otherwise, sleep to avoid busy waiting
+                if frames_read == 0:
+                    time.sleep(self.thread_update_interval)
             except Exception as e:
-                logger.error(f"State update thread exception: {str(e)}", raise_exception=False)
-
-                break
+                # Log error but continue loop for resilience (improved from breaking)
+                try:
+                    logger.error(f"State update thread exception: {str(e)}")
+                except Exception:
+                    # Logger raises exception, but we want to continue the loop
+                    pass
+                # Sleep briefly before retrying to avoid rapid error loops
+                time.sleep(self.thread_update_interval)
         self._thread_running = False
 
     def acquire_info(self, info_type: str, wait: bool = False, timeout: float = 2.0, retry_interval: float = 0.2) -> bool:
