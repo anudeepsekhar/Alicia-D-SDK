@@ -13,22 +13,28 @@ This guide will walk you through the installation and runtime environment config
 
 ## Installation Steps
 
-### 1. Clone or Download the Project
+### Method 1: Install from PyPI (Recommended)
+
 ```bash
+pip install alicia_d_sdk
+```
+
+This will automatically install all dependencies, including `synria-robocore`.
+
+### Method 2: Install from Source (Development Mode)
+
+If you need to modify the source code or contribute to development, you can clone from GitHub and install:
+
+```bash
+# 1. Clone the project
 git clone https://github.com/Synria-Robotics/Alicia-D-SDK.git -b v6.1.0
 cd Alicia-D-SDK
-```
 
-### 2. Create Python Environment and Install Dependencies
-Using Conda environment (recommended):
-```bash
+# 2. Create Python environment (Conda recommended)
 conda create -n alicia python=3.8
 conda activate alicia
-```
 
-Install dependencies and SDK:
-```bash
-# Local installation
+# 3. Install dependencies and SDK (development mode)
 pip install -e .
 ```
 
@@ -130,11 +136,14 @@ robot = create_robot(port="/dev/ttyACM0")
 
 ## 📦 Dependency Package Description
 
-Main dependencies:
+Main dependencies (automatically installed with `pip install alicia_d_sdk`):
 - `pyserial`: Serial communication
 - `numpy`: Numerical computation
+- `scipy`: Scientific computing
+- `matplotlib`: Plotting
 - `pycrc`: CRC checksum
-- `robocore`: Kinematics and trajectory planning (auto-installed)
+- `synria-robocore`: Kinematics and trajectory planning library
+- `synriard`: Robot description files
 
 ---
 

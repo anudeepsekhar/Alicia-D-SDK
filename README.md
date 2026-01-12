@@ -93,9 +93,15 @@
 │   └── 13_utmostFPS.py              # 最大帧率测试
 ```
 
+## 安装
+
+```bash
+pip install alicia_d_sdk
+```
+
 ## 快速开始
 
-1.  安装：请参见 [安装指南](docs/installation.md)
+1.  安装：使用 `pip install alicia_d_sdk` 或参见 [安装指南](docs/installation.md)
 2.  运行示例：
 ```bash
 cd examples

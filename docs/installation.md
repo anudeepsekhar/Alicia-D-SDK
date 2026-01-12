@@ -13,23 +13,28 @@
 
 ##  安装步骤
 
-### 1. 克隆或下载项目
+### 方法一：从 PyPI 安装（推荐）
+
 ```bash
+pip install alicia_d_sdk
+```
+
+这将自动安装所有依赖包，包括 `synria-robocore`。
+
+### 方法二：从源码安装（开发模式）
+
+如果您需要修改源码或参与开发，可以从 GitHub 克隆并安装：
+
+```bash
+# 1. 克隆项目
 git clone https://github.com/Synria-Robotics/Alicia-D-SDK.git -b v6.1.0
 cd Alicia-D-SDK
-```
 
-### 2. 创建 Python 环境并安装依赖
-使用 Conda 环境（推荐）：
-```bash
+# 2. 创建 Python 环境（推荐使用 Conda）
 conda create -n alicia python=3.8
 conda activate alicia
-```
 
-安装依赖与 SDK：
-
-```bash
-# Local installation
+# 3. 安装依赖与 SDK（开发模式）
 pip install -e .
 ```
 
@@ -129,11 +134,14 @@ robot = create_robot(port="/dev/ttyACM0")
 
 ## 📦 依赖包说明
 
-主要依赖：
+主要依赖（使用 `pip install alicia_d_sdk` 时会自动安装）：
 - `pyserial`: 串口通信
 - `numpy`: 数值计算
+- `scipy`: 科学计算
+- `matplotlib`: 绘图
 - `pycrc`: CRC校验
-- `robocore`: 运动学和轨迹规划（自动安装）
+- `synria-robocore`: 运动学和轨迹规划库
+- `synriard`: 机器人描述文件
 
 ---
 

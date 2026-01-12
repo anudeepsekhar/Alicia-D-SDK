@@ -96,9 +96,15 @@ The **Alicia-D SDK** is a Python toolkit for controlling the "Alicia-D" series o
 │   └── 13_utmostFPS.py              # Maximum FPS test
 ```
 
+## Installation
+
+```bash
+pip install alicia_d_sdk
+```
+
 ## Quick Start
 
-1.  Installation: Please refer to the [Installation Guide](docs/installation.md)
+1.  Installation: Use `pip install alicia_d_sdk` or refer to the [Installation Guide](docs/installation.md)
 2.  Run examples:
 ```bash
 cd examples
