@@ -111,7 +111,7 @@ class SynriaRobotAPI:
 
     # ==================== Get Robot Information ====================
 
-    def get_robot_state(self, info_type: str = "joint_gripper", timeout: float = 1.0) -> Optional[Union[JointState, Dict, List[float], str, float]]:
+    def get_robot_state(self, info_type: str = "joint_gripper", timeout: float = 1.0, cache: bool = True) -> Optional[Union[JointState, Dict, List[float], str, float]]:
         """
         Unified API to get robot state information.
         
@@ -128,7 +128,7 @@ class SynriaRobotAPI:
         :return: Requested data or None if failed
         """
         # Special handling for gripper_type: try cache first, then hardware query
-        if info_type == "gripper_type":
+        if info_type == "gripper_type" and cache:
             return self._get_gripper_type_with_cache(timeout)
         
         # Joint and gripper are acquired together from hardware using the "joint" command
