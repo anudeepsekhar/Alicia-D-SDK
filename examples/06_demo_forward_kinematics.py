@@ -27,7 +27,6 @@ Features:
 
 import numpy as np
 import alicia_d_sdk
-import robocore as rc
 from robocore.utils.beauty_logger import beauty_print_array, beauty_print
 
 
@@ -36,25 +35,23 @@ def main(args):
                                       gripper_type=args.gripper_type, 
                                       base_link=args.base_link, 
                                       end_link=args.end_link)
-    rc.set_backend('numpy')
 
     robot_model = robot.robot_model
     
-    # 显示机器人模型信息
-    robot_model.summary(show_chain=True)
+    # Display robot model information
     robot_model.print_tree(show_fixed=True)
     
-    # 使用API的详细姿态获取方法
+    # Use API's detailed pose retrieval method (backend is set internally)
     pose_info = robot.get_pose()
     
-    # 提取各个组件
+    # Extract each component
     position_fk = pose_info['position']
     rotation_fk = pose_info['rotation']
     euler_fk = pose_info['euler_xyz']
     quat_fk = pose_info['quaternion_xyzw']
     T_fk = pose_info['transform']
     
-    # 显示结果
+    # Display results
     beauty_print("End-Effector Position (m):")
     print(f"  p = {beauty_print_array(position_fk)}")
     beauty_print("End-Effector Orientation (Euler XYZ, radians):")

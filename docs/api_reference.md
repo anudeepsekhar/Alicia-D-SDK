@@ -15,7 +15,9 @@ robot = create_robot(
     debug_mode=False,           # 调试模式
     auto_connect=True,          # 自动连接
     base_link="base_link",      # 基座链路名称
-    end_link="tool0"            # 末端执行器链路名称
+    end_link="tool0",           # 末端执行器链路名称
+    backend=None,               # 计算后端，'numpy' 或 'torch'（默认: None，使用 'numpy'）
+    device="cpu"                # torch 后端设备，'cpu' 或 'cuda'（默认: 'cpu'）
 )
 ```
 
@@ -59,32 +61,72 @@ robot = create_robot()
   
   **返回值：** 成功返回 True，失败返回 False
 
-- `set_pose(target_pose, backend='numpy', method='dls', display=True, tolerance=1e-4, max_iters=100, multi_start=0, use_random_init=False, speed_deg_s=10, execute=True)`  
+- `set_pose(target_pose, backend=None, method='dls', pos_tol=1e-3, ori_tol=1e-3, max_iters=500, num_initial_guesses=10, initial_guess_strategy='current', initial_guess_scale=1.0, random_seed=None, speed_deg_s=10, execute=True, force_execute=False)`  
   使用逆运动学移动末端执行器到目标位姿
   
   **参数：**
   - `target_pose`: 目标位姿，格式为 [x, y, z, qx, qy, qz, qw]（位置 + 四元数）
-  - `backend`: 计算后端，'numpy' 或 'torch'，默认 'numpy'
+  - `backend`: 计算后端，'numpy' 或 'torch'（默认: None，使用初始化时设置的后端）
   - `method`: IK 求解方法，'dls'（阻尼最小二乘）、'pinv'（伪逆）或 'transpose'（转置），默认 'dls'
-  - `display`: 是否显示求解详情，默认 True
-  - `tolerance`: 位置和姿态容差，默认 1e-4
-  - `max_iters`: 最大迭代次数，默认 100
-  - `multi_start`: 多起点尝试次数，0 表示禁用，默认 0
-  - `use_random_init`: 是否使用随机初始猜测，默认 False（使用当前关节角度）
+  - `pos_tol`: 位置容差（米），默认 1e-3
+  - `ori_tol`: 姿态容差（弧度），默认 1e-3
+  - `max_iters`: 最大迭代次数，默认 500
+  - `num_initial_guesses`: 初始猜测数量（多起点），默认 10
+  - `initial_guess_strategy`: 初始猜测策略，'zero', 'random', 'sobol', 'latin', 'center', 'uniform', 'current'（默认: 'current'，使用当前关节角度）
+  - `initial_guess_scale`: 初始猜测缩放因子（0.0 到 1.0），默认 1.0
+  - `random_seed`: 随机种子，用于可重复性，默认 None
   - `speed_deg_s`: 运动速度（度/秒），默认 10
-  - `execute`: 如果为 True，执行运动，默认 True
+  - `execute`: 如果为 True 且 IK 成功，执行运动，默认 True
+  - `force_execute`: 如果为 True，即使 IK 失败也强制执行（需要 q 可用），默认 False
   
-  **返回值：** 包含 success, q, iters, pos_err, ori_err, message 的字典
+  **返回值：** 包含 success, q, iters, pos_err, ori_err, message, motion_executed, computation_time 的字典
 
 #### 轨迹规划：
-- `plan_joint_trajectory(waypoints, planner_type='b_spline', duration=None, num_points=800, ...)`  
+- `plan_joint_trajectory(waypoints, planner_type='b_spline', duration=None, num_points=800, bspline_degree=5, segment_method='quintic', duration_per_segment=None, num_points_per_segment=100, gripper_waypoints=None)`  
   规划关节空间轨迹，支持 B-Spline 和多段轨迹规划器
+  
+  **参数：**
+  - `waypoints`: 关节路径点数组 [n_waypoints, n_dof]（弧度）
+  - `planner_type`: 规划器类型，'b_spline' 或 'multi_segment'，默认 'b_spline'
+  - `duration`: 轨迹总时长（秒）（B-Spline 使用）
+  - `num_points`: 轨迹点数（B-Spline 使用），默认 800
+  - `bspline_degree`: B-Spline 阶数，3（三次）或 5（五次），默认 5
+  - `segment_method`: 多段方法，'cubic' 或 'quintic'，默认 'quintic'
+  - `duration_per_segment`: 每段时长（秒）（Multi-Segment 使用）
+  - `num_points_per_segment`: 每段点数（Multi-Segment 使用），默认 100
+  - `gripper_waypoints`: 可选的夹爪值数组 [n_waypoints]（0-1000）
+  
+  **返回值：** 包含 't', 'q', 'qd', 'qdd' 和可选 'gripper' 的字典
 
-- `plan_cartesian_trajectory(waypoints, duration=None, num_points=100, backend='numpy')`  
+- `plan_cartesian_trajectory(waypoints, duration=None, num_points=100, backend=None)`  
   规划笛卡尔空间样条轨迹
+  
+  **参数：**
+  - `waypoints`: 路径点数组 [n_waypoints, 4, 4]（变换矩阵）或 [n_waypoints, 3]（仅位置）
+  - `duration`: 轨迹总时长（秒），可选，如果为 None 则自动估算
+  - `num_points`: 轨迹点数，默认 100
+  - `backend`: 计算后端，'numpy' 或 'torch'（默认: None，使用初始化时设置的后端）
+  
+  **返回值：** 包含 't', 'poses', 'positions', 'orientations', 'velocities', 'accelerations' 的字典
 
-- `solve_ik_for_trajectory(target_poses, q_init=None, method='dls', ...)`  
+- `solve_ik_for_trajectory(target_poses, q_init=None, method='dls', max_iters=100, pos_tol=1e-2, ori_tol=1e-2, num_initial_guesses=5, initial_guess_strategy='random', initial_guess_scale=0.6, random_seed=None, backend=None, use_previous_solution=True)`  
   为一系列笛卡尔位姿批量求解逆运动学
+  
+  **参数：**
+  - `target_poses`: 目标位姿数组 [n_poses, 4, 4]（变换矩阵）
+  - `q_init`: 初始关节配置（如果为 None，使用当前关节角度）
+  - `method`: IK 求解方法，'dls', 'pinv' 或 'transpose'，默认 'dls'
+  - `max_iters`: 每个位姿的最大 IK 迭代次数，默认 100
+  - `pos_tol`: 位置容差（米），默认 1e-2
+  - `ori_tol`: 姿态容差（弧度），默认 1e-2
+  - `num_initial_guesses`: 多起点初始猜测数量，默认 5
+  - `initial_guess_strategy`: 初始猜测策略，默认 'random'
+  - `initial_guess_scale`: 初始猜测缩放因子（0.0 到 1.0），默认 0.6
+  - `random_seed`: 随机种子，默认 None
+  - `backend`: 计算后端，'numpy' 或 'torch'（默认: None，使用初始化时设置的后端）
+  - `use_previous_solution`: 如果为 True，使用前一个解作为初始猜测（确保连续性），默认 True
+  
+  **返回值：** 包含 'joint_angles', 'ik_results', 'success_rate', 'statistics' 的字典
 
 #### 状态获取：
 - `get_robot_state(info_type="joint_gripper", timeout=1.0)`  
@@ -108,8 +150,13 @@ robot = create_robot()
   
   **返回值：** 根据 `info_type` 返回相应类型的数据，失败返回 `None`
 
-- `get_pose()`  
+- `get_pose(backend=None)`  
   获取当前末端执行器位置与姿态，返回字典包含 `transform`, `position`, `rotation`, `euler_xyz`, `quaternion_xyzw`
+  
+  **参数：**
+  - `backend`: 计算后端，'numpy' 或 'torch'（默认: None，使用初始化时设置的后端）
+  
+  **返回值：** 包含位姿信息的字典，失败返回 None
 
 - `print_state(continuous=False, output_format='deg')`  
   打印当前机械臂信息，可持续打印，支持角度/弧度格式。包含关节角度、夹爪状态、末端位姿、温度、速度等信息

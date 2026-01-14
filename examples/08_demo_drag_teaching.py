@@ -28,17 +28,17 @@ Features:
 
 Usage examples:
 # See what motions are available
-python 09_demo_drag_teaching.py --list-motions
+python 08_demo_drag_teaching.py --list-motions
 
 # Record new motions
-python 09_demo_drag_teaching.py --mode auto --save-motion my_demo
-python 09_demo_drag_teaching.py --mode manual --save-motion key_points
+python 08_demo_drag_teaching.py --mode auto --save-motion my_demo
+python 08_demo_drag_teaching.py --mode manual --save-motion key_points
 
 # Replay existing motions
-python 09_demo_drag_teaching.py --mode replay_only --save-motion my_demo
+python 08_demo_drag_teaching.py --mode replay_only --save-motion my_demo
 
 # Get help
-python 09_demo_drag_teaching.py --help
+python 08_demo_drag_teaching.py --help
 """
 
 import os
@@ -52,7 +52,7 @@ from datetime import datetime
 
 from alicia_d_sdk import create_robot
 
-from alicia_d_sdk.execution.drag_teaching import SimpleDragTeaching
+from alicia_d_sdk.execution.drag_teaching import DragTeaching
 from alicia_d_sdk.execution.drag_teaching import print_available_motions, list_available_motions
 
 
@@ -78,7 +78,7 @@ def main(args):
 
     robot = create_robot(port=args.port)
 
-    drag_teaching = SimpleDragTeaching(args, robot)
+    drag_teaching = DragTeaching(args, robot)
     drag_teaching.run()
 
 
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     # Robot configuration
     parser.add_argument('--port', type=str, default="", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
     parser.add_argument('--speed_deg_s', type=int, default=15,  help="关节运动速度 (单位: 度/秒，默认: 15，范围: 10-80度/秒)")
-    parser.add_argument('--sample_hz', type=float, default=100.0, help="采样频率 (单位: Hz，默认: 100.0，仅用于auto模式)")
+    parser.add_argument('--sample_hz', type=float, default=200.0, help="采样频率 (单位: Hz，默认: 100.0，仅用于auto模式)")
 
     parser.add_argument('--mode', choices=['manual', 'auto', 'replay_only'], default='auto',
                        help="模式: manual(手动插值) 或 auto(自动快速) 或 replay_only(仅回放)")

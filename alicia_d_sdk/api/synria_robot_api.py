@@ -36,13 +36,15 @@ from robocore.kinematics import inverse_kinematics
 from robocore.modeling import RobotModel
 from robocore.transform import make_transform, quaternion_to_matrix
 from robocore.kinematics import forward_kinematics
+from robocore.utils.backend import to_numpy
 from robocore.transform import matrix_to_euler, matrix_to_quaternion
 from synriard import get_model_path
-
+import robocore as rc
 from alicia_d_sdk.hardware import ServoDriver
 from alicia_d_sdk.hardware.data_parser import JointState
 from alicia_d_sdk.utils import logger
 from alicia_d_sdk.utils import precise_sleep
+
 
 class SynriaRobotAPI:
     """Synria robot arm API - provides unified user interface"""
@@ -50,17 +52,28 @@ class SynriaRobotAPI:
     def __init__(self,
                  servo_driver: ServoDriver,
                  robot_model: RobotModel,
-                 auto_connect: bool = True):
+                 auto_connect: bool = True,
+                 backend: Optional[str] = None,
+                 device: str = "cpu"):
         """Initialize robot API.
 
         :param servo_driver: Servo driver instance (low-level hardware)
         :param robot_model: Pre-loaded robot model (RoboCore RobotModel)
+        :param auto_connect: Auto connect to robot on initialization
+        :param backend: Computation backend, 'numpy' or 'torch' (default: None, uses 'numpy')
+        :param device: Device for torch backend, 'cpu' or 'cuda' (default: 'cpu')
         """
         self.servo_driver = servo_driver
         self.data_parser = servo_driver.data_parser  # Direct access to data parser
         self.robot_model = robot_model
         self.debug_mode = servo_driver.debug_mode  # Access debug mode from servo driver
-
+        
+        # Set backend if provided, otherwise use default 'numpy'
+        if backend is not None:
+            rc.set_backend(backend, device=device)
+        else:
+            rc.set_backend('numpy')
+        
         # Higher-level helpers
         self.robot_type = None
         if auto_connect:
@@ -134,12 +147,15 @@ class SynriaRobotAPI:
         
         return result
 
-    def get_pose(self) -> Optional[Union[List[float], Dict]]:
+    def get_pose(self, backend: Optional[str] = None) -> Optional[Union[List[float], Dict]]:
         """Get current end-effector pose.
 
+        :param backend: Computation backend, 'numpy' or 'torch' (default: None, uses backend set at initialization)
         :return: Dictionary with position, rotation, euler_xyz, quaternion_xyzw, transform, or None if failed
         """
-
+        # Set backend globally (forward_kinematics uses global backend)
+        if backend == 'torch':
+            rc.set_backend(backend) # ignore numpy since default is inherited
         joint_angles = self.get_robot_state("joint")
         if joint_angles is None:
             logger.error("无法获取关节角度")
@@ -220,98 +236,131 @@ class SynriaRobotAPI:
 
     def set_pose(self,
                         target_pose: List[float],
-                        backend: str = 'numpy',
+                        backend: Optional[str] = None,
                         method: str = 'dls',
-                        display: bool = True,
-                        tolerance: float = 1e-4,
-                        max_iters: int = 100,
-                        multi_start: int = 0,
-                        use_random_init: bool = False,
+                        pos_tol: float = 1e-3,
+                        ori_tol: float = 1e-3,
+                        max_iters: int = 500,
+                        num_initial_guesses: int = 10,
+                        initial_guess_strategy: str = 'current',
+                        initial_guess_scale: float = 1.0,
+                        random_seed: Optional[int] = None,
                         speed_deg_s: int = 10,
-                        execute: bool = True) -> Dict:
+                        execute: bool = True,
+                        force_execute: bool = False) -> Dict:
         """Move end-effector to target pose using inverse kinematics.
 
         :param target_pose: Target pose as [x, y, z, qx, qy, qz, qw]
-        :param backend: Computation backend, 'numpy' or 'torch'
+        :param backend: Computation backend, 'numpy' or 'torch' (default: None, uses backend set at initialization)
         :param method: IK solver method, 'dls', 'pinv', or 'transpose'
-        :param display: Display solution details
-        :param tolerance: Position and orientation tolerance
+        :param pos_tol: Position tolerance in meters
+        :param ori_tol: Orientation tolerance in radians
         :param max_iters: Maximum number of iterations
-        :param multi_start: Number of multi-start attempts, 0 to disable
-        :param use_random_init: Use random initial guess instead of current pose
+        :param num_initial_guesses: Number of initial guesses for multi-start
+        :param initial_guess_strategy: Initial guess strategy ('zero', 'random', 'sobol', 'latin', 'center', 'uniform', 'current')
+        :param initial_guess_scale: Scale factor for initial guesses (0.0 to 1.0)
+        :param random_seed: Random seed for reproducibility
         :param speed_deg_s: Motion speed in degrees per second
-        :param execute: Execute motion if True
-        :return: Dictionary with success, q, iters, pos_err, ori_err, message
+        :param execute: Execute motion if True and IK succeeds
+        :param force_execute: Force execute motion even if IK failed (requires q to be available)
+        :return: Dictionary with success, q, iters, pos_err, ori_err, message, motion_executed, computation_time
         """
+
+        
+        # Set backend globally (inverse_kinematics uses global backend)
+        if backend == 'torch':
+            rc.set_backend(backend) # ignore numpy since default is inherited
+
+        # Get initial guess based on strategy
+        if initial_guess_strategy == 'current':
+            q0 = self.get_robot_state("joint")
+            if q0 is None:
+                return {
+                    'success': False,
+                    'message': '无法获取当前关节角度',
+                    'q': None,
+                    'motion_executed': False
+                }
+            # Use 'random' strategy with current joints as base
+            actual_strategy = 'random'
+        else:
+            q0 = None
+            actual_strategy = initial_guess_strategy
+
         # Convert pose to transformation matrix
         position = np.array(target_pose[:3])
         quaternion = np.array(target_pose[3:])
         rotation_matrix = quaternion_to_matrix(quaternion)
         pose_matrix = make_transform(rotation_matrix, position)
 
-        # Get initial guess
-        if use_random_init:
-            # Generate random initial guess within joint limits
-            q_init = self._generate_random_q(scale=0.5)
-            if display:
-                logger.info("使用随机初始值")
-        else:
-            q_init = self.get_robot_state("joint")
-            if q_init is None:
-                return {
-                    'success': False,
-                    'message': '无法获取当前关节角度',
-                    'q': None
-                }
-
-        if display:
-            logger.info(f"初始关节角度 (rad): {[f'{q:+.4f}' for q in q_init]}")
-            logger.info(f"初始关节角度 (deg): {[f'{np.rad2deg(q):+.2f}' for q in q_init]}")
-            logger.info(f"正在求解IK (方法: {method}, 最大迭代: {max_iters})...")
-
         # Solve inverse kinematics
+        start_time = time.time()
         ik_result = inverse_kinematics(
             self.robot_model,
             pose_matrix,
-            q_init,
-            backend=backend,
+            q0=q0,
             method=method,
             max_iters=max_iters,
-            pos_tol=tolerance,
-            ori_tol=tolerance,
-            multi_start=multi_start,
-            multi_noise=0.3,
+            pos_tol=pos_tol,
+            ori_tol=ori_tol,
+            num_initial_guesses=num_initial_guesses,
+            initial_guess_strategy=actual_strategy,
+            initial_guess_scale=initial_guess_scale,
+            random_seed=random_seed,
             use_analytic_jacobian=True
         )
+        elapsed_time = time.time() - start_time
 
-        if ik_result['success']:
-            if display:
-                logger.info("✓ IK 求解成功!")
-                logger.info(f"  迭代次数: {ik_result['iters']}")
-                logger.info(f"  位置误差: {ik_result['pos_err']:.6e} m")
-                logger.info(f"  姿态误差: {ik_result['ori_err']:.6e} rad")
-                logger.info(f"  关节角度 (rad): {[f'{q:+.4f}' for q in ik_result['q']]}")
-                logger.info(f"  关节角度 (deg): {[f'{np.rad2deg(q):+.2f}' for q in ik_result['q']]}")
+        # Convert to numpy and extract results
+        q_ik = to_numpy(ik_result['q']) if ik_result.get('q') is not None else None
+        
+        # Extract error information (handle both single value and list)
+        iters = ik_result.get('iters', 0)
+        pos_err = ik_result.get('pos_err', float('inf'))
+        ori_err = ik_result.get('ori_err', float('inf'))
+        err_norm = ik_result.get('err_norm', None)
 
-            # Execute motion if requested
-            if execute:
-                result = self.set_robot_state(target_joints=ik_result['q'], joint_format='rad', speed_deg_s=speed_deg_s, wait_for_completion=True)
-                ik_result['motion_executed'] = result
-            else:
-                ik_result['motion_executed'] = False
-                if display:
-                    logger.info("  (未执行运动，execute=False)")
+        # Handle list results (from batch processing)
+        if isinstance(iters, list):
+            iters = iters[0] if iters else 0
+        if isinstance(pos_err, list):
+            pos_err = pos_err[0] if pos_err else float('inf')
+        if isinstance(ori_err, list):
+            ori_err = ori_err[0] if ori_err else float('inf')
+        if isinstance(err_norm, list):
+            err_norm = err_norm[0] if err_norm else None
 
-            return ik_result
+        # Check if IK succeeded
+        ik_success = ik_result.get('success', False)
+        if isinstance(ik_success, list):
+            ik_success = ik_success[0] if ik_success else False
+
+        # Update result with normalized values
+        ik_result['iters'] = iters
+        ik_result['pos_err'] = pos_err
+        ik_result['ori_err'] = ori_err
+        if err_norm is not None:
+            ik_result['err_norm'] = err_norm
+        ik_result['computation_time'] = elapsed_time
+
+        # Execute motion if requested
+        if ik_success and execute:
+            result = self.set_robot_state(target_joints=q_ik, joint_format='rad', speed_deg_s=speed_deg_s, wait_for_completion=True)
+            ik_result['motion_executed'] = result
+        elif force_execute and q_ik is not None:
+            # Force execute even if IK failed
+            result = self.set_robot_state(
+                target_joints=q_ik,
+                joint_format='rad',
+                speed_deg_s=speed_deg_s,
+                wait_for_completion=True,
+                timeout=10
+            )
+            ik_result['motion_executed'] = result
         else:
-            error_msg = ik_result.get('message', '未知错误')
-            if display:
-                logger.error(f"✗ IK 求解失败: {error_msg}")
-                logger.error(f"  迭代次数: {ik_result.get('iters', 'N/A')}")
-                logger.error(f"  位置误差: {ik_result.get('pos_err', float('inf')):.6e} m")
-                logger.error(f"  姿态误差: {ik_result.get('ori_err', float('inf')):.6e} rad")
+            ik_result['motion_executed'] = False
 
-            return ik_result
+        return ik_result
 
     # ==================== Advanced Trajectory Methods ====================
     
@@ -395,7 +444,7 @@ class SynriaRobotAPI:
         waypoints: np.ndarray,
         duration: Optional[float] = None,
         num_points: int = 100,
-        backend: str = 'numpy'
+        backend: Optional[str] = None
     ) -> Dict[str, Any]:
         """Plan Cartesian space spline trajectory through waypoints.
         
@@ -403,15 +452,16 @@ class SynriaRobotAPI:
                           or [n_waypoints, 3] (positions only, will use identity orientation)
         :param duration: Total trajectory duration in seconds (optional, auto-estimated if None)
         :param num_points: Number of points in trajectory
-        :param backend: Computation backend, 'numpy' or 'torch' (numpy recommended for smooth splines)
+        :param backend: Computation backend, 'numpy' or 'torch' (default: None, uses backend set at initialization)
         :return: Dictionary with 't', 'poses', 'positions', 'orientations', 'velocities', 'accelerations'
         """
         import robocore as rc
         from robocore.planning import SplineCurvePlanner
         from robocore.utils.backend import to_numpy
         
-        # Set backend for planning
-        rc.set_backend(backend)
+        # Set backend for planning (forward_kinematics uses global backend)
+        if backend == 'torch':
+            rc.set_backend(backend) # ignore numpy since default is inherited
         
         # Ensure waypoints are numpy arrays
         if isinstance(waypoints, list):
@@ -462,7 +512,7 @@ class SynriaRobotAPI:
         initial_guess_strategy: str = 'random',
         initial_guess_scale: float = 0.6,
         random_seed: Optional[int] = None,
-        backend: str = 'numpy',
+        backend: Optional[str] = None,
         use_previous_solution: bool = True
     ) -> Dict[str, Any]:
         """Solve inverse kinematics for a sequence of Cartesian poses.
@@ -477,7 +527,7 @@ class SynriaRobotAPI:
         :param initial_guess_strategy: Initial guess strategy ('zero', 'random', 'sobol', 'latin', 'center', 'uniform')
         :param initial_guess_scale: Scale factor for initial guesses (0.0 to 1.0)
         :param random_seed: Random seed for reproducibility
-        :param backend: Computation backend, 'numpy' or 'torch'
+        :param backend: Computation backend, 'numpy' or 'torch' (default: None, uses backend set at initialization)
         :param use_previous_solution: If True, use previous solution as initial guess (ensures continuity)
         :return: Dictionary with 'joint_angles', 'ik_results', 'success_rate', 'statistics'
         """
@@ -487,8 +537,8 @@ class SynriaRobotAPI:
         import time
         
         # Set backend if specified (inverse_kinematics uses global backend)
-        if backend is not None:
-            rc.set_backend(backend)
+        if backend == 'torch':
+            rc.set_backend(backend) # ignore numpy since default is inherited
         
         target_poses = to_numpy(target_poses)
         n_poses = len(target_poses)

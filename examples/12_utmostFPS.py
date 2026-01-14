@@ -16,8 +16,24 @@
 # Author: Synria Robotics Team
 # Website: https://synriarobotics.ai
 
+"""
+  # Linux/Ubuntu
+  python 12_utmostFPS.py --port /dev/ttyACM0
+  
+  # Windows
+  python 12_utmostFPS.py --port COM3
+  
+  # macOS
+  python 12_utmostFPS.py --port /dev/cu.wchusbserial5B140413941
+  
+  # Custom settings
+  python 12_utmostFPS.py --port /dev/ttyUSB0 --baudrate 2000000 --test-timeout 60
+"""
+
 import serial
 import time
+import argparse
+import sys
 
 
 class fpsFlay:
@@ -37,14 +53,14 @@ class fpsFlay:
     def __init__(self):
         pass
 
-def main():
-    TEST_TIMEOUT = 300.0    # s
+def main(args):
     Fps = fpsFlay()
+    ser = None
     try:
         ser = serial.Serial(
-            port="/dev/cu.wchusbserial5B140413941",  # macOS specific port
-            baudrate=1000000,
-            timeout=0.015,  # Final 1khz update rate
+            port=args.port,
+            baudrate=args.baudrate,
+            timeout=args.timeout,
         )
         sendBuff = bytearray([0xAA, 0x06, 0x00, 0x01, 0xFE, 0x9A, 0xFF])
 
@@ -61,9 +77,9 @@ def main():
             Fps.readNum += 1
             Fps.current_time = time.time()
             if Fps.current_time - Fps.real_time >= 1.0:
-                if Fps.current_time - Fps.start_time >= TEST_TIMEOUT: 
+                if Fps.current_time - Fps.start_time >= args.test_timeout: 
                     sendFlay = False
-                Fps.real_time = Fps.current_time;
+                Fps.real_time = Fps.current_time
                 Fps.sendFPS = Fps.sendNum / (Fps.current_time - Fps.start_time)
                 Fps.readFPS = Fps.readNum / (Fps.current_time - Fps.start_time)
                 print(f"[{Fps.current_time - Fps.start_time:.2f}s]发送帧率: {Fps.sendFPS:.2f}Hz, \
@@ -82,12 +98,46 @@ def main():
         print(f"sendFPS: {Fps.sendFPS:.2f}Hz")
         print(f"readFPS: {Fps.readFPS:.2f}Hz")
         print(f"Sync rate: {(Fps.readNum/Fps.sendNum)*100:.2f}%")
-        if 'ser' in locals() and ser.is_open:
+        if ser is not None and ser.is_open:
             ser.close()
             print("串口已关闭")
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Maximum FPS test for serial communication",
+        formatter_class=argparse.RawDescriptionHelpFormatter )
+    
+    parser.add_argument(
+        '--port', 
+        type=str, 
+        required=True,
+        help='Serial port (e.g., /dev/ttyUSB0 for Linux, COM3 for Windows, /dev/cu.* for macOS)'
+    )
+    parser.add_argument(
+        '--baudrate', 
+        type=int, 
+        default=1000000,
+        help='Baud rate (default: 1000000)'
+    )
+    parser.add_argument(
+        '--timeout', 
+        type=float, 
+        default=0.015,
+        help='Serial read timeout in seconds (default: 0.015 for 1kHz update rate)'
+    )
+    parser.add_argument(
+        '--test-timeout', 
+        type=float, 
+        default=300.0,
+        help='Test duration in seconds (default: 300.0)'
+    )
+    
+    args = parser.parse_args()
+    
     try:
-        main()
+        main(args)
     except KeyboardInterrupt:
         print("程序终止")
+    except Exception as e:
+        print(f"发生错误: {e}")
+        sys.exit(1)

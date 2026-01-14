@@ -23,6 +23,16 @@ This demo demonstrates:
 1. Generating a smooth spline trajectory in Cartesian space through multiple waypoints
 2. Solving inverse kinematics for all poses in the trajectory (batch IK)
 3. Executing the trajectory on the robot
+
+Usage examples:
+# Record waypoints manually by dragging the robot
+python 10_demo_cartesian_traj.py --save-file my_cartesian_waypoints.json
+
+# Load waypoints from file and execute
+python 10_demo_cartesian_traj.py --waypoints-file my_cartesian_waypoints.json
+
+# Get help
+python 10_demo_cartesian_traj.py --help
 """
 
 import numpy as np
@@ -30,7 +40,6 @@ import argparse
 
 import alicia_d_sdk
 from alicia_d_sdk.execution import CartesianTrajectoryExecutor
-import robocore as rc
 from robocore.transform import make_transform
 from robocore.utils.beauty_logger import beauty_print, beauty_print_array
 from robocore.utils.backend import to_numpy
@@ -55,9 +64,10 @@ def main(args):
         port=args.port,
         gripper_type=args.gripper_type,
         base_link=args.base_link,
-        end_link=args.end_link
+        end_link=args.end_link,
+        backend=args.backend,
+        device=args.device
     )
-    rc.set_backend(args.backend, device=args.device)
     robot_model = robot.robot_model
 
     # [1] Handle waypoint recording or loading/generation
@@ -80,7 +90,6 @@ def main(args):
         waypoints=waypoints,
         duration=args.duration,
         num_points=args.num_points,
-        backend='numpy'  # Use numpy for smooth cubic spline interpolation
     )
 
     display_cartesian_trajectory_stats(trajectory)
@@ -119,7 +128,7 @@ def main(args):
         initial_guess_strategy=actual_strategy,
         initial_guess_scale=args.init_scale,
         random_seed=args.seed,
-        backend=args.backend,
+        backend=None,  # Use backend set at initialization
         use_previous_solution=True
     )
 

@@ -141,8 +141,8 @@ class _BaseTrajectoryExecutor:
                 'duration': 0.0
             }
         
-        time.sleep(self.initial_delay)
-        
+        # time.sleep(self.initial_delay)
+        time.sleep(0.8)
         # Start execution
         self.start_time = time.time()
         self.trajectory_start_time = time.time()
@@ -170,7 +170,7 @@ class _BaseTrajectoryExecutor:
                 wait_for_completion=self.wait_for_completion,
                 timeout=self.timeout
             )
-            
+            # time.sleep(0.1)
             if success:
                 self.executed_count += 1
                 

@@ -33,6 +33,48 @@ from robocore.utils.backend import to_numpy
 from robocore.transform import make_transform, quaternion_to_matrix, rpy_to_matrix, matrix_to_quaternion
 
 
+def get_motion_file_dir() -> str:
+    """Get the motion_file directory path relative to examples folder.
+    
+    :return: Absolute path to motion_files directory
+    """
+    # Get the directory where this file is located
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    utils_dir = current_dir  # .../Alicia-D-SDK/alicia_d_sdk/utils
+    sdk_dir = os.path.dirname(utils_dir)  # .../Alicia-D-SDK/alicia_d_sdk
+    sdk_root = os.path.dirname(sdk_dir)  # .../Alicia-D-SDK
+    motion_file_dir = os.path.join(sdk_root, "examples", "motion_files")
+    return motion_file_dir
+
+
+def _resolve_waypoints_path(file_path: str, create_dir: bool = False) -> str:
+    """Resolve waypoints file path, handling relative paths and default motion_file folder.
+    
+    :param file_path: File path (can be relative or absolute)
+    :param create_dir: If True, create the directory if it doesn't exist
+    :return: Resolved absolute file path
+    """
+    # If absolute path, use as-is
+    if os.path.isabs(file_path):
+        if create_dir:
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        return file_path
+    
+    # If relative path, check if it's just a filename
+    if os.path.dirname(file_path) == "":
+        # Just a filename, put it in motion_file folder
+        motion_file_dir = get_motion_file_dir()
+        if create_dir:
+            os.makedirs(motion_file_dir, exist_ok=True)
+        return os.path.join(motion_file_dir, file_path)
+    else:
+        # Relative path with directory, resolve relative to current working directory
+        resolved = os.path.abspath(file_path)
+        if create_dir:
+            os.makedirs(os.path.dirname(resolved), exist_ok=True)
+        return resolved
+
+
 def record_waypoints_manual(controller,
                             get_state_fn: Optional[Callable] = None,
                             format_fn: Optional[Callable] = None) -> List[Any]:
@@ -96,15 +138,27 @@ def record_waypoints_manual(controller,
 def load_joint_waypoints_from_file(file_path: str) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     """Load joint waypoints from JSON file.
     
-    :param file_path: Path to JSON file containing joint waypoints
+    :param file_path: Path to JSON file containing joint waypoints (relative paths will be searched in examples/motion_files/)
     :return: Tuple of (waypoints_array, gripper_values) where:
              - waypoints_array: Array of joint angles [n_waypoints, n_dof]
              - gripper_values: Array of gripper values [n_waypoints] or None if not present
     """
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"Waypoint file not found: {file_path}")
+    # Resolve path (try motion_files folder for relative paths)
+    resolved_path = _resolve_waypoints_path(file_path, create_dir=False)
     
-    with open(file_path, 'r') as f:
+    # If file not found in motion_files, try original path (for backward compatibility)
+    if not os.path.exists(resolved_path):
+        # Try original path if it was a relative path
+        if not os.path.isabs(file_path):
+            original_path = os.path.abspath(file_path)
+            if os.path.exists(original_path):
+                resolved_path = original_path
+            else:
+                raise FileNotFoundError(f"Waypoint file not found: {resolved_path} (also tried: {original_path})")
+        else:
+            raise FileNotFoundError(f"Waypoint file not found: {resolved_path}")
+    
+    with open(resolved_path, 'r') as f:
         data = json.load(f)
     
     waypoints = []
@@ -157,9 +211,12 @@ def save_joint_waypoints_to_file(waypoints: np.ndarray, file_path: str, gripper_
     """Save joint waypoints to JSON file.
     
     :param waypoints: Array of joint angles [n_waypoints, n_dof]
-    :param file_path: Path to save JSON file
+    :param file_path: Path to save JSON file (relative paths will be saved to examples/motion_files/)
     :param gripper_values: Optional array of gripper values [n_waypoints]
     """
+    # Resolve path and create directory if needed
+    resolved_path = _resolve_waypoints_path(file_path, create_dir=True)
+    
     # Convert to list format for JSON serialization
     waypoints_list = []
     for i, wp in enumerate(waypoints):
@@ -174,11 +231,11 @@ def save_joint_waypoints_to_file(waypoints: np.ndarray, file_path: str, gripper_
             # Old format: list of joint angles only
             waypoints_list.append(wp_list)
     
-    with open(file_path, 'w') as f:
+    with open(resolved_path, 'w') as f:
         json.dump(waypoints_list, f, indent=2)
     
     gripper_info = f" (with gripper)" if gripper_values is not None else ""
-    beauty_print(f"Saved {len(waypoints)} waypoints{gripper_info} to {file_path}", type="success")
+    beauty_print(f"Saved {len(waypoints)} waypoints{gripper_info} to {resolved_path}", type="success")
 
 
 def record_joint_waypoints_manual(robot) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
@@ -235,13 +292,25 @@ def record_joint_waypoints_manual(robot) -> Tuple[Optional[np.ndarray], Optional
 def load_cartesian_waypoints_from_file(file_path: str) -> List[np.ndarray]:
     """Load Cartesian waypoints from JSON file.
     
-    :param file_path: Path to JSON file containing waypoints
+    :param file_path: Path to JSON file containing waypoints (relative paths will be searched in examples/motion_files/)
     :return: List of 4x4 transformation matrices
     """
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"Waypoint file not found: {file_path}")
+    # Resolve path (try motion_files folder for relative paths)
+    resolved_path = _resolve_waypoints_path(file_path, create_dir=False)
     
-    with open(file_path, 'r') as f:
+    # If file not found in motion_files, try original path (for backward compatibility)
+    if not os.path.exists(resolved_path):
+        # Try original path if it was a relative path
+        if not os.path.isabs(file_path):
+            original_path = os.path.abspath(file_path)
+            if os.path.exists(original_path):
+                resolved_path = original_path
+            else:
+                raise FileNotFoundError(f"Waypoint file not found: {resolved_path} (also tried: {original_path})")
+        else:
+            raise FileNotFoundError(f"Waypoint file not found: {resolved_path}")
+    
+    with open(resolved_path, 'r') as f:
         data = json.load(f)
     
     waypoints = []
@@ -297,8 +366,11 @@ def save_cartesian_waypoints_to_file(waypoints: np.ndarray, file_path: str):
     """Save Cartesian waypoints to JSON file.
     
     :param waypoints: Array of 4x4 transformation matrices [n_waypoints, 4, 4]
-    :param file_path: Path to save JSON file
+    :param file_path: Path to save JSON file (relative paths will be saved to examples/motion_files/)
     """
+    # Resolve path and create directory if needed
+    resolved_path = _resolve_waypoints_path(file_path, create_dir=True)
+    
     # Convert to dict format with position and orientation (quaternion) separately
     waypoints_list = []
     for wp in waypoints:
@@ -317,10 +389,10 @@ def save_cartesian_waypoints_to_file(waypoints: np.ndarray, file_path: str):
             'orientation': quaternion
         })
     
-    with open(file_path, 'w') as f:
+    with open(resolved_path, 'w') as f:
         json.dump(waypoints_list, f, indent=2)
     
-    beauty_print(f"Saved {len(waypoints)} Cartesian waypoints to {file_path}", type="success")
+    beauty_print(f"Saved {len(waypoints)} Cartesian waypoints to {resolved_path}", type="success")
 
 
 def record_cartesian_waypoints_manual(robot) -> Optional[np.ndarray]:

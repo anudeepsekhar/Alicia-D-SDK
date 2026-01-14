@@ -28,7 +28,7 @@ from alicia_d_sdk.utils.trajectory_utils import record_waypoints_manual
 from alicia_d_sdk.utils import precise_sleep
 
 
-class SimpleDragTeaching:
+class DragTeaching:
     """简化的拖动示教类 - 直接记录关节状态"""
 
     def __init__(self, args, controller):
@@ -455,4 +455,4 @@ def print_available_motions():
         print(info)
 
     print(f"\n使用示例:")
-    print(f"python 07_demo_drag_teaching.py --port /dev/ttyUSB0 --mode replay_only --save-motion {motions[0]}")
+    print(f"python 08_demo_drag_teaching.py --mode replay_only --save-motion {motions[0]}")

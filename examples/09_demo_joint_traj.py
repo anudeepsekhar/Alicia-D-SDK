@@ -23,6 +23,25 @@ This demo demonstrates:
 1. Generating smooth joint space trajectories through multiple waypoints
 2. Supporting random waypoint generation or loading from file
 3. Executing the trajectory on the robot
+
+Usage examples:
+# Record waypoints manually by dragging the robot
+python 09_demo_joint_traj.py --save-file my_waypoints.json
+
+# Load waypoints from file and execute
+python 09_demo_joint_traj.py --waypoints-file my_waypoints.json --execute
+
+# Generate random waypoints and execute
+python 09_demo_joint_traj.py  --num-waypoints 6 --execute
+
+# Use B-Spline planner with custom settings
+python 09_demo_joint_traj.py  --planner b_spline --duration 3.0 --num-points 1000 --execute
+
+# Use multi-segment planner
+python 09_demo_joint_traj.py  --planner multi_segment --duration-per-segment 1.5 --execute
+
+# Get help
+python 09_demo_joint_traj.py --help
 """
 
 import numpy as np
@@ -30,7 +49,6 @@ import argparse
 
 import alicia_d_sdk
 from alicia_d_sdk.execution import JointTrajectoryExecutor
-import robocore as rc
 from robocore.utils.beauty_logger import beauty_print
 from robocore.utils.backend import to_numpy
 
@@ -52,9 +70,10 @@ def main(args):
         port=args.port,
         gripper_type=args.gripper_type,
         base_link=args.base_link,
-        end_link=args.end_link
+        end_link=args.end_link,
+        backend=args.backend,
+        device=args.device
     )
-    rc.set_backend(args.backend, device=args.device)
     robot_model = robot.robot_model
 
     # [1] Handle waypoint recording or loading/generation

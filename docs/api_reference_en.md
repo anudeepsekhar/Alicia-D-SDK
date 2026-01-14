@@ -15,7 +15,9 @@ robot = create_robot(
     debug_mode=False,           # Debug mode
     auto_connect=True,          # Auto-connect on creation
     base_link="base_link",      # Base link name
-    end_link="tool0"            # End-effector link name
+    end_link="tool0",           # End-effector link name
+    backend=None,               # Computation backend, 'numpy' or 'torch' (default: None, uses 'numpy')
+    device="cpu"                # Device for torch backend, 'cpu' or 'cuda' (default: 'cpu')
 )
 ```
 
@@ -59,32 +61,72 @@ robot = create_robot()
   
   **Returns:** True if successful, False otherwise
 
-- `set_pose(target_pose, backend='numpy', method='dls', display=True, tolerance=1e-4, max_iters=100, multi_start=0, use_random_init=False, speed_deg_s=10, execute=True)`  
+- `set_pose(target_pose, backend=None, method='dls', pos_tol=1e-3, ori_tol=1e-3, max_iters=500, num_initial_guesses=10, initial_guess_strategy='current', initial_guess_scale=1.0, random_seed=None, speed_deg_s=10, execute=True, force_execute=False)`  
   Move the end-effector to target pose using inverse kinematics
   
   **Parameters:**
   - `target_pose`: Target pose as [x, y, z, qx, qy, qz, qw] (position + quaternion)
-  - `backend`: Computation backend, 'numpy' or 'torch', default 'numpy'
+  - `backend`: Computation backend, 'numpy' or 'torch' (default: None, uses backend set at initialization)
   - `method`: IK solver method, 'dls' (damped least squares), 'pinv' (pseudo-inverse), or 'transpose', default 'dls'
-  - `display`: Display solution details, default True
-  - `tolerance`: Position and orientation tolerance, default 1e-4
-  - `max_iters`: Maximum number of iterations, default 100
-  - `multi_start`: Number of multi-start attempts, 0 to disable, default 0
-  - `use_random_init`: Use random initial guess, default False (uses current joint angles)
+  - `pos_tol`: Position tolerance in meters, default 1e-3
+  - `ori_tol`: Orientation tolerance in radians, default 1e-3
+  - `max_iters`: Maximum number of iterations, default 500
+  - `num_initial_guesses`: Number of initial guesses (multi-start), default 10
+  - `initial_guess_strategy`: Initial guess strategy, 'zero', 'random', 'sobol', 'latin', 'center', 'uniform', 'current' (default: 'current', uses current joint angles)
+  - `initial_guess_scale`: Scale factor for initial guesses (0.0 to 1.0), default 1.0
+  - `random_seed`: Random seed for reproducibility, default None
   - `speed_deg_s`: Motion speed (degrees per second), default 10
-  - `execute`: Execute motion if True, default True
+  - `execute`: Execute motion if True and IK succeeds, default True
+  - `force_execute`: Force execute motion even if IK failed (requires q to be available), default False
   
-  **Returns:** Dictionary with success, q, iters, pos_err, ori_err, message
+  **Returns:** Dictionary with success, q, iters, pos_err, ori_err, message, motion_executed, computation_time
 
 #### Trajectory Planning:
-- `plan_joint_trajectory(waypoints, planner_type='b_spline', duration=None, num_points=800, ...)`  
+- `plan_joint_trajectory(waypoints, planner_type='b_spline', duration=None, num_points=800, bspline_degree=5, segment_method='quintic', duration_per_segment=None, num_points_per_segment=100, gripper_waypoints=None)`  
   Plan joint space trajectory, supports B-Spline and multi-segment planners
+  
+  **Parameters:**
+  - `waypoints`: Array of joint waypoints [n_waypoints, n_dof] in radians
+  - `planner_type`: Planner type, 'b_spline' or 'multi_segment', default 'b_spline'
+  - `duration`: Total trajectory duration in seconds (for B-Spline)
+  - `num_points`: Number of points in trajectory (for B-Spline), default 800
+  - `bspline_degree`: B-Spline degree, 3 (cubic) or 5 (quintic), default 5
+  - `segment_method`: Multi-segment method, 'cubic' or 'quintic', default 'quintic'
+  - `duration_per_segment`: Duration per segment in seconds (for Multi-Segment)
+  - `num_points_per_segment`: Number of points per segment (for Multi-Segment), default 100
+  - `gripper_waypoints`: Optional array of gripper values [n_waypoints] (0-1000)
+  
+  **Returns:** Dictionary with 't', 'q', 'qd', 'qdd', and optionally 'gripper'
 
-- `plan_cartesian_trajectory(waypoints, duration=None, num_points=100, backend='numpy')`  
+- `plan_cartesian_trajectory(waypoints, duration=None, num_points=100, backend=None)`  
   Plan Cartesian space spline trajectory
+  
+  **Parameters:**
+  - `waypoints`: Array of waypoint poses [n_waypoints, 4, 4] (transformation matrices) or [n_waypoints, 3] (positions only)
+  - `duration`: Total trajectory duration in seconds (optional, auto-estimated if None)
+  - `num_points`: Number of points in trajectory, default 100
+  - `backend`: Computation backend, 'numpy' or 'torch' (default: None, uses backend set at initialization)
+  
+  **Returns:** Dictionary with 't', 'poses', 'positions', 'orientations', 'velocities', 'accelerations'
 
-- `solve_ik_for_trajectory(target_poses, q_init=None, method='dls', ...)`  
+- `solve_ik_for_trajectory(target_poses, q_init=None, method='dls', max_iters=100, pos_tol=1e-2, ori_tol=1e-2, num_initial_guesses=5, initial_guess_strategy='random', initial_guess_scale=0.6, random_seed=None, backend=None, use_previous_solution=True)`  
   Batch solve inverse kinematics for a sequence of Cartesian poses
+  
+  **Parameters:**
+  - `target_poses`: Array of target poses [n_poses, 4, 4] (transformation matrices)
+  - `q_init`: Initial joint configuration (uses current joints if None)
+  - `method`: IK solver method, 'dls', 'pinv', or 'transpose', default 'dls'
+  - `max_iters`: Maximum IK iterations per pose, default 100
+  - `pos_tol`: Position tolerance in meters, default 1e-2
+  - `ori_tol`: Orientation tolerance in radians, default 1e-2
+  - `num_initial_guesses`: Number of initial guesses for multi-start, default 5
+  - `initial_guess_strategy`: Initial guess strategy, default 'random'
+  - `initial_guess_scale`: Scale factor for initial guesses (0.0 to 1.0), default 0.6
+  - `random_seed`: Random seed for reproducibility, default None
+  - `backend`: Computation backend, 'numpy' or 'torch' (default: None, uses backend set at initialization)
+  - `use_previous_solution`: If True, use previous solution as initial guess (ensures continuity), default True
+  
+  **Returns:** Dictionary with 'joint_angles', 'ik_results', 'success_rate', 'statistics'
 
 #### Status Retrieval:
 - `get_robot_state(info_type="joint_gripper", timeout=1.0)`  
@@ -108,8 +150,13 @@ robot = create_robot()
   
   **Returns:** Data of the requested type, or `None` if failed
 
-- `get_pose()`  
+- `get_pose(backend=None)`  
   Get current end-effector position and orientation, returns a dictionary containing `transform`, `position`, `rotation`, `euler_xyz`, `quaternion_xyzw`
+  
+  **Parameters:**
+  - `backend`: Computation backend, 'numpy' or 'torch' (default: None, uses backend set at initialization)
+  
+  **Returns:** Dictionary with pose information, or None if failed
 
 - `print_state(continuous=False, output_format='deg')`  
   Print current robot information, supports continuous printing, supports angle/radian format. Includes joint angles, gripper state, end-effector pose, temperature, velocity, and more

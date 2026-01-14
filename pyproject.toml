@@ -4,10 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "alicia_d_sdk"
-version = "6.1.0rc2"
+version = "6.1.0rc3"
 description = "Python SDK for controlling the Alicia D robotic arm."
 readme = "README.md"
 requires-python = ">=3.7"
+license = {text = "MIT"}
 authors = [
     {name = "Synria Robotics", email = "support@synriarobotics.ai"}
 ]
@@ -17,7 +18,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Education",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -43,7 +43,7 @@ dependencies = [
 Homepage = "https://github.com/Synria-Robotics/Alicia-D-SDK"
 
 [tool.setuptools]
-# Automatically find all packages and subpackages
-packages = {find = {}}
+# Automatically find all packages and subpackages, excluding examples
+packages = {find = {exclude = ["examples*"]}}
 # Set to true so config files inside the package are included
 include-package-data = true

@@ -41,6 +41,7 @@ from robocore.kinematics import forward_kinematics, inverse_kinematics, jacobian
 from synriard import get_model_path
 import json
 from pathlib import Path
+from typing import Optional
 
 
 __version__ = "6.1.0"
@@ -89,6 +90,8 @@ def create_robot(
     auto_connect: bool = True,
     base_link: str = "base_link",
     end_link: str = "tool0",
+    backend: Optional[str] = None,
+    device: str = "cpu",
 ) -> SynriaRobotAPI:
     """
     Create robot instance.
@@ -100,6 +103,8 @@ def create_robot(
     :param debug_mode: Debug mode
     :param base_link: Base link name in the robot model (default 'base_link')
     :param end_link: End link name in the robot model (default 'tool0')
+    :param backend: Computation backend, 'numpy' or 'torch' (default: None, uses 'numpy')
+    :param device: Device for torch backend, 'cpu' or 'cuda' (default: 'cpu')
     :return: SynriaRobotAPI instance
     """
     servo_driver = ServoDriver(port=port, debug_mode=debug_mode)
@@ -116,7 +121,9 @@ def create_robot(
     robot = SynriaRobotAPI(
         servo_driver=servo_driver,
         robot_model=robot_model,
-        auto_connect=auto_connect
+        auto_connect=auto_connect,
+        backend=backend,
+        device=device
     )
 
     return robot

@@ -298,7 +298,7 @@ class DataParser:
             0xE2: "overheat_protect",
         }
         run_status_text = run_status_map.get(run_status, "unknown")
-        # print("run_status_text:", run_status_text)
+        # print("run_status: 0x{:02X}".format(run_status))
         # Store run status
         with self._lock:
             self._run_status = run_status

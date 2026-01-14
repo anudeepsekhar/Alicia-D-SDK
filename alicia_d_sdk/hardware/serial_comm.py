@@ -94,7 +94,6 @@ class SerialComm:
             self._initialize_serial_port()
 
             if self.serial_port.is_open:
-                logger.info("Serial port connection successful")
                 return True
             return False
         except Exception as e:

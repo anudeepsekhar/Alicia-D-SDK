@@ -45,7 +45,6 @@ def main(args):
         # Use unified joint and gripper target interface
         robot.set_robot_state(
             target_joints=target_joints_deg,
-            # joint_format='rad',
             joint_format='deg',
             speed_deg_s=args.speed_deg_s,
             wait_for_completion=True
