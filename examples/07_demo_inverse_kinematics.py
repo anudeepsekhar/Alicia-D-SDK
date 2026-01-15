@@ -24,6 +24,8 @@ Features:
 - Solve for joint angles
 - Move to target position
 """
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 import numpy as np
 import argparse

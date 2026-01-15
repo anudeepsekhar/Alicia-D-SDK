@@ -29,6 +29,7 @@ Responsibilities:
 
 import time
 import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 from typing import List, Optional, Dict, Union, Tuple, Any
 import numpy as np
 import json
