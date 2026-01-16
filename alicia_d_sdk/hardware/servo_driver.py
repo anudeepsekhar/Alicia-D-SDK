@@ -19,7 +19,8 @@
 import math
 import time
 import threading
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Union
+import numpy as np
 
 from alicia_d_sdk.hardware.serial_comm import SerialComm
 from alicia_d_sdk.hardware.data_parser import DataParser
@@ -43,6 +44,9 @@ class ServoDriver:
     # Gripper type configuration
     GRI_MAX_50MM = 3290
     GRI_MAX_100MM = 3590
+
+    # Default gripper speed: 5500 ticks/s ≈ 483.4 deg/s
+    DEFAULT_GRIPPER_SPEED_TICKS = 5500
 
     # Raw instruction mapping table for information retrieval and control
     INFO_COMMAND_MAP: Dict[str, List[int]] = {
@@ -282,26 +286,44 @@ class ServoDriver:
     def set_joint_and_gripper(self,
                               joint_angles: Optional[List[float]] = None,
                               gripper_value: Optional[float] = None,
-                              speed_deg_s: int = 10) -> bool:
+                              speed_deg_s: Union[int, float, List[float], np.ndarray] = 10,
+                              gripper_speed_deg_s: Optional[float] = None) -> bool:
         """
         Unified method to set joints, gripper, or both in a single combined frame.
 
         :param joint_angles: Optional angle list (radians) for 6 joints. If None, keeps current joints (or zeros if state unavailable)
-        :param gripper_value: Optional gripper value (0-100). If None, keeps current gripper (or 50.0 if state unavailable)
-        :param speed_deg_s: Speed in degrees per second (4.39-439.45, will be clipped to valid range), default 20.0
+        :param gripper_value: Optional gripper value (0-1000). If None, keeps current gripper
+        :param speed_deg_s: Speed in degrees per second. Can be int/float (same for all joints) or list/array (per-joint speeds, 4.39-439.45 deg/s), default 10
+        :param gripper_speed_deg_s: Gripper speed in degrees per second. If None, uses default 5500 ticks/s (≈483.4 deg/s)
         :return: True if successful
         """
 
-        # Speed validation is handled in _value_to_hardware_value_speed with automatic clipping
-        # Valid range: ~4.39-439.45 deg/s (maps to hardware 50-5000 ticks/s)
-        if speed_deg_s <= 0:
-            logger.error(f"Speed must be positive: {speed_deg_s} deg/s")
+        # Speed validation
+        if isinstance(speed_deg_s, (int, float)):
+            if speed_deg_s <= 0:
+                logger.error(f"Speed must be positive: {speed_deg_s} deg/s")
+                return False
+        elif isinstance(speed_deg_s, (list, np.ndarray)):
+            speed_list = list(speed_deg_s) if isinstance(speed_deg_s, np.ndarray) else speed_deg_s
+            if any(s <= 0 for s in speed_list):
+                logger.error(f"All speeds must be positive: {speed_list} deg/s")
+                return False
+            if len(speed_list) != 6:
+                logger.error(f"Incorrect speed list length: need 6, got {len(speed_list)}")
+                return False
+        else:
+            logger.error(f"Invalid speed_deg_s type: {type(speed_deg_s)}")
+            return False
+
+        if gripper_speed_deg_s is not None and gripper_speed_deg_s <= 0:
+            logger.error(f"Gripper speed must be positive: {gripper_speed_deg_s} deg/s")
             return False
 
         frame = self._build_joint_frame(
             joint_angles=joint_angles,
             gripper_value=gripper_value,
-            speed_deg_s=speed_deg_s
+            speed_deg_s=speed_deg_s,
+            gripper_speed_deg_s=gripper_speed_deg_s
         )
 
 
@@ -316,13 +338,15 @@ class ServoDriver:
     def _build_joint_frame(self,
                            joint_angles: Optional[List[float]] = None,
                            gripper_value: Optional[float] = None,
-                           speed_deg_s: int = 10) -> List[int]:
+                           speed_deg_s: Union[int, float, List[float], np.ndarray] = 10,
+                           gripper_speed_deg_s: Optional[float] = None) -> List[int]:
         """
         Build combined joint + gripper + speed control frame (CMD=0x06, FUNC=0x03)
 
         :param joint_angles: Optional angle list (radians) for 6 joints. If None, keeps current joints (or zeros if state unavailable)
-        :param gripper_value: Optional gripper value (0-100). If None, keeps current gripper (or 50.0 if state unavailable)
-        :param speed_deg_s: Speed in degrees per second (4.39-439.45, maps to hardware 50-5000 ticks/s, step 50). The same speed is applied to all joints. The gripper is fixed at 5500
+        :param gripper_value: Optional gripper value (0-1000). If None, keeps current gripper
+        :param speed_deg_s: Speed in degrees per second. Can be int/float (same for all joints) or list/array (per-joint speeds, 4.39-439.45 deg/s)
+        :param gripper_speed_deg_s: Gripper speed in degrees per second. If None, uses default 5500 ticks/s (≈483.4 deg/s)
         :return: Frame byte list
         """
         # 6 joints * 4 bytes (value + speed) + 1 gripper * 4 bytes (value + speed) = 28 bytes
@@ -358,8 +382,21 @@ class ServoDriver:
             else:
                 effective_joints = joint_angles
 
-        # Convert common speed value to hardware units (used for all joints and gripper)
-        speed_hw_value = self._value_to_hardware_value_speed(speed_deg_s)
+        # Handle speed_deg_s: can be int/float (uniform) or list/array (per-joint)
+        if isinstance(speed_deg_s, (int, float)):
+            # Uniform speed for all joints
+            speed_hw_values = [self._value_to_hardware_value_speed(speed_deg_s)] * 6
+        elif isinstance(speed_deg_s, (list, np.ndarray)):
+            # Per-joint speeds
+            speed_list = list(speed_deg_s) if isinstance(speed_deg_s, np.ndarray) else speed_deg_s
+            if len(speed_list) != 6:
+                logger.error(f"Incorrect speed list length: need 6, got {len(speed_list)}, using first value for all joints")
+                speed_hw_values = [self._value_to_hardware_value_speed(speed_list[0])] * 6
+            else:
+                speed_hw_values = [self._value_to_hardware_value_speed(s) for s in speed_list]
+        else:
+            logger.error(f"Invalid speed_deg_s type: {type(speed_deg_s)}, using default 10 deg/s")
+            speed_hw_values = [self._value_to_hardware_value_speed(10)] * 6
 
         for joint_idx in range(6):
             angle_rad = effective_joints[joint_idx]
@@ -368,8 +405,8 @@ class ServoDriver:
             offset = data_start + joint_idx * 4
             frame[offset] = hardware_value & 0xFF              # low byte
             frame[offset + 1] = (hardware_value >> 8) & 0xFF   # high byte
-            frame[offset + 2] = speed_hw_value & 0xFF
-            frame[offset + 3] = (speed_hw_value >> 8) & 0xFF
+            frame[offset + 2] = speed_hw_values[joint_idx] & 0xFF
+            frame[offset + 3] = (speed_hw_values[joint_idx] >> 8) & 0xFF
 
         # Gripper value and speed (4 bytes: 2 bytes value, 2 bytes speed)
         gripper_offset = data_start + 6 * 4
@@ -381,7 +418,13 @@ class ServoDriver:
             else:
                 gripper_hw_value = 1000  # Default middle position
 
-        gripper_speed_hw_value = 5500
+        # Handle gripper speed: convert from deg/s to ticks/s, default is 5500 ticks/s
+        if gripper_speed_deg_s is not None:
+            gripper_speed_hw_value = self._gripper_speed_deg_s_to_ticks(gripper_speed_deg_s)
+        else:
+            # Default: 5500 ticks/s (≈483.4 deg/s)
+            gripper_speed_hw_value = self.DEFAULT_GRIPPER_SPEED_TICKS
+
         frame[gripper_offset] = gripper_hw_value & 0xFF
         frame[gripper_offset + 1] = (gripper_hw_value >> 8) & 0xFF
         frame[gripper_offset + 2] = gripper_speed_hw_value & 0xFF
@@ -389,8 +432,14 @@ class ServoDriver:
         frame[-2] = self.serial_comm.calculate_checksum(frame[1:-2])
 
         if self.debug_mode:
-            angle_deg = [round(angle * self.RAD_TO_DEG, 2) for angle in joint_angles]
-            logger.debug(f"Send combined frame - joints (deg): {angle_deg}, gripper: {gripper_value}, speed: {speed_deg_s} deg/s")
+            angle_deg = [round(angle * self.RAD_TO_DEG, 2) for angle in effective_joints]
+            if isinstance(speed_deg_s, (int, float)):
+                speed_str = f"{speed_deg_s} deg/s (uniform)"
+            else:
+                speed_str = f"{speed_deg_s} deg/s (per-joint)"
+            default_gripper_speed_deg_s = self._gripper_speed_ticks_to_deg_s(self.DEFAULT_GRIPPER_SPEED_TICKS)
+            gripper_speed_str = f"{gripper_speed_deg_s} deg/s" if gripper_speed_deg_s is not None else f"{self.DEFAULT_GRIPPER_SPEED_TICKS} ticks/s (≈{default_gripper_speed_deg_s:.1f} deg/s, default)"
+            logger.debug(f"Send combined frame - joints (deg): {angle_deg}, gripper: {gripper_value}, joint speeds: {speed_str}, gripper speed: {gripper_speed_str}")
 
         return frame
 
@@ -410,7 +459,7 @@ class ServoDriver:
 
         return max(0, min(4095, value))
 
-    def _value_to_hardware_value_speed(self, speed_deg_s: int) -> int:
+    def _value_to_hardware_value_speed(self, speed_deg_s: Union[int, float]) -> int:
         """
         Converts speed from degrees per second to hardware value (50-5000, step 50).
         Mapping: 360 deg/s = 4096 ticks/s, so 50 ticks/s ≈ 4.39 deg/s, 5000 ticks/s ≈ 439.45 deg/s.
@@ -446,3 +495,29 @@ class ServoDriver:
         logger.debug(f"Speed: {speed_deg_s} deg/s, Hardware value: {hardware_value}")
 
         return max(MIN_HARDWARE_VALUE, min(MAX_HARDWARE_VALUE, int(hardware_value)))
+
+    def _gripper_speed_deg_s_to_ticks(self, speed_deg_s: float) -> int:
+        """
+        Converts gripper speed from degrees per second to hardware ticks/s.
+        Mapping: 360 deg/s = 4096 ticks/s.
+        No step size restriction for gripper speed.
+
+        :param speed_deg_s: Gripper speed in degrees per second
+        :return: Hardware speed value in ticks/s
+        """
+        # Known mapping: 360 deg/s = 4096 ticks/s
+        DEG_PER_TICK_PER_SEC = 360.0 / 4096.0
+        hardware_value = speed_deg_s / DEG_PER_TICK_PER_SEC
+        return int(round(hardware_value))
+
+    def _gripper_speed_ticks_to_deg_s(self, speed_ticks: int) -> float:
+        """
+        Converts gripper speed from hardware ticks/s to degrees per second.
+        Mapping: 360 deg/s = 4096 ticks/s.
+
+        :param speed_ticks: Gripper speed in ticks/s
+        :return: Speed in degrees per second
+        """
+        # Known mapping: 360 deg/s = 4096 ticks/s
+        DEG_PER_TICK_PER_SEC = 360.0 / 4096.0
+        return speed_ticks * DEG_PER_TICK_PER_SEC

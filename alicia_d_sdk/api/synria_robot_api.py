@@ -27,24 +27,24 @@ Responsibilities:
 - Parameter validation and error handling
 """
 
+from alicia_d_sdk.utils import precise_sleep
+from alicia_d_sdk.utils import logger
+from alicia_d_sdk.hardware.data_parser import JointState
+from alicia_d_sdk.hardware import ServoDriver
+import robocore as rc
+from synriard import get_model_path
+from robocore.transform import matrix_to_euler, matrix_to_quaternion
+from robocore.utils.backend import to_numpy
+from robocore.kinematics import forward_kinematics
+from robocore.transform import make_transform, quaternion_to_matrix
+from robocore.modeling import RobotModel
+from robocore.kinematics import inverse_kinematics
+import json
+import numpy as np
+from typing import List, Optional, Dict, Union, Tuple, Any
 import time
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-from typing import List, Optional, Dict, Union, Tuple, Any
-import numpy as np
-import json
-from robocore.kinematics import inverse_kinematics
-from robocore.modeling import RobotModel
-from robocore.transform import make_transform, quaternion_to_matrix
-from robocore.kinematics import forward_kinematics
-from robocore.utils.backend import to_numpy
-from robocore.transform import matrix_to_euler, matrix_to_quaternion
-from synriard import get_model_path
-import robocore as rc
-from alicia_d_sdk.hardware import ServoDriver
-from alicia_d_sdk.hardware.data_parser import JointState
-from alicia_d_sdk.utils import logger
-from alicia_d_sdk.utils import precise_sleep
 
 
 class SynriaRobotAPI:
@@ -68,13 +68,13 @@ class SynriaRobotAPI:
         self.data_parser = servo_driver.data_parser  # Direct access to data parser
         self.robot_model = robot_model
         self.debug_mode = servo_driver.debug_mode  # Access debug mode from servo driver
-        
+
         # Set backend if provided, otherwise use default 'numpy'
         if backend is not None:
             rc.set_backend(backend, device=device)
         else:
             rc.set_backend('numpy')
-        
+
         # Higher-level helpers
         self.robot_type = None
         if auto_connect:
@@ -86,7 +86,7 @@ class SynriaRobotAPI:
         """Connect to robot and detect firmware version."""
         if self.is_connected():
             return True
-            
+
         result = self.servo_driver.connect()
         if result:
             try:
@@ -99,7 +99,7 @@ class SynriaRobotAPI:
                 logger.error(f"Hardware initialization failed after serial connection: {e}")
                 return False
         return False
-        
+
     def disconnect(self):
         """Disconnect from robot and stop update threads."""
         self.servo_driver.stop_update_thread()
@@ -115,7 +115,7 @@ class SynriaRobotAPI:
     def get_robot_state(self, info_type: str = "joint_gripper", timeout: float = 1.0, cache: bool = True) -> Optional[Union[JointState, Dict, List[float], str, float]]:
         """
         Unified API to get robot state information.
-        
+
         :param info_type: Type of information to get. Options:
             - "joint_gripper": Returns JointState (arm joint angles, gripper value, timestamp, run_status_text)
             - "joint": Returns List[float] of arm joint angles (radians) only
@@ -131,21 +131,21 @@ class SynriaRobotAPI:
         # Special handling for gripper_type: try cache first, then hardware query
         if info_type == "gripper_type" and cache:
             return self._get_gripper_type_with_cache(timeout)
-        
+
         # Joint and gripper are acquired together from hardware using the "joint" command
         if info_type in ("joint_gripper", "joint", "gripper"):
             if not self.servo_driver.acquire_info("joint_gripper", wait=True, timeout=timeout):
                 logger.error(f"Failed to get joint/gripper data within timeout period")
                 return None
             return self.data_parser.get_info(info_type)
-        
+
         # Other info types map directly to hardware commands
         if not self.servo_driver.acquire_info(info_type, wait=True, timeout=timeout):
             logger.error(f"Failed to get {info_type} data within timeout period")
             return None
-        
+
         result = self.data_parser.get_info(info_type)
-        
+
         return result
 
     def get_pose(self, backend: Optional[str] = None) -> Optional[Union[List[float], Dict]]:
@@ -156,7 +156,7 @@ class SynriaRobotAPI:
         """
         # Set backend globally (forward_kinematics uses global backend)
         if backend == 'torch':
-            rc.set_backend(backend) # ignore numpy since default is inherited
+            rc.set_backend(backend)  # ignore numpy since default is inherited
         joint_angles = self.get_robot_state("joint")
         if joint_angles is None:
             logger.error("无法获取关节角度")
@@ -183,29 +183,38 @@ class SynriaRobotAPI:
 
     # ==================== Robot Control ====================
 
-    def set_home(self, speed_deg_s: int = 10):
+    def set_home(self, speed_deg_s: Union[int, float, List[float], np.ndarray] = 10, gripper_speed_deg_s: Optional[float] = 483.4):
         """Move robot to home position and wait until near zero.
 
-        :param speed_deg_s: Speed in degrees per second (0-360, required range)
+        :param speed_deg_s: Speed in degrees per second. Can be int/float (same for all joints) or list/array (per-joint speeds), default 10
+        :param gripper_speed_deg_s: Gripper speed in degrees per second. If None, uses default 5500 ticks/s (≈483.4 deg/s)
         """
         # time.sleep(0.1)
         home_joints = [0.0] * 6
-        self.set_robot_state(target_joints=home_joints, gripper_value=1000, speed_deg_s=speed_deg_s, wait_for_completion=True)
+        self.set_robot_state(
+            target_joints=home_joints,
+            gripper_value=1000,
+            speed_deg_s=speed_deg_s,
+            gripper_speed_deg_s=gripper_speed_deg_s,
+            wait_for_completion=True
+        )
 
     def set_robot_state(self,
-                            target_joints: Optional[List[float]] = None,
-                            gripper_value: Optional[int] = None,
-                            joint_format: str = 'rad',
-                            speed_deg_s: int = 10,
-                            tolerance: float = 0.1,
-                            timeout: float = 10.0,
-                            wait_for_completion: bool = True) -> bool:
+                        target_joints: Optional[List[float]] = None,
+                        gripper_value: Optional[int] = None,
+                        joint_format: str = 'rad',
+                        speed_deg_s: Union[int, float, List[float], np.ndarray] = 10,
+                        gripper_speed_deg_s: Optional[float] = 483.4,
+                        tolerance: float = 0.1,
+                        timeout: float = 10.0,
+                        wait_for_completion: bool = True) -> bool:
         """Set joint angles and/or gripper in a single combined command.
 
         :param target_joints: Optional target joint angles. If None, keeps current
-        :param gripper_value: Optional gripper value (0-100). If None, keeps current
+        :param gripper_value: Optional gripper value (0-1000). If None, keeps current
         :param joint_format: Unit format for joints, 'rad' or 'deg'
-        :param speed_deg_s: Speed in degrees per second (0-360, required range)
+        :param speed_deg_s: Speed in degrees per second. Can be int/float (same for all joints) or list/array (per-joint speeds, 4.39-439.45 deg/s), default 10
+        :param gripper_speed_deg_s: Gripper speed in degrees per second. If None, uses default 5500 ticks/s (≈483.4 deg/s)
         :param tolerance: Rad, acceptable abs distance to target for joints
         :param timeout: Seconds, maximum wait time
         :param wait_for_completion: If True, wait until target reached
@@ -217,7 +226,12 @@ class SynriaRobotAPI:
                 target_joints = [a * np.pi / 180.0 for a in target_joints]
 
         # Use unified method
-        success = self.servo_driver.set_joint_and_gripper(joint_angles=target_joints, gripper_value=gripper_value, speed_deg_s=speed_deg_s)
+        success = self.servo_driver.set_joint_and_gripper(
+            joint_angles=target_joints,
+            gripper_value=gripper_value,
+            speed_deg_s=speed_deg_s,
+            gripper_speed_deg_s=gripper_speed_deg_s
+        )
 
         if not success:
             logger.error("Failed to set robot target")
@@ -236,19 +250,20 @@ class SynriaRobotAPI:
         return True
 
     def set_pose(self,
-                        target_pose: List[float],
-                        backend: Optional[str] = None,
-                        method: str = 'dls',
-                        pos_tol: float = 1e-3,
-                        ori_tol: float = 1e-3,
-                        max_iters: int = 500,
-                        num_initial_guesses: int = 10,
-                        initial_guess_strategy: str = 'current',
-                        initial_guess_scale: float = 1.0,
-                        random_seed: Optional[int] = None,
-                        speed_deg_s: int = 10,
-                        execute: bool = True,
-                        force_execute: bool = False) -> Dict:
+                 target_pose: List[float],
+                 backend: Optional[str] = None,
+                 method: str = 'dls',
+                 pos_tol: float = 1e-3,
+                 ori_tol: float = 1e-3,
+                 max_iters: int = 500,
+                 num_initial_guesses: int = 10,
+                 initial_guess_strategy: str = 'current',
+                 initial_guess_scale: float = 1.0,
+                 random_seed: Optional[int] = None,
+                 speed_deg_s: Union[int, float, List[float], np.ndarray] = 10,
+                 gripper_speed_deg_s: Optional[float] = 483.4,
+                 execute: bool = True,
+                 force_execute: bool = False) -> Dict:
         """Move end-effector to target pose using inverse kinematics.
 
         :param target_pose: Target pose as [x, y, z, qx, qy, qz, qw]
@@ -261,16 +276,16 @@ class SynriaRobotAPI:
         :param initial_guess_strategy: Initial guess strategy ('zero', 'random', 'sobol', 'latin', 'center', 'uniform', 'current')
         :param initial_guess_scale: Scale factor for initial guesses (0.0 to 1.0)
         :param random_seed: Random seed for reproducibility
-        :param speed_deg_s: Motion speed in degrees per second
+        :param speed_deg_s: Motion speed in degrees per second. Can be int/float (same for all joints) or list/array (per-joint speeds)
+        :param gripper_speed_deg_s: Gripper speed in degrees per second. If None, uses default 5500 ticks/s (≈483.4 deg/s)
         :param execute: Execute motion if True and IK succeeds
         :param force_execute: Force execute motion even if IK failed (requires q to be available)
         :return: Dictionary with success, q, iters, pos_err, ori_err, message, motion_executed, computation_time
         """
 
-        
         # Set backend globally (inverse_kinematics uses global backend)
         if backend == 'torch':
-            rc.set_backend(backend) # ignore numpy since default is inherited
+            rc.set_backend(backend)  # ignore numpy since default is inherited
 
         # Get initial guess based on strategy
         if initial_guess_strategy == 'current':
@@ -314,7 +329,7 @@ class SynriaRobotAPI:
 
         # Convert to numpy and extract results
         q_ik = to_numpy(ik_result['q']) if ik_result.get('q') is not None else None
-        
+
         # Extract error information (handle both single value and list)
         iters = ik_result.get('iters', 0)
         pos_err = ik_result.get('pos_err', float('inf'))
@@ -346,7 +361,13 @@ class SynriaRobotAPI:
 
         # Execute motion if requested
         if ik_success and execute:
-            result = self.set_robot_state(target_joints=q_ik, joint_format='rad', speed_deg_s=speed_deg_s, wait_for_completion=True)
+            result = self.set_robot_state(
+                target_joints=q_ik,
+                joint_format='rad',
+                speed_deg_s=speed_deg_s,
+                gripper_speed_deg_s=gripper_speed_deg_s,
+                wait_for_completion=True
+            )
             ik_result['motion_executed'] = result
         elif force_execute and q_ik is not None:
             # Force execute even if IK failed
@@ -354,6 +375,7 @@ class SynriaRobotAPI:
                 target_joints=q_ik,
                 joint_format='rad',
                 speed_deg_s=speed_deg_s,
+                gripper_speed_deg_s=gripper_speed_deg_s,
                 wait_for_completion=True,
                 timeout=10
             )
@@ -364,7 +386,7 @@ class SynriaRobotAPI:
         return ik_result
 
     # ==================== Advanced Trajectory Methods ====================
-    
+
     def plan_joint_trajectory(
         self,
         waypoints: np.ndarray,
@@ -378,7 +400,7 @@ class SynriaRobotAPI:
         gripper_waypoints: Optional[np.ndarray] = None
     ) -> Dict[str, Any]:
         """Plan joint space trajectory through waypoints.
-        
+
         :param waypoints: Array of joint waypoints [n_waypoints, n_dof] in radians
         :param planner_type: Planner type, 'b_spline' or 'multi_segment'
         :param duration: Total trajectory duration in seconds (for B-Spline)
@@ -392,14 +414,14 @@ class SynriaRobotAPI:
         """
         from robocore.planning import BSplinePlanner, MultiSegmentPlanner
         from robocore.utils.backend import to_numpy
-        
+
         waypoints = to_numpy(waypoints)
         if waypoints.ndim == 1:
             waypoints = waypoints.reshape(1, -1)
-        
+
         if len(waypoints) < 2:
             raise ValueError("Need at least 2 waypoints")
-        
+
         # Create planner
         if planner_type == 'b_spline':
             planner = BSplinePlanner(degree=bspline_degree)
@@ -407,7 +429,7 @@ class SynriaRobotAPI:
             planner = MultiSegmentPlanner(method=segment_method)
         else:
             raise ValueError(f"Unknown planner type: {planner_type}. Must be 'b_spline' or 'multi_segment'")
-        
+
         # Plan trajectory
         if planner_type == 'b_spline':
             trajectory = planner.plan(
@@ -423,7 +445,7 @@ class SynriaRobotAPI:
                 durations=duration_per_segment,
                 num_points_per_segment=num_points_per_segment
             )
-        
+
         # Interpolate gripper values if provided
         if gripper_waypoints is not None:
             gripper_waypoints = to_numpy(gripper_waypoints)
@@ -434,12 +456,12 @@ class SynriaRobotAPI:
             # Clip to valid range [0, 1000]
             gripper_trajectory = np.clip(gripper_trajectory, 0, 1000)
             trajectory['gripper'] = gripper_trajectory
-        
+
         # Add waypoints to trajectory for reference
         trajectory['waypoints'] = waypoints
-        
+
         return trajectory
-    
+
     def plan_cartesian_trajectory(
         self,
         waypoints: np.ndarray,
@@ -448,7 +470,7 @@ class SynriaRobotAPI:
         backend: Optional[str] = None
     ) -> Dict[str, Any]:
         """Plan Cartesian space spline trajectory through waypoints.
-        
+
         :param waypoints: Array of waypoint poses [n_waypoints, 4, 4] (transformation matrices)
                           or [n_waypoints, 3] (positions only, will use identity orientation)
         :param duration: Total trajectory duration in seconds (optional, auto-estimated if None)
@@ -459,35 +481,35 @@ class SynriaRobotAPI:
         import robocore as rc
         from robocore.planning import SplineCurvePlanner
         from robocore.utils.backend import to_numpy
-        
+
         # Set backend for planning (forward_kinematics uses global backend)
         if backend == 'torch':
-            rc.set_backend(backend) # ignore numpy since default is inherited
-        
+            rc.set_backend(backend)  # ignore numpy since default is inherited
+
         # Ensure waypoints are numpy arrays
         if isinstance(waypoints, list):
             waypoints = np.array([to_numpy(wp) for wp in waypoints])
         else:
             waypoints = to_numpy(waypoints)
-        
+
         # Create planner
         planner = SplineCurvePlanner()
-        
+
         # Plan trajectory
         trajectory = planner.plan(
             waypoints=waypoints,
             duration=duration,
             num_points=num_points
         )
-        
+
         # Convert to numpy if needed
         for key in ['t', 'positions', 'orientations', 'velocities', 'accelerations']:
             if key in trajectory:
                 trajectory[key] = to_numpy(trajectory[key])
-        
+
         if 'poses' in trajectory:
             trajectory['poses'] = np.array([to_numpy(pose) for pose in trajectory['poses']])
-        
+
         # Add waypoint positions for reference
         if waypoints.ndim == 3 and waypoints.shape[1:] == (4, 4):
             waypoint_positions = np.array([wp[:3, 3] for wp in waypoints])
@@ -495,12 +517,12 @@ class SynriaRobotAPI:
             waypoint_positions = waypoints
         else:
             waypoint_positions = None
-        
+
         if waypoint_positions is not None:
             trajectory['waypoints'] = waypoint_positions
-        
+
         return trajectory
-    
+
     def solve_ik_for_trajectory(
         self,
         target_poses: np.ndarray,
@@ -517,7 +539,7 @@ class SynriaRobotAPI:
         use_previous_solution: bool = True
     ) -> Dict[str, Any]:
         """Solve inverse kinematics for a sequence of Cartesian poses.
-        
+
         :param target_poses: Array of target poses [n_poses, 4, 4] (transformation matrices)
         :param q_init: Initial joint configuration (uses current joints if None)
         :param method: IK solver method, 'dls', 'pinv', or 'transpose'
@@ -536,30 +558,30 @@ class SynriaRobotAPI:
         from robocore.kinematics.ik import inverse_kinematics
         from robocore.utils.backend import to_numpy
         import time
-        
+
         # Set backend if specified (inverse_kinematics uses global backend)
         if backend == 'torch':
-            rc.set_backend(backend) # ignore numpy since default is inherited
-        
+            rc.set_backend(backend)  # ignore numpy since default is inherited
+
         target_poses = to_numpy(target_poses)
         n_poses = len(target_poses)
-        
+
         # Get initial joint configuration
         if q_init is None:
             q_init = self.get_robot_state("joint")
             if q_init is None:
                 raise ValueError("Cannot get current joint angles. Please provide q_init.")
-        
+
         q_init = np.array(q_init)
         q_current = q_init.copy()
-        
+
         # Solve IK for each pose
         ik_results = []
         joint_angles = []
         success_count = 0
-        
+
         start_time = time.time()
-        
+
         for i, target_pose in enumerate(target_poses):
             # Use previous solution as initial guess if enabled
             if use_previous_solution and i > 0:
@@ -571,7 +593,7 @@ class SynriaRobotAPI:
                 q0 = q_init if i == 0 else q_current
                 num_inits = num_initial_guesses
                 strategy = initial_guess_strategy if i == 0 else 'random'
-            
+
             # Solve IK (max_iters, pos_tol, ori_tol are passed via solver_kwargs)
             result = inverse_kinematics(
                 self.robot_model,
@@ -586,9 +608,9 @@ class SynriaRobotAPI:
                 pos_tol=pos_tol,
                 ori_tol=ori_tol
             )
-            
+
             ik_results.append(result)
-            
+
             if result['success']:
                 joint_angles.append(result['q'])
                 q_current = np.array(result['q'])
@@ -599,16 +621,16 @@ class SynriaRobotAPI:
                     joint_angles.append(joint_angles[-1])
                 else:
                     joint_angles.append(np.zeros(len(self.robot_model._chain_actuated)))
-        
+
         ik_time = time.time() - start_time
-        
+
         joint_angles = np.array(joint_angles)
         success_rate = success_count / n_poses if n_poses > 0 else 0.0
-        
+
         # Calculate statistics
         pos_errors = [r['pos_err'] for r in ik_results if r['success']]
         ori_errors = [r['ori_err'] for r in ik_results if r['success']]
-        
+
         statistics = {
             'total_poses': n_poses,
             'successful': success_count,
@@ -621,14 +643,13 @@ class SynriaRobotAPI:
             'ori_error_mean': np.mean(ori_errors) if ori_errors else None,
             'ori_error_max': np.max(ori_errors) if ori_errors else None
         }
-        
+
         return {
             'joint_angles': joint_angles,
             'ik_results': ik_results,
             'success_rate': success_rate,
             'statistics': statistics
         }
-
 
     def torque_control(self, command: str, timeout: float = 1.0) -> bool:
         """Enable or disable robot torque.
@@ -680,7 +701,7 @@ class SynriaRobotAPI:
             pose = None
             state = self.get_robot_state("joint_gripper")
             # get the gripper type
-            
+
             temperature = self.get_robot_state("temperature", timeout=5.0)
             velocity = self.get_robot_state("velocity")
             self.get_robot_state("self_check")
@@ -804,29 +825,29 @@ class SynriaRobotAPI:
         version = self.get_robot_state("version")
         if version is None:
             return None
-            
+
         serial_number = version.get("serial_number")
         # ADFS for follower, ADLS for leader
         if serial_number.startswith("ADF"):
             self.robot_type = "follower"
         elif serial_number.startswith("ADL"):
             self.robot_type = "leader"
-        
+
         return self.robot_type
 
     def _get_gripper_type_with_cache(self, timeout: float = 1.0) -> Optional[str]:
         """Get gripper type with caching support.
-        
+
         First tries to load from JSON cache, then queries hardware if needed.
         Returns None with warning if hardware query fails (non-critical).
-        
+
         :param timeout: Maximum time to wait for hardware response in seconds
         :return: Gripper type name (e.g., "50mm" or "100mm"), or None if unavailable
         """
         # JSON file path in the same folder as this module
         current_dir = os.path.dirname(os.path.abspath(__file__))
         json_file_path = os.path.join(current_dir, "gripper_type.json")
-        
+
         # 1) Try to load cached gripper type from JSON file (no serial communication)
         if os.path.exists(json_file_path):
             try:
@@ -837,28 +858,28 @@ class SynriaRobotAPI:
                     return cached_type
             except Exception as e:
                 logger.warning(f"Failed to load cached gripper type from JSON, will try hardware query: {e}")
-        
+
         # 2) If no valid cache, actively query hardware
         # Try with wait=True first to get response reliably
         if not self.servo_driver.acquire_info("gripper_type", wait=True, timeout=timeout):
             logger.warning("Failed to get gripper_type data within timeout period")
             return None
-        
+
         result = self.data_parser.get_info("gripper_type")
         if result is None:
             logger.warning("Gripper type (50mm or 100mm) should be defined by parameters")
             return None
-        
+
         # Save to JSON file for future use
         self._save_gripper_type_to_json(result)
-        
+
         return result
-    
+
     def _save_gripper_type_to_json(self, gripper_type: str):
         """Save gripper type to JSON file in the same folder as this module."""
         current_dir = os.path.dirname(os.path.abspath(__file__))
         json_file_path = os.path.join(current_dir, "gripper_type.json")
-        
+
         try:
             with open(json_file_path, 'w', encoding='utf-8') as f:
                 json.dump({"type_name": gripper_type}, f, indent=2, ensure_ascii=False)
@@ -866,4 +887,3 @@ class SynriaRobotAPI:
                 logger.debug(f"Saved gripper type '{gripper_type}' to {json_file_path}")
         except Exception as e:
             logger.error(f"Failed to save gripper type to JSON file: {e}")
-
