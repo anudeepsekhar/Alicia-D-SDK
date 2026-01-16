@@ -237,16 +237,54 @@ class SynriaRobotAPI:
             logger.error("Failed to set robot target")
             return False
 
-        # If no joint target is provided, there is nothing to wait for on joints.
-        if wait_for_completion and target_joints is not None:
-            return self._wait_for_joint_target(
-                target_joints=target_joints,
-                tolerance=tolerance,
-                timeout=timeout,
-                log_prefix="等待关节接近目标"
-            )
+        # Wait for completion if requested
+        if wait_for_completion and (target_joints is not None or gripper_value is not None):
+            joint_result = True
+            gripper_result = True
 
-        # Either waiting was not requested, or only gripper was commanded.
+            # Wait for joints if target_joints is provided
+            if target_joints is not None:
+                joint_result = self._wait_for_joint_target(
+                    target_joints=target_joints,
+                    tolerance=tolerance,
+                    timeout=timeout,
+                    log_prefix="等待关节接近目标"
+                )
+
+            # Wait for gripper if gripper_value is provided
+            if gripper_value is not None:
+                gripper_tolerance = 5.0  # Increase tolerance to 5% for more reliable completion
+                gripper_timeout = min(4.0, timeout)  # Use max 4 seconds for gripper wait
+                start_time = time.time()
+
+                # Give hardware some time to start responding
+                time.sleep(0.05)
+
+                # Check gripper position with timeout
+                gripper_reached = False
+                while time.time() - start_time < gripper_timeout:
+                    current_gripper = self.get_robot_state("gripper")
+                    if current_gripper is not None:
+                        if abs(current_gripper - gripper_value) <= gripper_tolerance:
+                            gripper_reached = True
+                            break
+                    time.sleep(0.05)
+
+                # If we didn't verify position but command was sent, still consider success
+                if not gripper_reached:
+                    final_check = self.get_robot_state("gripper")
+                    if final_check is None:
+                        # State unavailable, but command was sent
+                        gripper_result = True
+                    else:
+                        # Check one more time with tolerance
+                        gripper_result = abs(final_check - gripper_value) <= gripper_tolerance
+                else:
+                    gripper_result = True
+
+            return joint_result and gripper_result
+
+        # Either waiting was not requested, or no targets were provided.
         return True
 
     def set_pose(self,
