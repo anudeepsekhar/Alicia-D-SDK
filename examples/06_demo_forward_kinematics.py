@@ -80,7 +80,7 @@ if __name__ == '__main__':
     parser.add_argument('--gripper_type', type=str, default="50mm", help="夹爪类型")
     parser.add_argument('--model_format', type=str, default="urdf", help="模型格式")
     parser.add_argument('--base_link', type=str, default="base_link", help="基座链路名称, world 或 base_link等")
-    parser.add_argument('--end_link', type=str, default="tool0", help="末端执行器链路名称, tool0 或 Link6等")
+    parser.add_argument('--end_link', type=str, default="tool0", help="末端执行器链路名称, tool0 或 link6等")
     args = parser.parse_args()
     
 

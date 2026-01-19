@@ -96,7 +96,7 @@ if __name__ == "__main__":
     parser.add_argument('--speed_deg_s', type=int, default=10,  help="关节运动速度 (单位: 度/秒，默认: 10，范围: 5-400度/秒)")
     parser.add_argument('--gripper_type', type=str, default="50mm", help="夹爪类型")
     parser.add_argument('--base_link', type=str, default="base_link", help="基座链路名称, world 或 base_link等")
-    parser.add_argument('--end_link', type=str, default="tool0", help="末端执行器链路名称, tool0 或 Link6等")
+    parser.add_argument('--end_link', type=str, default="tool0", help="末端执行器链路名称, tool0 或 link6等")
 
     # IK Configuration
     parser.add_argument('--end-pose', type=float, nargs=7, 
