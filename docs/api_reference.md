@@ -44,24 +44,29 @@ robot = create_robot()
   检查机械臂是否连接
 
 #### 运动控制：
-- `set_home(speed_deg_s=10)`  
+- `set_home(speed_deg_s=10, gripper_speed_deg_s=483.4)`  
   移动机械臂到初始位置
+  
+  **参数：**
+  - `speed_deg_s`: 关节运动速度（度/秒），可以是 int/float（所有关节相同）或 list/array（每个关节不同速度），默认 10
+  - `gripper_speed_deg_s`: 夹爪运动速度（度/秒），如果为 None，使用默认 5500 ticks/s (≈483.4 deg/s)，默认 483.4
 
-- `set_robot_state(target_joints=None, gripper_value=None, joint_format='rad', speed_deg_s=10, tolerance=0.1, timeout=10.0, wait_for_completion=True)`  
+- `set_robot_state(target_joints=None, gripper_value=None, joint_format='rad', speed_deg_s=10, gripper_speed_deg_s=483.4, tolerance=0.1, timeout=10.0, wait_for_completion=True)`  
   统一的关节和夹爪目标设置接口，支持同时设置关节角度和夹爪位置
   
   **参数：**
   - `target_joints`: 可选的目标关节角度列表（弧度或度数）。如果为 None，保持当前角度
   - `gripper_value`: 可选的夹爪值（0-1000，0为完全闭合，1000为完全张开）。如果为 None，保持当前值
   - `joint_format`: 关节角度单位格式，'rad'（弧度）或 'deg'（度数），默认 'rad'
-  - `speed_deg_s`: 关节运动速度（度/秒），范围 0-360，默认 10
+  - `speed_deg_s`: 关节运动速度（度/秒），可以是 int/float（所有关节相同）或 list/array（每个关节不同速度，范围 4.39-439.45 deg/s），默认 10
+  - `gripper_speed_deg_s`: 夹爪运动速度（度/秒），如果为 None，使用默认 5500 ticks/s (≈483.4 deg/s)，默认 483.4
   - `tolerance`: 关节目标容差（弧度），默认 0.1
   - `timeout`: 最大等待时间（秒），默认 10.0
   - `wait_for_completion`: 如果为 True，等待到达目标位置，默认 True
   
   **返回值：** 成功返回 True，失败返回 False
 
-- `set_pose(target_pose, backend=None, method='dls', pos_tol=1e-3, ori_tol=1e-3, max_iters=500, num_initial_guesses=10, initial_guess_strategy='current', initial_guess_scale=1.0, random_seed=None, speed_deg_s=10, execute=True, force_execute=False)`  
+- `set_pose(target_pose, backend=None, method='dls', pos_tol=1e-3, ori_tol=1e-3, max_iters=500, num_initial_guesses=10, initial_guess_strategy='current', initial_guess_scale=1.0, random_seed=None, speed_deg_s=10, gripper_speed_deg_s=483.4, execute=True, force_execute=False)`  
   使用逆运动学移动末端执行器到目标位姿
   
   **参数：**
@@ -75,7 +80,8 @@ robot = create_robot()
   - `initial_guess_strategy`: 初始猜测策略，'zero', 'random', 'sobol', 'latin', 'center', 'uniform', 'current'（默认: 'current'，使用当前关节角度）
   - `initial_guess_scale`: 初始猜测缩放因子（0.0 到 1.0），默认 1.0
   - `random_seed`: 随机种子，用于可重复性，默认 None
-  - `speed_deg_s`: 运动速度（度/秒），默认 10
+  - `speed_deg_s`: 关节运动速度（度/秒），可以是 int/float（所有关节相同）或 list/array（每个关节不同速度），默认 10
+  - `gripper_speed_deg_s`: 夹爪运动速度（度/秒），如果为 None，使用默认 5500 ticks/s (≈483.4 deg/s)，默认 483.4
   - `execute`: 如果为 True 且 IK 成功，执行运动，默认 True
   - `force_execute`: 如果为 True，即使 IK 失败也强制执行（需要 q 可用），默认 False
   
@@ -129,7 +135,7 @@ robot = create_robot()
   **返回值：** 包含 'joint_angles', 'ik_results', 'success_rate', 'statistics' 的字典
 
 #### 状态获取：
-- `get_robot_state(info_type="joint_gripper", timeout=1.0)`  
+- `get_robot_state(info_type="joint_gripper", timeout=1.0, cache=True)`  
   统一的机械臂状态获取接口，根据 `info_type` 返回不同类型的数据：
   
   **参数：**
@@ -145,8 +151,9 @@ robot = create_robot()
     - `"temperature"`: 返回舵机温度列表 `List[float]`（摄氏度）
     - `"velocity"`: 返回舵机速度列表 `List[float]`（度/秒）
     - `"self_check"`: 返回自检状态字典，包含 `raw_mask`, `bits`, `timestamp`
-    - `"gripper_type"`: 返回夹爪类型字符串（如 "50mm" 或 "100mm"）
+    - `"gripper_type"`: 返回夹爪类型字符串（如 "50mm" 或 "100mm"），失败时返回 None
   - `timeout`: 最大等待时间（秒），默认 1.0
+  - `cache`: 是否使用缓存（仅对 gripper_type 有效），默认 True
   
   **返回值：** 根据 `info_type` 返回相应类型的数据，失败返回 `None`
 
@@ -158,8 +165,13 @@ robot = create_robot()
   
   **返回值：** 包含位姿信息的字典，失败返回 None
 
-- `print_state(continuous=False, output_format='deg')`  
+- `print_state(continuous=False, output_format='deg', fps=200.0)`  
   打印当前机械臂信息，可持续打印，支持角度/弧度格式。包含关节角度、夹爪状态、末端位姿、温度、速度等信息
+  
+  **参数：**
+  - `continuous`: 如果为 True，持续打印；如果为 False，仅打印一次，默认 False
+  - `output_format`: 角度格式，'deg'（度）或 'rad'（弧度），默认 'deg'
+  - `fps`: 连续模式的目标帧率（Hz），默认 200.0
 
 #### 夹爪控制：
 - `set_robot_state(gripper_value=...)`  
@@ -178,8 +190,14 @@ robot = create_robot()
   ```
 
 #### 系统控制：
-- `torque_control(command)`  
+- `torque_control(command, timeout=1.0)`  
   启用或关闭扭矩（'on' 或 'off'）
+  
+  **参数：**
+  - `command`: 命令，'on' 或 'off'
+  - `timeout`: 最大等待响应时间（秒），默认 1.0
+  
+  **返回值：** 成功返回 True，失败返回 False
 
 - `zero_calibration()`  
   执行归零校准流程：关闭扭矩 → 手动拖动 → 重启扭矩 → 记录零点

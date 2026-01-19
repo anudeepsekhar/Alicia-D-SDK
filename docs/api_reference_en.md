@@ -44,24 +44,29 @@ robot = create_robot()
   Check if the robot is connected
 
 #### Motion Control:
-- `set_home(speed_deg_s=10)`  
+- `set_home(speed_deg_s=10, gripper_speed_deg_s=483.4)`  
   Move the robot to the initial position
+  
+  **Parameters:**
+  - `speed_deg_s`: Joint motion speed (degrees per second), can be int/float (same for all joints) or list/array (per-joint speeds), default 10
+  - `gripper_speed_deg_s`: Gripper speed (degrees per second), if None, uses default 5500 ticks/s (≈483.4 deg/s), default 483.4
 
-- `set_robot_state(target_joints=None, gripper_value=None, joint_format='rad', speed_deg_s=10, tolerance=0.1, timeout=10.0, wait_for_completion=True)`  
+- `set_robot_state(target_joints=None, gripper_value=None, joint_format='rad', speed_deg_s=10, gripper_speed_deg_s=483.4, tolerance=0.1, timeout=10.0, wait_for_completion=True)`  
   Unified interface for setting joint and gripper targets, supports simultaneous setting of joint angles and gripper position
   
   **Parameters:**
   - `target_joints`: Optional target joint angles list (radians or degrees). If None, keeps current angles
   - `gripper_value`: Optional gripper value (0-1000, 0 is fully closed, 1000 is fully open). If None, keeps current value
   - `joint_format`: Unit format for joints, 'rad' (radians) or 'deg' (degrees), default 'rad'
-  - `speed_deg_s`: Joint motion speed (degrees per second), range 0-360, default 10
+  - `speed_deg_s`: Joint motion speed (degrees per second), can be int/float (same for all joints) or list/array (per-joint speeds, range 4.39-439.45 deg/s), default 10
+  - `gripper_speed_deg_s`: Gripper speed (degrees per second), if None, uses default 5500 ticks/s (≈483.4 deg/s), default 483.4
   - `tolerance`: Joint target tolerance (radians), default 0.1
   - `timeout`: Maximum wait time (seconds), default 10.0
   - `wait_for_completion`: If True, wait until target reached, default True
   
   **Returns:** True if successful, False otherwise
 
-- `set_pose(target_pose, backend=None, method='dls', pos_tol=1e-3, ori_tol=1e-3, max_iters=500, num_initial_guesses=10, initial_guess_strategy='current', initial_guess_scale=1.0, random_seed=None, speed_deg_s=10, execute=True, force_execute=False)`  
+- `set_pose(target_pose, backend=None, method='dls', pos_tol=1e-3, ori_tol=1e-3, max_iters=500, num_initial_guesses=10, initial_guess_strategy='current', initial_guess_scale=1.0, random_seed=None, speed_deg_s=10, gripper_speed_deg_s=483.4, execute=True, force_execute=False)`  
   Move the end-effector to target pose using inverse kinematics
   
   **Parameters:**
@@ -75,7 +80,8 @@ robot = create_robot()
   - `initial_guess_strategy`: Initial guess strategy, 'zero', 'random', 'sobol', 'latin', 'center', 'uniform', 'current' (default: 'current', uses current joint angles)
   - `initial_guess_scale`: Scale factor for initial guesses (0.0 to 1.0), default 1.0
   - `random_seed`: Random seed for reproducibility, default None
-  - `speed_deg_s`: Motion speed (degrees per second), default 10
+  - `speed_deg_s`: Joint motion speed (degrees per second), can be int/float (same for all joints) or list/array (per-joint speeds), default 10
+  - `gripper_speed_deg_s`: Gripper speed (degrees per second), if None, uses default 5500 ticks/s (≈483.4 deg/s), default 483.4
   - `execute`: Execute motion if True and IK succeeds, default True
   - `force_execute`: Force execute motion even if IK failed (requires q to be available), default False
   
@@ -129,7 +135,7 @@ robot = create_robot()
   **Returns:** Dictionary with 'joint_angles', 'ik_results', 'success_rate', 'statistics'
 
 #### Status Retrieval:
-- `get_robot_state(info_type="joint_gripper", timeout=1.0)`  
+- `get_robot_state(info_type="joint_gripper", timeout=1.0, cache=True)`  
   Unified interface for retrieving robot state information. Returns different data types based on `info_type`:
   
   **Parameters:**
@@ -145,8 +151,9 @@ robot = create_robot()
     - `"temperature"`: Returns servo temperatures as `List[float]` (Celsius)
     - `"velocity"`: Returns servo velocities as `List[float]` (degrees per second)
     - `"self_check"`: Returns self-check status dictionary with `raw_mask`, `bits`, `timestamp`
-    - `"gripper_type"`: Returns gripper type string (e.g., "50mm" or "100mm")
+    - `"gripper_type"`: Returns gripper type string (e.g., "50mm" or "100mm"), or None if unavailable
   - `timeout`: Maximum wait time in seconds (default: 1.0)
+  - `cache`: Whether to use cache (only effective for gripper_type), default True
   
   **Returns:** Data of the requested type, or `None` if failed
 
@@ -158,8 +165,13 @@ robot = create_robot()
   
   **Returns:** Dictionary with pose information, or None if failed
 
-- `print_state(continuous=False, output_format='deg')`  
+- `print_state(continuous=False, output_format='deg', fps=200.0)`  
   Print current robot information, supports continuous printing, supports angle/radian format. Includes joint angles, gripper state, end-effector pose, temperature, velocity, and more
+  
+  **Parameters:**
+  - `continuous`: If True, print continuously; if False, print once, default False
+  - `output_format`: Angle format, 'deg' (degrees) or 'rad' (radians), default 'deg'
+  - `fps`: Target frames per second for continuous mode (Hz), default 200.0
 
 #### Gripper Control:
 - `set_robot_state(gripper_value=...)`  
@@ -178,8 +190,14 @@ robot = create_robot()
   ```
 
 #### System Control:
-- `torque_control(command)`  
+- `torque_control(command, timeout=1.0)`  
   Enable or disable torque ('on' or 'off')
+  
+  **Parameters:**
+  - `command`: Command, 'on' or 'off'
+  - `timeout`: Maximum time to wait for response in seconds, default 1.0
+  
+  **Returns:** True if successful, False otherwise
 
 - `zero_calibration()`  
   Execute zero calibration process: disable torque → manual drag → re-enable torque → record zero point

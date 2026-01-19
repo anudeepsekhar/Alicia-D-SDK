@@ -91,9 +91,8 @@ The **Alicia-D SDK** is a Python toolkit for controlling the "Alicia-D" series o
 │   ├── 08_demo_drag_teaching.py     # Drag teaching
 │   ├── 09_demo_joint_traj.py        # Joint space trajectory planning
 │   ├── 10_demo_cartesian_traj.py    # Cartesian space trajectory planning
-│   ├── 11_demo_sparkvis.py          # SparkVis UI bidirectional sync
-│   ├── 12_benchmark_read_joints.py  # Joint reading performance benchmark
-│   └── 13_utmostFPS.py              # Maximum FPS test
+│   ├── 11_benchmark_read_joints.py  # Joint reading performance benchmark
+│   └── 12_utmostFPS.py              # Maximum FPS test
 ```
 
 ## Installation
@@ -120,12 +119,10 @@ python3 05_demo_move_joint.py      # Joint movement
 *   [Installation Guide](docs/installation_en.md)
 *   [Examples Guide](docs/examples_en.md)
 *   [API Reference](docs/api_reference_en.md)
-*   [Migration Guide (v6.0.0 → v6.1.0)](docs/migration_guide_en.md)
 *   [Logger Levels](docs/logger_levels_en.md)
 
 **中文文档：**
 *   [安装指南](docs/installation.md)
 *   [示例说明](docs/examples.md)
 *   [API 参考](docs/api_reference.md)
-*   [迁移指南 (v6.0.0 → v6.1.0)](docs/migration_guide.md)
 *   [日志级别](docs/logger_levels.md)
