@@ -52,7 +52,7 @@ robot = create_robot()
 
 # 连接机械臂
 if robot.connect():
-    print("连接成功！")
+    print("Connection successful!")
     
     # 打印当前状态
     robot.print_state()
@@ -63,7 +63,7 @@ if robot.connect():
     # 断开连接
     robot.disconnect()
 else:
-    print("连接失败，请检查串口")
+    print("Connection failed, please check serial port")
 ```
 
 ### 手动指定串口

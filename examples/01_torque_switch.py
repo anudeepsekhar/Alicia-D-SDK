@@ -38,8 +38,7 @@ def main(args):
     )
     
     try:
-        logger.info("Please manually hold the robot arm.")
-        logger.info("请托住机械臂以免其突然掉落。")
+        logger.warning("Please manually hold the robot arm!!!")
         input("Press Enter to disable torque...")
         robot.torque_control('off')
         
@@ -60,10 +59,10 @@ def main(args):
 
 if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser(description="Robot zero calibration program")
+    parser = argparse.ArgumentParser(description="Robot torque switch program")
     
     # Robot configuration
-    parser.add_argument('--port', type=str, default="", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
+    parser.add_argument('--port', type=str, default="", help="Serial port (e.g. /dev/ttyUSB0 or COM3)")
     args = parser.parse_args()
 
     main(args)

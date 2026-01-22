@@ -75,17 +75,17 @@ def main(args):
 
 if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser(description="正向运动学示例")
+    parser = argparse.ArgumentParser(description="Forward kinematics demo")
     
     # Robot configuration
-    parser.add_argument('--port', type=str, default="",   help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
+    parser.add_argument('--port', type=str, default="",   help="Serial port (e.g. /dev/ttyUSB0 or COM3)")
     
-    parser.add_argument('--version', type=str, default="v5_6", choices=["v5_6"], help="版本")
-    parser.add_argument('--variant', type=str, default="gripper_50mm", choices=["gripper_50mm", "gripper_100mm", "leader_ur", "leader", "vertical_50mm"], help="变体")
-    parser.add_argument('--model_format', type=str, default="urdf", choices=["urdf", "mjcf"], help="模型格式")
-    
-    parser.add_argument('--base_link', type=str, default="base_link", help="基座链路名称, world 或 base_link等")
-    parser.add_argument('--end_link', type=str, default="tool0", help="末端执行器链路名称, tool0 或 link6等")
+    parser.add_argument('--version', type=str, default="v5_6", choices=["v5_6"], help="Version")
+    parser.add_argument('--variant', type=str, default="leader", choices=["gripper_50mm", "gripper_100mm", "leader_ur", "leader", "vertical_50mm"], help="Variant")
+    parser.add_argument('--model_format', type=str, default="urdf", choices=["urdf", "mjcf"], help="Model format")
+
+    parser.add_argument('--base_link', type=str, default="base_link", help="Base link name, world or base_link etc.")
+    parser.add_argument('--end_link', type=str, default="tool0", help="End effector link name, tool0 or link6 etc.")
     args = parser.parse_args()
     
 

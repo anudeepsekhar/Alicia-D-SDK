@@ -17,22 +17,20 @@
 # Website: https://synriarobotics.ai
 
 """
-Demo: Robot zero calibration
+Demo: Set new zero configuration
 
 Warning: 
 - Ensure no obstacles around the robot arm before calibration
 - When torque is disabled, manually support the robot arm
+- 一旦设置新零点，无法恢复至出厂零点！！！！如果想恢复需购买标定工具！！！
+    Once the new zero point is set, it CANNOT be restored to the factory zero point! 
+    If you want to restore it, you need to purchase the calibration tool!
 """
 
 import alicia_d_sdk
 
 
 def main(args):
-    """Execute robot zero calibration.
-    
-    :param args: Command line arguments containing port
-    """
-    # Initialize robot instance
     robot = alicia_d_sdk.create_robot(port=args.port)
     
     try:

@@ -77,6 +77,8 @@ class SynriaRobotAPI:
 
         # Higher-level helpers
         self.robot_type = None
+        # Cache for joint angles to maintain position when only gripper is set
+        self._cached_joint_angles: Optional[List[float]] = None
         if auto_connect:
             self.connect()
 
@@ -93,6 +95,10 @@ class SynriaRobotAPI:
                 # Initialize state
                 self.get_robot_state("joint_gripper")
                 self._robot_type()
+                # Initialize joint angle cache with current joint angles
+                current_joints = self.get_robot_state("joint")
+                if current_joints is not None:
+                    self._cached_joint_angles = list(current_joints)
                 logger.info("Synria Robot Connected successfully.")
                 return True
             except Exception as e:
@@ -159,7 +165,7 @@ class SynriaRobotAPI:
             rc.set_backend(backend)  # ignore numpy since default is inherited
         joint_angles = self.get_robot_state("joint")
         if joint_angles is None:
-            logger.error("无法获取关节角度")
+            logger.error("Failed to get joint angles")
             return None
 
         T_fk = forward_kinematics(
@@ -224,6 +230,20 @@ class SynriaRobotAPI:
         if target_joints is not None:
             if joint_format == 'deg':
                 target_joints = [a * np.pi / 180.0 for a in target_joints]
+            # Update cache when joints are explicitly set
+            self._cached_joint_angles = list(target_joints)
+        else:
+            # When joints are not explicitly set, use cached joint angles to maintain position
+            # This prevents arm from dropping due to gravity when only gripper is set
+            if self._cached_joint_angles is None:
+                # If cache is empty, try to get current joints from hardware
+                current_joints = self.get_robot_state("joint")
+                if current_joints is not None:
+                    self._cached_joint_angles = list(current_joints)
+                else:
+                    logger.warning("No cached joint angles available and cannot read from hardware, using zeros")
+                    self._cached_joint_angles = [0.0] * 6
+            target_joints = self._cached_joint_angles
 
         # Use unified method
         success = self.servo_driver.set_joint_and_gripper(
@@ -254,7 +274,7 @@ class SynriaRobotAPI:
             # Wait for gripper if gripper_value is provided
             if gripper_value is not None:
                 gripper_tolerance = 5.0  # Increase tolerance to 5% for more reliable completion
-                gripper_timeout = min(4.0, timeout)  # Use max 4 seconds for gripper wait
+                gripper_timeout = timeout  # Use max 4 seconds for gripper wait
                 start_time = time.time()
 
                 # Give hardware some time to start responding
@@ -701,7 +721,7 @@ class SynriaRobotAPI:
         elif command == "off":
             return self.servo_driver.acquire_info("torque_off", wait=True, timeout=timeout)
         else:
-            logger.error("command 参数必须是 'on' 或 'off'")
+            logger.error("command parameter must be 'on' or 'off'")
             return False
 
     def zero_calibration(self) -> bool:
@@ -709,18 +729,18 @@ class SynriaRobotAPI:
 
         :return: True if calibration successful
         """
-        logger.warning("此操作不可逆，将更改出厂零点位置，请谨慎操作")
-        logger.info("开始归零校准,机械臂将失去扭矩")
-        logger.info("按下回车继续, Ctrl+C 取消...")
+        logger.warning("This operation is irreversible and will change the factory zero position, please operate with caution")
+        logger.info("Starting zero calibration, robot arm will lose torque")
+        logger.info("Press Enter to continue, Ctrl+C to cancel...")
         input()
         if not self.torque_control('off'):
-            logger.error("扭矩关闭失败")
+            logger.error("Failed to disable torque")
             return False
-        logger.info("请手动拖动机械臂到零点位置，然后按回车继续...")
+        logger.info("Please manually drag the robot arm to zero position, then press Enter to continue...")
         input()
 
         if not self.servo_driver.acquire_info("zero_cali", wait=True, timeout=2.0):
-            logger.error("零点校准失败")
+            logger.error("Zero calibration failed")
             return False
         time.sleep(0.1)
         self.servo_driver.acquire_info("torque_on", wait=True, timeout=1.0)
@@ -744,7 +764,7 @@ class SynriaRobotAPI:
             velocity = self.get_robot_state("velocity")
             self.get_robot_state("self_check")
             if state is None:
-                logger.warning("无法获取关节状态")
+                logger.warning("Failed to get joint state")
                 return
 
             joints = state.angles
@@ -762,19 +782,19 @@ class SynriaRobotAPI:
             else:
                 joint_out = np.round(joints, 3)
                 unit = "rad"
-            logger.info(f"关节角度（{unit}): {joint_out.tolist()}, 夹爪(0-1000): {gripper}")
+            logger.info(f"Joint angles ({unit}): {joint_out.tolist()}, Gripper (0-1000): {gripper}")
             if status != "idle":
-                logger.info(f"按键状态：{status}")
+                logger.info(f"Button status: {status}")
 
             if pose is not None:
                 quaternion = pose['quaternion_xyzw']
                 position = pose['position']
-                logger.info(f"位置(xyz /m): {np.round(position, 3).tolist()}, 四元数(qx, qy, qz, qw): {np.round(quaternion, 3).tolist()}")
+                logger.info(f"Position (xyz /m): {np.round(position, 3).tolist()}, Quaternion (qx, qy, qz, qw): {np.round(quaternion, 3).tolist()}")
 
             if temperature is not None:
-                logger.info(f"舵机温度（°C): {np.round(temperature, 1).tolist()}")
+                logger.info(f"Servo temperature (°C): {np.round(temperature, 1).tolist()}")
             if velocity is not None:
-                logger.info(f"舵机速度(deg/s) : {np.round(velocity, 1).tolist()}")
+                logger.info(f"Servo velocity (deg/s): {np.round(velocity, 1).tolist()}")
 
             print("\n")
         if continuous:
@@ -782,7 +802,7 @@ class SynriaRobotAPI:
             # For 200 Hz (5ms interval), use 2ms spin_threshold to allow some sleep time
             interval = 1 / fps
             spin_threshold = 0.002 if interval <= 0.010 else 0.010  # 2ms for high freq, 10ms for low freq
-            logger.info(f"开始连续状态打印，按 Ctrl+C 停止 (目标FPS: {fps})")
+            logger.info(f"Starting continuous state printing, press Ctrl+C to stop (target FPS: {fps})")
             try:
                 while True:
                     start_time = time.perf_counter()
@@ -790,7 +810,7 @@ class SynriaRobotAPI:
                     dt_time = time.perf_counter() - start_time
                     precise_sleep(interval - dt_time, spin_threshold=spin_threshold)
             except KeyboardInterrupt:
-                logger.info("停止连续状态打印")
+                logger.info("Stopped continuous state printing")
         else:
             _print_once(robot_type)
 
@@ -841,12 +861,12 @@ class SynriaRobotAPI:
             current_joints = self.get_robot_state("joint")
             if current_joints is not None:
                 if all(abs(a - b) <= tolerance for a, b in zip(current_joints, target_joints)):
-                    # logger.info("已到达目标位置")
+                    # logger.info("Reached target position")
                     return True
-        logger.warning("等待关节到目标附近超时")
+        logger.warning("Timeout waiting for joints to reach target")
         joints = self.get_robot_state("joint")
-        logger.warning(f"目标关节角度: {target_joints}")
-        logger.warning(f"关节角度: {joints}")
+        logger.warning(f"Target joint angles: {target_joints}")
+        logger.warning(f"Current joint angles: {joints}")
 
         return False
 

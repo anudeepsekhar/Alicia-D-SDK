@@ -86,18 +86,18 @@ def record_waypoints_manual(controller,
     :param format_fn: Custom formatting function for log output. If None, uses default format
     :return: List of recorded waypoints
     """
-    print("\n=== 手动记录模式 ===")
-    print("关闭扭矩后，拖动到目标位置按回车记录")
+    print("\n=== Manual Recording Mode ===")
+    print("After disabling torque, drag to target position and press Enter to record")
 
-    input("按回车开始...")
+    input("Press Enter to start...")
     controller.torque_control('off')
-    print("[安全] 扭矩已关闭，可以拖动机械臂")
+    print("[Safety] Torque disabled, you can drag the robot arm")
 
     waypoints = []
 
     try:
         while True:
-            cmd = input(f"\n拖动到位置后按回车记录第{len(waypoints) + 1}个点，输入'q'结束: ").strip()
+            cmd = input(f"\nAfter dragging to the position, press Enter to record the {len(waypoints) + 1}th point, input 'q' to end: ").strip()
             if cmd.lower() == 'q':
                 break
 
@@ -124,13 +124,13 @@ def record_waypoints_manual(controller,
                 else:
                     # 默认格式
                     if isinstance(state, dict) and 'q' in state:
-                        print(f"[记录] 第{len(waypoints)}个点: 关节{[round(j, 3) for j in state['q']]}, 夹爪{state.get('grip', 0):.3f}")
+                        print(f"[Record] Point {len(waypoints)}: Joints: {[round(j, 3) for j in state['q']]}, Gripper: {state.get('grip', 0):.3f}")
                     else:
-                        print(f"[记录] 第{len(waypoints)}个点")
+                        print(f"[Record] Point {len(waypoints)}")
 
     finally:
         controller.torque_control('on')
-        print("[安全] 扭矩已重新开启")
+        print("[Safety] Torque re-enabled")
 
     return waypoints
 
@@ -251,7 +251,7 @@ def record_joint_waypoints_manual(robot) -> Tuple[Optional[np.ndarray], Optional
         # Get joint and gripper together in a single call (more efficient)
         robot_state = controller.get_robot_state("joint_gripper")
         if robot_state is None:
-            beauty_print("✗ 无法获取当前关节角度和夹爪状态", type="warning")
+            beauty_print("✗ Failed to get current joint angles and gripper state", type="warning")
             return None
         
         joints = to_numpy(robot_state.angles)
@@ -262,20 +262,20 @@ def record_joint_waypoints_manual(robot) -> Tuple[Optional[np.ndarray], Optional
     def format_joint_state(count, state):
         joints = state.get('q')
         gripper = state.get('grip', 0.0)
-        beauty_print(f"[记录] 第{count}个点:")
-        print(f"  关节角度 (rad): {beauty_print_array(joints)}")
-        print(f"  关节角度 (deg): {beauty_print_array(np.rad2deg(joints))}")
-        print(f"  夹爪状态: {gripper:.1f} (0-1000, 0=闭合, 1000=张开)")
+        beauty_print(f"[Record] Point {count}:")
+        print(f"  Joint angles (rad): {beauty_print_array(joints)}")
+        print(f"  Joint angles (deg): {beauty_print_array(np.rad2deg(joints))}")
+        print(f"  Gripper state: {gripper:.1f} (0-1000, 0=closed, 1000=open)")
         return None  # Formatting is done via print
     
     # Use the general recording function
-    beauty_print("\n=== 手动记录模式 ===", type="module", centered=False)
-    beauty_print("关闭扭矩后，拖动到目标位置按回车记录")
+    beauty_print("\n=== Manual Recording Mode ===", type="module", centered=False)
+    beauty_print("After disabling torque, drag to target position and press Enter to record")
     
     recorded_data = record_waypoints_manual(robot, get_state_fn=get_joint_state, format_fn=format_joint_state)
     
     if not recorded_data or len(recorded_data) < 2:
-        beauty_print("至少需要2个waypoint才能生成轨迹", type="warning")
+        beauty_print("At least 2 waypoints required to generate trajectory", type="warning")
         return None, None
     
     # Convert to numpy arrays
@@ -401,25 +401,25 @@ def record_cartesian_waypoints_manual(robot) -> Optional[np.ndarray]:
     :param robot: Robot controller instance
     :return: Array of 4x4 transformation matrices [n_waypoints, 4, 4]
     """
-    beauty_print("\n=== 手动记录模式 ===", type="module", centered=False)
-    beauty_print("关闭扭矩后，拖动到目标位置按回车记录")
+    beauty_print("\n=== Manual Recording Mode ===", type="module", centered=False)
+    beauty_print("After disabling torque, drag to target position and press Enter to record")
     
-    input("按回车开始...")
+    input("Press Enter to start...")
     robot.torque_control('off')
-    beauty_print("[安全] 扭矩已关闭，可以拖动机械臂", type="warning")
+    beauty_print("[Safety] Torque disabled, you can drag the robot arm", type="warning")
     
     waypoints = []
     
     try:
         while True:
-            cmd = input(f"\n拖动到位置后按回车记录第{len(waypoints) + 1}个点，输入'q'结束: ").strip()
+            cmd = input(f"\nAfter dragging to the position, press Enter to record the {len(waypoints) + 1}th point, input 'q' to end: ").strip()
             if cmd.lower() == 'q':
                 break
             
             # Get current end-effector pose
             pose_info = robot.get_pose()
             if pose_info is None:
-                beauty_print("✗ 无法获取当前末端执行器位姿", type="warning")
+                beauty_print("✗ Failed to get current end-effector pose", type="warning")
                 continue
             
             # Get 4x4 transformation matrix
@@ -430,16 +430,16 @@ def record_cartesian_waypoints_manual(robot) -> Optional[np.ndarray]:
             pos = pose_info['position']
             quat = pose_info['quaternion_xyzw']
             
-            beauty_print(f"[记录] 第{len(waypoints)}个点:")
-            print(f"  位置 (m): {beauty_print_array(pos)}")
-            print(f"  四元数 (xyzw): {beauty_print_array(quat)}")
+            beauty_print(f"[Record] Point {len(waypoints)}:")
+            print(f"  Position (m): {beauty_print_array(pos)}")
+            print(f"  Quaternion (xyzw): {beauty_print_array(quat)}")
     
     finally:
         robot.torque_control('on')
-        beauty_print("[安全] 扭矩已重新开启", type="success")
+        beauty_print("[Safety] Torque re-enabled", type="success")
     
     if len(waypoints) < 2:
-        beauty_print("至少需要2个waypoint才能生成轨迹", type="warning")
+        beauty_print("At least 2 waypoints required to generate trajectory", type="warning")
         return None
     
     return np.array(waypoints)
@@ -456,8 +456,22 @@ def handle_waypoint_recording(robot, args, waypoint_type: str = 'joint') -> Tupl
     waypoints = None
     gripper_waypoints = None
     
-    # Record by default unless --no-record is specified or --waypoints-file is provided
-    should_record = not args.no_record and args.waypoints_file is None
+    # Determine if we should enter recording mode:
+    # Record if:
+    # 1. --save-file is explicitly specified (user wants to record and save)
+    # 2. No file operations specified and recording is not disabled (default behavior)
+    # Don't record if:
+    # 1. --no-record is specified
+    # 2. --waypoints-file is provided (loading from file)
+    # 3. User wants random generation (no --save-file means random generation mode)
+    has_save_file = hasattr(args, 'save_file') and args.save_file is not None
+    has_waypoints_file = hasattr(args, 'waypoints_file') and args.waypoints_file is not None
+
+    # Enter recording mode only if:
+    # - save_file is explicitly specified, OR
+    # - no file operations and recording is not disabled (default: record mode)
+    # But skip recording if waypoints_file is provided (loading mode takes priority)
+    should_record = (has_save_file or (not has_waypoints_file and not args.no_record)) and not has_waypoints_file
     if should_record:
         if waypoint_type == 'joint':
             beauty_print("[0] Recording Joint Waypoints", type="module", centered=False)
@@ -528,7 +542,7 @@ def load_or_generate_joint_waypoints(robot, robot_model, args) -> Tuple[np.ndarr
             print(f"  Current gripper: {g_start:.1f} (0-1000)" if g_start is not None else "  Current gripper: N/A")
             num_random = args.num_waypoints - 1
         else:
-            beauty_print("✗ 无法获取当前关节角度，使用随机生成", type="warning")
+            beauty_print("✗ Failed to get current joint angles, using random generation", type="warning")
             num_random = args.num_waypoints
     else:
         num_random = args.num_waypoints
@@ -583,7 +597,7 @@ def display_joint_waypoints(waypoints: np.ndarray, gripper_waypoints: Optional[n
         print(f"  Waypoint {i+1}: {beauty_print_array(wp)} (rad)")
         print(f"              {beauty_print_array(np.rad2deg(wp))} (deg)")
         if gripper_waypoints is not None and i < len(gripper_waypoints):
-            print(f"              夹爪: {gripper_waypoints[i]:.1f} (0-1000)")
+            print(f"              Gripper: {gripper_waypoints[i]:.1f} (0-1000)")
 
 
 def display_cartesian_waypoints(waypoints: np.ndarray):
@@ -760,3 +774,186 @@ def plot_trajectory(trajectory: dict, waypoints: np.ndarray, plot_type: str = 'j
     except ImportError:
         beauty_print("matplotlib not installed. Skipping plots.", type="warning")
 
+
+def get_default_save_path(waypoint_type: str = 'joint') -> str:
+    """Generate default save path with timestamp.
+    
+    :param waypoint_type: 'joint' or 'cartesian'
+    :return: Default file path in ./motions/ directory
+    """
+    from datetime import datetime
+    motions_dir = "./motions"
+    os.makedirs(motions_dir, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    prefix = "joint_waypoints" if waypoint_type == 'joint' else "cartesian_waypoints"
+    filename = f"{prefix}_{timestamp}.json"
+    return os.path.join(motions_dir, filename)
+
+
+def prompt_save_path(default_path: str) -> str:
+    """Prompt user for save path with default option.
+    
+    :param default_path: Default file path
+    :return: User-specified or default save path
+    """
+    beauty_print(f"\nPlease enter save path (press Enter for default):")
+    beauty_print(f"Default path: {default_path}")
+    user_path = input("Save path: ").strip()
+
+    if not user_path:
+        return default_path
+    else:
+        # Ensure .json extension
+        if not user_path.endswith('.json'):
+            user_path += '.json'
+        return user_path
+
+
+def handle_manual_record_mode(robot, waypoint_type: str = 'joint',
+                              additional_info: Optional[List[str]] = None) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    """Handle manual recording mode with save prompt.
+    
+    :param robot: Robot controller instance
+    :param waypoint_type: 'joint' or 'cartesian'
+    :param additional_info: Optional list of additional info messages to display
+    :return: Tuple of (waypoints, gripper_waypoints) for joint, or (waypoints, None) for cartesian
+    """
+    beauty_print("=== Manual Drag Recording Mode ===", type="module", centered=False)
+
+    if additional_info:
+        for info in additional_info:
+            beauty_print(info, type="info")
+
+    beauty_print("Ready to start recording waypoints...")
+
+    # Record waypoints
+    if waypoint_type == 'joint':
+        waypoints, gripper_waypoints = record_joint_waypoints_manual(robot)
+    else:  # cartesian
+        waypoints = record_cartesian_waypoints_manual(robot)
+        gripper_waypoints = None
+
+    if waypoints is None:
+        beauty_print("Recording cancelled", type="warning")
+        return None, None
+
+    beauty_print(f"Successfully recorded {len(waypoints)} waypoints", type="success")
+
+    # Ask for save location
+    default_path = get_default_save_path(waypoint_type)
+    save_path = prompt_save_path(default_path)
+
+    # Save waypoints
+    try:
+        if waypoint_type == 'joint':
+            save_joint_waypoints_to_file(waypoints, save_path, gripper_waypoints)
+        else:  # cartesian
+            save_cartesian_waypoints_to_file(waypoints, save_path)
+        beauty_print(f"Waypoints saved to: {save_path}", type="success")
+    except Exception as e:
+        beauty_print(f"Save failed: {e}", type="error")
+        return None, None
+
+    return waypoints, gripper_waypoints
+
+
+def prompt_num_waypoints(default: int, min_value: int = 2) -> int:
+    """Prompt user for number of waypoints to generate.
+    
+    :param default: Default number of waypoints
+    :param min_value: Minimum number of waypoints required
+    :return: Number of waypoints to generate
+    """
+    beauty_print(f"Please enter number of waypoints to generate (press Enter for default {default}):")
+    user_input = input("Number of waypoints: ").strip()
+
+    if user_input:
+        try:
+            num_waypoints = int(user_input)
+            if num_waypoints < min_value:
+                beauty_print(f"At least {min_value} waypoints required, using default {default}", type="warning")
+                num_waypoints = default
+        except ValueError:
+            beauty_print(f"Invalid input, using default {default}", type="warning")
+            num_waypoints = default
+    else:
+        num_waypoints = default
+
+    return num_waypoints
+
+
+def handle_load_file_mode(waypoint_type: str = 'joint') -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    """Handle load file mode with format description.
+    
+    :param waypoint_type: 'joint' or 'cartesian'
+    :return: Tuple of (waypoints, gripper_waypoints) for joint, or (waypoints, None) for cartesian
+    """
+    beauty_print("=== Load File Mode ===", type="module", centered=False)
+    beauty_print("File format description:")
+
+    if waypoint_type == 'joint':
+        beauty_print("  - JSON format containing waypoint list")
+        beauty_print("  - Each waypoint can be:")
+        beauty_print("    * Old format: [j1, j2, j3, j4, j5, j6] (joint angle list)")
+        beauty_print("    * New format: {\"joints\": [j1, j2, j3, j4, j5, j6], \"gripper\": g} (with gripper value)")
+        beauty_print("  - Example: ./motions/joint_waypoints_20250101_120000.json")
+    else:  # cartesian
+        beauty_print("  - JSON format containing waypoint list")
+        beauty_print("  - Each waypoint can be:")
+        beauty_print("    * 4x4 transformation matrix format: [[...], [...], [...], [...]]")
+        beauty_print("    * Dict format: {\"position\": [x, y, z], \"orientation\": [qx, qy, qz, qw]} (quaternion) or [roll, pitch, yaw] (RPY)")
+        beauty_print("  - Example: ./motions/cartesian_waypoints_20250101_120000.json")
+
+    beauty_print("")
+
+    file_path = input("File path: ").strip()
+
+    if not file_path:
+        beauty_print("No file path entered", type="error")
+        return None, None
+
+    try:
+        if waypoint_type == 'joint':
+            waypoints, gripper_waypoints = load_joint_waypoints_from_file(file_path)
+            beauty_print(f"Successfully loaded {len(waypoints)} waypoints", type="success")
+            if gripper_waypoints is not None:
+                beauty_print(f"With gripper values: {len(gripper_waypoints)} waypoints")
+        else:  # cartesian
+            waypoints_list = load_cartesian_waypoints_from_file(file_path)
+            waypoints = np.array([to_numpy(wp) for wp in waypoints_list])
+            gripper_waypoints = None
+            beauty_print(f"Successfully loaded {len(waypoints)} waypoints", type="success")
+        return waypoints, gripper_waypoints
+    except FileNotFoundError as e:
+        beauty_print(f"File not found: {e}", type="error")
+        return None, None
+    except Exception as e:
+        beauty_print(f"Load failed: {e}", type="error")
+        return None, None
+
+
+def select_mode(mode_descriptions: Optional[List[str]] = None) -> str:
+    """Let user select operation mode.
+    
+    :param mode_descriptions: Optional list of mode descriptions. If None, uses default descriptions
+    :return: Selected mode string ('1', '2', or '3')
+    """
+    beauty_print("Please select operation mode:", type="module", centered=False)
+
+    if mode_descriptions:
+        for i, desc in enumerate(mode_descriptions, 1):
+            beauty_print(f"  {i}. {desc}")
+    else:
+        # Default descriptions
+        beauty_print("  1. Manual drag recording mode - Drag robot arm to record waypoints")
+        beauty_print("  2. Auto generation mode - Randomly generate waypoints")
+        beauty_print("  3. Load file mode - Load waypoints from file")
+
+    beauty_print("")
+
+    while True:
+        choice = input("Enter option (1/2/3): ").strip()
+        if choice in ['1', '2', '3']:
+            return choice
+        beauty_print("Invalid option, please enter 1, 2, or 3", type="warning")

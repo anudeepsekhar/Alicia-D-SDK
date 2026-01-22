@@ -38,12 +38,12 @@ class DragTeaching:
     def setup(self):
         """初始化设置"""
         if self.args.save_motion:
-            print(f"动作名: {self.args.save_motion}")
+            print(f"Motion name: {self.args.save_motion}")
         if self.args.mode == 'auto':
-            print(f"采样频率: {getattr(self.args, 'sample_hz', 100.0)} Hz")
-        # 显示回放/运动速度
+            print(f"Sampling frequency: {getattr(self.args, 'sample_hz', 100.0)} Hz")
+        # Display replay/motion speed
         if hasattr(self.args, "speed_deg_s"):
-            print(f"关节速度: {self.args.speed_deg_s} deg/s")
+            print(f"Joint speed: {self.args.speed_deg_s} deg/s")
         print("=" * 30)
 
     def manual_mode(self) -> List[Dict[str, Any]]:
@@ -52,12 +52,12 @@ class DragTeaching:
 
     def auto_mode(self) -> List[Dict[str, Any]]:
         """自动模式 - 连续记录"""
-        print("\n=== 自动模式 ===")
-        print("关闭扭矩后拖动机械臂，系统自动记录轨迹")
+        print("\n=== Auto Mode ===")
+        print("After disabling torque, drag the robot arm and the system will automatically record the trajectory")
 
-        input("按回车开始...")
+        input("Press Enter to start...")
         self.controller.torque_control('off')
-        print("[安全] 扭矩已关闭，可以拖动机械臂")
+        print("[Safety] Torque disabled, you can drag the robot arm")
 
         # 记录变量
         trajectory = []
@@ -83,31 +83,31 @@ class DragTeaching:
                             "grip": state.gripper
                         })
                 except Exception as e:
-                    print(f"[警告] 记录失败: {e}")
+                    print(f"[Warning] Recording failed: {e}")
 
                 # Calculate time taken by the sampling operation and use precise_sleep
                 precise_sleep(interval - (time.perf_counter() - loop_start), spin_threshold=spin_threshold)
 
         try:
-            input("开始拖动，按回车开始记录...")
+            input("Start dragging, press Enter to start recording...")
             recording.set()
             thread = threading.Thread(target=record_loop, daemon=True)
             thread.start()
 
-            input("按回车停止记录...")
+            input("Press Enter to stop recording...")
             recording.clear()
             thread.join(timeout=1.0)
 
         finally:
             self.controller.torque_control('on')
-            print("[安全] 扭矩已重新开启")
+            print("[Safety] Torque re-enabled")
 
-        print(f"[完成] 记录了 {len(trajectory)} 个点")
+        print(f"[Complete] Recorded {len(trajectory)} points")
         return trajectory
 
     def replay_only_mode(self) -> Optional[List[Dict[str, Any]]]:
         """仅回放模式 - 加载已有数据"""
-        print("\n=== 仅回放模式 ===")
+        print("\n=== Replay Only Mode ===")
 
         # 加载数据
         save_dir = os.path.join("example_motions", self.args.save_motion)
@@ -116,35 +116,35 @@ class DragTeaching:
 
         # 检查目录和文件是否存在
         if not os.path.exists(save_dir):
-            print(f"[错误] 未找到动作目录: {save_dir}")
-            print("\n可用的动作:")
+            print(f"[Error] Motion directory not found: {save_dir}")
+            print("\nAvailable motions:")
             available = list_available_motions()
             if available:
-                for motion in available[:5]:  # 只显示前5个
+                for motion in available[:5]:  # Show only first 5
                     print(f"  - {motion}")
                 if len(available) > 5:
-                    print(f"  ... 还有 {len(available)-5} 个动作")
-                print(f"\n使用 --list-motions 查看完整列表")
+                    print(f"  ... and {len(available)-5} more motions")
+                print(f"\nUse --list-motions to view full list")
             else:
-                print("  未找到任何已录制的动作")
-                print("  请先使用 auto 或 manual 模式录制动作")
+                print("  No recorded motions found")
+                print("  Please record a motion using auto or manual mode first")
             return None
 
         if not os.path.exists(traj_path):
-            print(f"[错误] 未找到轨迹文件: {traj_path}")
-            print("该动作可能损坏或不完整")
+            print(f"[Error] Trajectory file not found: {traj_path}")
+            print("This motion may be corrupted or incomplete")
             return None
 
         if not os.path.exists(meta_path):
-            print(f"[警告] 未找到元数据文件: {meta_path}")
-            print("将使用默认设置继续加载")
+            print(f"[Warning] Metadata file not found: {meta_path}")
+            print("Will continue loading with default settings")
 
         # 读取数据和元信息
         try:
             with open(traj_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
         except Exception as e:
-            print(f"[错误] 读取轨迹文件失败: {e}")
+            print(f"[Error] Failed to read trajectory file: {e}")
             return None
 
         # 读取元信息
@@ -154,14 +154,14 @@ class DragTeaching:
                 with open(meta_path, 'r', encoding='utf-8') as f:
                     meta = json.load(f)
             except Exception as e:
-                print(f"[警告] 读取元数据失败: {e}")
+                print(f"[Warning] Failed to read metadata: {e}")
 
         # 更新模式为原始记录模式
         original_mode = meta.get('mode', 'auto')
-        print(f"[加载] 轨迹: {len(data)}个点")
-        print(f"[加载] 原始模式: {original_mode}")
-        print(f"[加载] 创建时间: {meta.get('created_at', 'Unknown')}")
-        print(f"[加载] 采样频率: {meta.get('sample_hz', 'Unknown')} Hz")
+        print(f"[Load] Trajectory: {len(data)} points")
+        print(f"[Load] Original mode: {original_mode}")
+        print(f"[Load] Created at: {meta.get('created_at', 'Unknown')}")
+        print(f"[Load] Sampling frequency: {meta.get('sample_hz', 'Unknown')} Hz")
 
         # 临时保存原始参数并设置为原始模式
         self._original_mode = self.args.mode
@@ -172,7 +172,7 @@ class DragTeaching:
     def save_data(self, data: List[Dict[str, Any]]) -> Optional[str]:
         """保存数据"""
         if not data:
-            print("[保存] 没有数据")
+            print("[Save] No data")
             return None
 
         # 创建保存目录
@@ -200,8 +200,8 @@ class DragTeaching:
         with open(meta_path, 'w', encoding='utf-8') as f:
             json.dump(meta, f, ensure_ascii=False, indent=2)
 
-        print(f"[保存] 轨迹: {traj_path}")
-        print(f"[保存] 元数据: {meta_path}")
+        print(f"[Save] Trajectory: {traj_path}")
+        print(f"[Save] Metadata: {meta_path}")
 
         return save_dir
 
@@ -259,17 +259,17 @@ class DragTeaching:
 
             return motion_time
 
-        print(f"\n=== 轨迹回放 ===")
-        print(f"回放模式: {self.args.mode}")
-        replay = input(f"是否回放轨迹（{len(data)}个点）？(y/n): ").strip().lower()
+        print(f"\n=== Trajectory Replay ===")
+        print(f"Replay mode: {self.args.mode}")
+        replay = input(f"Replay trajectory ({len(data)} points)? (y/n): ").strip().lower()
         if replay != 'y':
             return
 
-        print("[回放] 开始...")
+        print("[Replay] Starting...")
 
-        # 移动到起始点
+        # Move to starting point
         first_point = data[0]
-        print("[回放] 移动到起始点（速度30）...")
+        print("[Replay] Moving to starting point (speed 30)...")
         try:
             self.controller.set_robot_state(
                 target_joints=first_point["q"],
@@ -279,17 +279,17 @@ class DragTeaching:
                 wait_for_completion=True,
             )
         except Exception as e:
-            print(f"[警告] 移动到起始点失败: {e}")
+            print(f"[Warning] Failed to move to starting point: {e}")
 
         time.sleep(0.001)
-        print("[回放] 开始播放轨迹...")
+        print("[Replay] Starting trajectory playback...")
 
         # 初始化前一个点的关节角度为第一个点
         prev_joints = data[0]["q"]
 
         if self.args.mode == 'auto':
-            # 自动模式：使用直接设置，快速回放
-            print("[回放] 使用直接设置模式（快速）")
+            # Auto mode: use direct setting for fast replay
+            print("[Replay] Using direct setting mode (fast)")
             for i, point in enumerate(data):
                 try:
                     self.controller.set_robot_state(
@@ -302,13 +302,13 @@ class DragTeaching:
                     )
                     prev_joints = point["q"]
 
-                    print(f"[回放] {i+1}/{len(data)}")
+                    print(f"[Replay] {i+1}/{len(data)}")
                 except Exception as e:
-                    print(f"[错误] 回放第{i+1}点失败: {e}")
+                    print(f"[Error] Failed to replay point {i+1}: {e}")
 
         elif self.args.mode == 'manual':
-            # 手动模式：使用插值运动，平滑回放
-            print("[回放] 使用插值运动模式（平滑）")
+            # Manual mode: use interpolated motion for smooth replay
+            print("[Replay] Using interpolated motion mode (smooth)")
             for i, point in enumerate(data):
                 try:
                     motion_time = _sleep_based_on_velocity(point, prev_joints if i > 0 else None)
@@ -333,12 +333,12 @@ class DragTeaching:
 
                     prev_joints = point["q"]
 
-                    print(f"[回放] {i+1}/{len(data)}")
+                    print(f"[Replay] {i+1}/{len(data)}")
 
                 except Exception as e:
-                    print(f"[错误] 回放第{i+1}点失败: {e}")
+                    print(f"[Error] Failed to replay point {i+1}: {e}")
 
-        print("[回放] 完成")
+        print("[Replay] Complete")
 
     def run(self):
         """运行主程序"""
@@ -346,24 +346,24 @@ class DragTeaching:
             # 对于replay_only模式，在setup之前先验证动作是否存在
             if self.args.mode == 'replay_only':
                 if not self.args.save_motion:
-                    print("[错误] 回放模式必须指定 --save-motion 参数")
-                    print("使用 --list-motions 查看可用动作")
+                    print("[Error] Replay mode requires --save-motion parameter")
+                    print("Use --list-motions to view available motions")
                     return
 
                 # 检查动作是否存在
                 save_dir = os.path.join("example_motions", self.args.save_motion)
                 if not os.path.exists(save_dir):
-                    print(f"[错误] 动作 '{self.args.save_motion}' 不存在")
-                    print("\n提示:")
+                    print(f"[Error] Motion '{self.args.save_motion}' does not exist")
+                    print("\nHint:")
                     available = list_available_motions()
                     if available:
-                        print("可用的动作:")
+                        print("Available motions:")
                         for motion in available[:3]:
                             print(f"  {motion}")
                         if len(available) > 3:
-                            print(f"  ... 还有 {len(available)-3} 个")
+                            print(f"  ... and {len(available)-3} more")
                     else:
-                        print("未找到任何已录制的动作，请先录制")
+                        print("No recorded motions found, please record first")
                     return
 
             self.setup()
@@ -376,7 +376,7 @@ class DragTeaching:
             elif self.args.mode == 'replay_only':
                 data = self.replay_only_mode()
             else:
-                raise ValueError(f"不支持的模式: {self.args.mode}")
+                raise ValueError(f"Unsupported mode: {self.args.mode}")
 
             if data:
                 # 只有非replay_only模式才保存数据
@@ -384,10 +384,10 @@ class DragTeaching:
                     save_dir = self.save_data(data)
 
                     if save_dir:
-                        print(f"\n[完成] 拖动示教完成！")
-                        print(f"数据已保存到: {save_dir}")
+                        print(f"\n[Complete] Drag teaching completed!")
+                        print(f"Data saved to: {save_dir}")
                 else:
-                    print(f"\n[完成] 加载轨迹完成！")
+                    print(f"\n[Complete] Trajectory loading completed!")
 
                 # 回放
                 self.replay(data)
@@ -397,12 +397,12 @@ class DragTeaching:
                     self.args.mode = self._original_mode
 
             else:
-                print("[完成] 未记录数据或加载失败")
+                print("[Complete] No data recorded or loading failed")
 
         except KeyboardInterrupt:
-            print("\n[中断] 用户中断")
+            print("\n[Interrupted] User interrupted")
         except Exception as e:
-            print(f"[错误] 运行失败: {e}")
+            print(f"[Error] Run failed: {e}")
 
 
 def list_available_motions() -> List[str]:
@@ -427,13 +427,13 @@ def print_available_motions():
     """打印所有可用的动作"""
     motions = list_available_motions()
 
-    print("=== 可用的动作列表 ===")
+    print("=== Available Motions List ===")
     if not motions:
-        print("未找到任何已录制的动作")
-        print("请先使用 auto 或 manual 模式录制动作")
+        print("No recorded motions found")
+        print("Please record a motion using auto or manual mode first")
         return
 
-    print(f"在 example_motions/ 目录下找到 {len(motions)} 个动作:")
+    print(f"Found {len(motions)} motions in example_motions/ directory:")
 
     for i, motion in enumerate(motions, 1):
         motion_dir = os.path.join("example_motions", motion)
@@ -448,11 +448,11 @@ def print_available_motions():
                 mode = meta.get('mode', 'unknown')
                 created = meta.get('created_at', 'unknown')
                 count = meta.get('count', 0)
-                info += f" (模式: {mode}, 点数: {count}, 创建: {created})"
+                info += f" (mode: {mode}, points: {count}, created: {created})"
             except:
                 pass
 
         print(info)
 
-    print(f"\n使用示例:")
+    print(f"\nUsage example:")
     print(f"python 08_demo_drag_teaching.py --mode replay_only --save-motion {motions[0]}")

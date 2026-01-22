@@ -118,6 +118,7 @@ def create_robot(
     servo_driver = ServoDriver(port=port, debug_mode=debug_mode)
 
     effective_gripper_type = gripper_type if gripper_type is not None else _get_gripper_type_from_json()
+    variant = variant if variant is not None else f"gripper_{effective_gripper_type}"
 
     if model_path is None:
         model_path = get_model_path(

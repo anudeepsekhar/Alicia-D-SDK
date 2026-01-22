@@ -82,7 +82,7 @@ The **Alicia-D SDK** is a Python toolkit for controlling the "Alicia-D" series o
 ├── examples
 │   ├── 00_demo_read_version.py      # Read firmware version
 │   ├── 01_torque_switch.py          # Torque switch
-│   ├── 02_demo_zero_calibration.py  # Zero calibration
+│   ├── 02_demo_set_new_zero.py      # Set new zero configuration
 │   ├── 03_demo_read_state.py        # Read state
 │   ├── 04_demo_move_gripper.py      # Gripper control
 │   ├── 05_demo_move_joint.py        # Joint motion

@@ -54,18 +54,18 @@ logger = BeautyLogger(
 # 创建日志器
 logger = BeautyLogger("logs", "app.log", min_level=LogLevel.INFO)
 
-# 记录一些日志
-logger.info("应用启动")
-logger.debug("这条 DEBUG 消息不会显示")
+# Log some messages
+logger.info("Application started")
+logger.debug("This DEBUG message will not be displayed")
 
-# 动态改为 DEBUG 级别
+# Dynamically change to DEBUG level
 logger.set_min_level(LogLevel.DEBUG)
-logger.debug("现在这条 DEBUG 消息会显示")
+logger.debug("Now this DEBUG message will be displayed")
 
-# 改为只显示错误
+# Change to only show errors
 logger.set_min_level(LogLevel.ERROR)
-logger.warning("这条 WARNING 消息不会显示")
-logger.error("这条 ERROR 消息会显示")
+logger.warning("This WARNING message will not be displayed")
+logger.error("This ERROR message will be displayed")
 ```
 
 ### 3. 实际使用示例
@@ -80,11 +80,11 @@ else:
     # 生产环境：只显示警告和错误
     logger = BeautyLogger("logs", "prod.log", min_level=LogLevel.WARNING)
 
-# 记录不同级别的日志
-logger.debug("详细的调试信息")
-logger.info("应用正常运行")
-logger.warning("需要注意的警告")
-logger.error("发生错误")
+# Log messages at different levels
+logger.debug("Detailed debug information")
+logger.info("Application running normally")
+logger.warning("Warning that needs attention")
+logger.error("An error occurred")
 
 # 运行时根据需要调整级别
 if verbose_mode:
@@ -107,7 +107,7 @@ if verbose_mode:
 try:
     logger.set_min_level(999)  # 无效级别
 except ValueError as e:
-    print(f"无效的日志级别: {e}")
+    print(f"Invalid log level: {e}")
 ```
 
 ## 最佳实践

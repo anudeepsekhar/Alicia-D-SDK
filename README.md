@@ -79,7 +79,7 @@
 ├── examples
 │   ├── 00_demo_read_version.py      # 读取固件版本
 │   ├── 01_torque_switch.py          # 扭矩开关
-│   ├── 02_demo_zero_calibration.py  # 零点校准
+│   ├── 02_demo_set_new_zero.py      # 设置新零点
 │   ├── 03_demo_read_state.py        # 读取状态
 │   ├── 04_demo_move_gripper.py      # 夹爪控制
 │   ├── 05_demo_move_joint.py        # 关节运动

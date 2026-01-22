@@ -10,7 +10,7 @@
 examples/
 ├── 00_demo_read_version.py          # 读取版本号
 ├── 01_torque_switch.py               # 扭矩控制
-├── 02_demo_zero_calibration.py      # 归零校准
+├── 02_demo_set_new_zero_configuration.py  # 设置新零点
 ├── 03_demo_read_state.py            # 读取状态
 ├── 04_demo_move_gripper.py          # 夹爪控制
 ├── 05_demo_move_joint.py            # 关节空间运动
@@ -19,9 +19,8 @@ examples/
 ├── 08_demo_drag_teaching.py         # 拖动示教
 ├── 09_demo_joint_traj.py            # 关节空间轨迹规划
 ├── 10_demo_cartesian_traj.py        # 笛卡尔空间轨迹规划
-├── 11_demo_sparkvis.py              # SparkVis UI 双向同步
-├── 12_benchmark_read_joints.py      # 关节读取性能测试
-└── 13_utmostFPS.py                  # 最大帧率测试
+├── 11_benchmark_read_joints.py      # 关节读取性能测试
+└── 12_utmostFPS.py                  # 最大帧率测试
 ```
 
 ## 📜 例程列表
@@ -62,7 +61,7 @@ python 01_torque_switch.py
 
 ---
 
-### 2. `02_demo_zero_calibration.py`
+### 2. `02_demo_set_new_zero_configuration.py`
 将机械臂当前位置设置为新的零点。**此操作不可逆，请谨慎使用。**
 
 **参数说明：**
@@ -75,7 +74,7 @@ python 01_torque_switch.py
 
 **使用方式：**
 ```bash
-python 02_demo_zero_calibration.py
+python 02_demo_set_new_zero_configuration.py
 ```
 
 ---
@@ -85,10 +84,10 @@ python 02_demo_zero_calibration.py
 
 **参数说明：**
 - `--port`: 串口端口（可选）
-- `--robot_version`: 机器人版本，默认 `v5_6`
 - `--gripper_type`: 夹爪型号，默认 `50mm`
 - `--format`: 角度显示格式，可选 `rad`（弧度）或 `deg`（角度），默认 `deg`
 - `--single`: 单次打印状态，默认持续打印
+- `--fps`: 持续模式的帧率（Hz），默认 `30.0`
 
 **使用场景：**
 - 调试和故障排查
@@ -98,7 +97,7 @@ python 02_demo_zero_calibration.py
 **使用方式：**
 ```bash
 # 持续打印状态（按 Ctrl+C 停止）
-python 03_demo_read_state.py --robot_version v5_6 --gripper_type 50mm
+python 03_demo_read_state.py --gripper_type 50mm --fps 30
 
 # 单次打印状态
 python 03_demo_read_state.py --single
@@ -151,6 +150,11 @@ python 05_demo_move_joint.py --speed_deg_s 10
 
 **参数说明：**
 - `--port`: 串口端口（可选）
+- `--version`: 机器人版本，默认 `v5_6`
+- `--variant`: 机器人变体，可选 `gripper_50mm`、`gripper_100mm`、`leader_ur`、`leader`、`vertical_50mm`，默认 `gripper_50mm`
+- `--model_format`: 模型格式，可选 `urdf` 或 `mjcf`，默认 `urdf`
+- `--base_link`: 基座链路名称，默认 `base_link`
+- `--end_link`: 末端执行器链路名称，默认 `tool0`
 
 **功能说明：**
 - 使用 RoboCore 库的机器人模型
@@ -160,7 +164,7 @@ python 05_demo_move_joint.py --speed_deg_s 10
 
 **使用方式：**
 ```bash
-python 07_demo_forward_kinematics.py
+python 06_demo_forward_kinematics.py
 ```
 
 ---
@@ -170,13 +174,22 @@ python 07_demo_forward_kinematics.py
 
 **参数说明：**
 - `--port`: 串口端口（可选）
-- `--speed_deg_s`: 关节运动速度（度/秒），默认 10
+- `--speed_deg_s`: 关节运动速度（度/秒），默认 10，范围 5-400
+- `--gripper_type`: 夹爪类型，默认 `50mm`
+- `--base_link`: 基座链路名称，默认 `base_link`
+- `--end_link`: 末端执行器链路名称，默认 `tool0`
 - `--end-pose`: 目标位姿（7个浮点数：px py pz qx qy qz qw），默认值已预设
 - `--method`: IK方法，可选 `dls`（阻尼最小二乘）、`pinv`（伪逆）、`transpose`（雅可比转置），默认 `dls`
-- `--max-iters`: 最大迭代次数，默认 100
-- `--multi-start`: 多起点尝试次数，0表示禁用，建议 5-10
-- `--use-random-init`: 使用随机初始值（默认使用当前关节角度）
+- `--max-iters`: 最大迭代次数，默认 500
+- `--pos-tol`: 位置容差（米），默认 1e-3
+- `--ori-tol`: 姿态容差（弧度），默认 1e-3
+- `--num-inits`: 初始猜测数量，默认 10
+- `--init-strategy`: 初始猜测策略，可选 `zero`、`random`、`sobol`、`latin`、`center`、`uniform`、`current`，默认 `current`
+- `--init-scale`: 关节限制缩放因子（0.0 到 1.0），默认 1.0
+- `--seed`: 随机种子（可选）
+- `--backend`: 计算后端，可选 `numpy` 或 `torch`，默认 `numpy`
 - `--execute`: 执行移动到求解的位置
+- `--force-execute`: 强制执行移动，即使求解失败
 
 **功能说明：**
 - 显示详细的求解结果（成功/失败、迭代次数、位置误差、姿态误差）
@@ -186,13 +199,13 @@ python 07_demo_forward_kinematics.py
 **使用方式：**
 ```bash
 # 仅计算逆解，不执行动作
-python 08_demo_inverse_kinematics.py
+python 07_demo_inverse_kinematics.py
 
 # 计算逆解并控制机械臂移动到目标位姿
-python 08_demo_inverse_kinematics.py --execute --speed_deg_s 10
+python 07_demo_inverse_kinematics.py --execute --speed_deg_s 10
 
 # 使用多起点优化提高成功率
-python 08_demo_inverse_kinematics.py --execute
+python 07_demo_inverse_kinematics.py --execute --num-inits 10
 ```
 
 ---
@@ -202,10 +215,10 @@ python 08_demo_inverse_kinematics.py --execute
 
 **参数说明：**
 - `--port`: 串口端口（可选）
-- `--speed_deg_s`: 关节运动速度（度/秒），默认 10
+- `--speed_deg_s`: 关节运动速度（度/秒），默认 15，范围 10-80
 - `--mode`: 拖动示教模式，可选 `manual`（手动插值）、`auto`（自动快速）或 `replay_only`（仅回放），默认 `auto`
-- `--sample-hz`: 自动模式采样频率，默认 300.0 Hz
-- `--save-motion`: 动作名称（录制模式：新动作名；回放模式：已有动作名）
+- `--sample-hz`: 自动模式采样频率，默认 200.0 Hz
+- `--save-motion`: 动作名称（录制模式：新动作名；回放模式：已有动作名），默认 `my_demo`
 - `--list-motions`: 列出所有可用的动作并退出
 
 **功能说明：**
@@ -217,16 +230,16 @@ python 08_demo_inverse_kinematics.py --execute
 **使用方式：**
 ```bash
 # 列出所有可用的动作
-python 09_demo_drag_teaching.py --list-motions
+python 08_demo_drag_teaching.py --list-motions
 
 # 自动模式录制名为 "my_demo" 的轨迹
-python 09_demo_drag_teaching.py --mode auto --save-motion my_demo
+python 08_demo_drag_teaching.py --mode auto --save-motion my_demo
 
 # 手动模式录制关键点轨迹
-python 09_demo_drag_teaching.py --mode manual --save-motion key_points
+python 08_demo_drag_teaching.py --mode manual --save-motion key_points
 
 # 回放已有轨迹 "my_demo"
-python 09_demo_drag_teaching.py --mode replay_only --save-motion my_demo
+python 08_demo_drag_teaching.py --mode replay_only --save-motion my_demo
 ```
 
 ---
@@ -318,41 +331,7 @@ python 10_demo_cartesian_traj.py --num-points 100
 
 ---
 
-### 11. `11_demo_sparkvis.py`
-SparkVis UI 双向同步和数据记录。启动 WebSocket 服务器，实现 UI ↔ 机器人双向同步，支持数据记录到 CSV 文件。
-
-**参数说明：**
-- `--port`: 串口端口（可选）
-- `--host`: WebSocket 主机，默认 `localhost`
-- `--websocket-port`: WebSocket 端口，默认 8765
-- `--output-file`: CSV 输出路径（留空不记录）
-- `--log-source`: 记录来源，可选 `ui`（UI指令）、`robot`（机器人状态）或 `both`（二者），默认 `ui`
-- `--enable-robot-sync`: 启用机器人→UI 状态同步
-- `--robot-sync-rate`: 机器人状态广播频率（Hz），默认 50.0
-
-**功能说明：**
-- UI → Robot: 接收 joint_update 并直接发送到真实机器人
-- Robot → UI: 定期广播当前机器人状态到 UI（可切换）
-- 数据记录: 将 UI 命令的关节数据记录到 CSV（可选）
-
-**使用方式：**
-```bash
-# 基本使用（需要先启动 SparkVis 后端和 Web 服务器）
-python 11_demo_sparkvis.py
-
-# 启用机器人状态同步并记录数据
-python 11_demo_sparkvis.py --enable-robot-sync --output-file data.csv --log-source both
-```
-
-**注意**: 使用此功能需要同时运行：
-1. SparkVis 后端服务器：`cd SparkVis && python backend_server.py`
-2. SparkVis Web 服务器：`cd SparkVis && python -m http.server 8080`
-3. 此机器人桥接脚本：`python 11_demo_sparkvis.py`
-4. 在浏览器中访问：`http://localhost:8080`
-
----
-
-### 12. `12_benchmark_read_joints.py`
+### 11. `11_benchmark_read_joints.py`
 **关节读取性能测试**
 
 测试关节角度读取的API调用频率和实际数据更新频率。
@@ -371,25 +350,44 @@ python 11_demo_sparkvis.py --enable-robot-sync --output-file data.csv --log-sour
 **使用方式：**
 ```bash
 # 基本测试（5秒）
-python 12_benchmark_read_joints.py
+python 11_benchmark_read_joints.py
 
 # 快速模式测试
-python 12_benchmark_read_joints.py --fast --duration 10
+python 11_benchmark_read_joints.py --fast --duration 10
 ```
 
 ---
 
-### 13. `13_utmostFPS.py`
+### 12. `12_utmostFPS.py`
 **最大帧率测试**
 
 测试串口通信的最大发送和接收帧率。
+
+**参数说明：**
+- `--port`: 串口端口（必需，例如：/dev/ttyUSB0 或 COM3）
+- `--baudrate`: 波特率，默认 1000000
+- `--timeout`: 串口读取超时（秒），默认 0.015
+- `--test-timeout`: 测试持续时间（秒），默认 300.0
 
 **功能说明：**
 - 测试串口通信的极限性能
 - 显示发送帧率、接收帧率和同步率
 - 适用于性能优化和硬件测试
 
-**注意**: 此脚本包含硬编码的串口路径，需要根据实际环境修改。
+**使用方式：**
+```bash
+# Linux/Ubuntu
+python 12_utmostFPS.py --port /dev/ttyACM0
+
+# Windows
+python 12_utmostFPS.py --port COM3
+
+# macOS
+python 12_utmostFPS.py --port /dev/cu.wchusbserial5B140413941
+
+# 自定义设置
+python 12_utmostFPS.py --port /dev/ttyUSB0 --baudrate 2000000 --test-timeout 60
+```
 
 ---
 

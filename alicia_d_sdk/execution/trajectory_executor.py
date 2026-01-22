@@ -39,7 +39,7 @@ class _BaseTrajectoryExecutor:
         robot,
         speed_deg_s: int = 20,
         tolerance: float = 0.5,
-        timeout: float = 10.0,
+        timeout: float = 2.0,
         progress_interval: int = 50,
         initial_delay: float = 0.1,
         wait_for_completion: bool = False,
@@ -53,9 +53,21 @@ class _BaseTrajectoryExecutor:
         :param timeout: Timeout for each motion command in seconds
         :param progress_interval: Print progress every N points (0 to disable)
         :param initial_delay: Delay in seconds before starting trajectory execution
-        :param wait_for_completion: If True, wait for each point to complete before sending next
-        :param use_timing: If True, use trajectory timing to synchronize execution
+        :param wait_for_completion: If True, wait for each point to complete before sending next.
+                                    Note: When use_timing=True, this should typically be False to avoid conflicts.
+        :param use_timing: If True, use trajectory timing to synchronize execution.
+                          When True, execution follows trajectory duration regardless of wait_for_completion.
         """
+        # Validate parameter combination
+        if wait_for_completion and use_timing:
+            beauty_print(
+                "Warning: wait_for_completion=True with use_timing=True may cause conflicts. "
+                "use_timing controls execution speed based on trajectory times, while "
+                "wait_for_completion waits for each point to reach target. "
+                "Consider setting wait_for_completion=False when use_timing=True.",
+                type="warning"
+            )
+
         self.robot = robot
         self.speed_deg_s = speed_deg_s
         self.tolerance = tolerance
@@ -141,8 +153,7 @@ class _BaseTrajectoryExecutor:
                 'duration': 0.0
             }
         
-        # time.sleep(self.initial_delay)
-        time.sleep(0.8)
+        time.sleep(self.initial_delay)
         # Start execution
         self.start_time = time.time()
         self.trajectory_start_time = time.time()
@@ -195,11 +206,12 @@ class _BaseTrajectoryExecutor:
                         beauty_print("Stopping execution.", type="warning")
                         break
                 else:
-                    # Default behavior: ask user
-                    user_input = input("  Continue execution? (y/n): ").strip().lower()
-                    if user_input != 'y':
-                        beauty_print("  Stopping execution.", type="warning")
-                        break
+                    # # Default behavior: ask user
+                    # user_input = input("  Continue execution? (y/n): ").strip().lower()
+                    # if user_input != 'y':
+                    #     beauty_print("  Stopping execution.", type="warning")
+                    #     break
+                    pass
             
             # Wait until next point's target time (if using timing and not last point)
             if self.use_timing and trajectory_times is not None and i < n_points - 1:
@@ -244,7 +256,7 @@ class JointTrajectoryExecutor(_BaseTrajectoryExecutor):
         robot,
         speed_deg_s: int = 20,
         tolerance: float = 0.5,
-        timeout: float = 10.0,
+        timeout: float = 2.0,
         progress_interval: int = 50,
         initial_delay: float = 1.0,
         wait_for_completion: bool = True,
@@ -258,8 +270,10 @@ class JointTrajectoryExecutor(_BaseTrajectoryExecutor):
         :param timeout: Timeout for each motion command in seconds
         :param progress_interval: Print progress every N points (0 to disable)
         :param initial_delay: Delay in seconds before starting trajectory execution (default: 1.0)
-        :param wait_for_completion: If True, wait for each point to complete (default: True for joint space)
-        :param use_timing: If True, use trajectory timing (default: False for sequential execution)
+        :param wait_for_completion: If True, wait for each point to complete (default: True for joint space).
+                                    When use_timing=True, consider setting this to False.
+        :param use_timing: If True, use trajectory timing to follow planned duration (default: False).
+                          When True, execution speed is controlled by trajectory times, not wait_for_completion.
         """
         super().__init__(
             robot=robot,
@@ -332,8 +346,10 @@ class CartesianTrajectoryExecutor(_BaseTrajectoryExecutor):
         :param timeout: Timeout for each motion command in seconds
         :param progress_interval: Print progress every N points (0 to disable)
         :param initial_delay: Delay in seconds before starting trajectory execution (default: 0.1)
-        :param wait_for_completion: If True, wait for each point to complete (default: False for timing-based)
-        :param use_timing: If True, use trajectory timing (default: True for Cartesian trajectories)
+        :param wait_for_completion: If True, wait for each point to complete (default: False).
+                                    When use_timing=True, this should typically be False to avoid conflicts.
+        :param use_timing: If True, use trajectory timing to follow planned duration (default: True).
+                          When True, execution speed is controlled by trajectory times, not wait_for_completion.
         """
         super().__init__(
             robot=robot,
@@ -352,6 +368,7 @@ class CartesianTrajectoryExecutor(_BaseTrajectoryExecutor):
         trajectory_times: np.ndarray,
         gripper_values: Optional[np.ndarray] = None,
         initial_tolerance: float = 0.5,
+        initial_wait: bool = True,
         ik_success_rate: Optional[float] = None,
         min_success_rate: float = 0.8,
         on_progress: Optional[Callable[[int, int, float], None]] = None,
@@ -363,6 +380,7 @@ class CartesianTrajectoryExecutor(_BaseTrajectoryExecutor):
         :param trajectory_times: Array of time points [n_points] in seconds (required)
         :param gripper_values: Optional array of gripper values [n_points] (0-1000)
         :param initial_tolerance: Tolerance for initial position
+        :param initial_wait: If True, wait for initial position to be reached (default: True)
         :param ik_success_rate: IK success rate (0.0 to 1.0) for validation
         :param min_success_rate: Minimum acceptable IK success rate (default: 0.8)
         :param on_progress: Optional callback function(point_index, total_points, time)
@@ -391,7 +409,7 @@ class CartesianTrajectoryExecutor(_BaseTrajectoryExecutor):
             trajectory_times=trajectory_times,
             gripper_values=gripper_values,
             initial_tolerance=initial_tolerance,
-            initial_wait=True,
+            initial_wait=initial_wait,
             on_progress=on_progress,
             on_failure=on_failure
         )

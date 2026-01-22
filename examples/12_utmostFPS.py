@@ -82,14 +82,14 @@ def main(args):
                 Fps.real_time = Fps.current_time
                 Fps.sendFPS = Fps.sendNum / (Fps.current_time - Fps.start_time)
                 Fps.readFPS = Fps.readNum / (Fps.current_time - Fps.start_time)
-                print(f"[{Fps.current_time - Fps.start_time:.2f}s]发送帧率: {Fps.sendFPS:.2f}Hz, \
-                      接收帧率: {Fps.readFPS:.2f}Hz, \
-                        错误数量: {Fps.errNum}")
+                print(f"[{Fps.current_time - Fps.start_time:.2f}s]Send FPS: {Fps.sendFPS:.2f}Hz, \
+                      Receive FPS: {Fps.readFPS:.2f}Hz, \
+                      Error count: {Fps.errNum}")
 
     except KeyboardInterrupt:
-        print(f"Ctrl+C退出")
+        print(f"Ctrl+C exit")
     except Exception as e:
-        print(f"发生错误: {e}")
+        print(f"Error occurred: {e}")
     finally:
         Fps.end_time = time.time()
         Fps.sendFPS = Fps.sendNum / (Fps.end_time - Fps.start_time)
@@ -100,7 +100,7 @@ def main(args):
         print(f"Sync rate: {(Fps.readNum/Fps.sendNum)*100:.2f}%")
         if ser is not None and ser.is_open:
             ser.close()
-            print("串口已关闭")
+            print("Serial port closed")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -137,7 +137,7 @@ if __name__ == "__main__":
     try:
         main(args)
     except KeyboardInterrupt:
-        print("程序终止")
+        print("Program terminated")
     except Exception as e:
-        print(f"发生错误: {e}")
+        print(f"Error occurred: {e}")
         sys.exit(1)

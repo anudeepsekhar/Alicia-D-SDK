@@ -46,16 +46,16 @@ def main(args):
             logger.warning("Failed to read gripper value")
         
         # Test 1: Open gripper
-        robot.set_robot_state(gripper_value=1000)
+        robot.set_robot_state(gripper_value=1000, wait_for_completion=True, gripper_speed_deg_s=100)
         time.sleep(1)
         # Test 2: Close gripper
-        robot.set_robot_state(gripper_value=0)
+        robot.set_robot_state(gripper_value=0, wait_for_completion=True, gripper_speed_deg_s=100)
         time.sleep(1)
         # # Test 3: Partially open
-        robot.set_robot_state(gripper_value=500)
+        robot.set_robot_state(gripper_value=500, wait_for_completion=True, gripper_speed_deg_s=100)
         time.sleep(1)
         # Test 4: Open gripper
-        robot.set_robot_state(gripper_value=1000)
+        robot.set_robot_state(gripper_value=1000, wait_for_completion=True, gripper_speed_deg_s=100)
         time.sleep(1)
 
         

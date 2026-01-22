@@ -10,7 +10,7 @@ The `examples/` directory contains multiple demonstration scripts showing how to
 examples/
 ├── 00_demo_read_version.py          # Read version number
 ├── 01_torque_switch.py               # Torque control
-├── 02_demo_zero_calibration.py      # Zero calibration
+├── 02_demo_set_new_zero_configuration.py  # Set new zero configuration
 ├── 03_demo_read_state.py            # Read state
 ├── 04_demo_move_gripper.py          # Gripper control
 ├── 05_demo_move_joint.py            # Joint space motion
@@ -19,9 +19,8 @@ examples/
 ├── 08_demo_drag_teaching.py         # Drag teaching
 ├── 09_demo_joint_traj.py            # Joint space trajectory planning
 ├── 10_demo_cartesian_traj.py        # Cartesian space trajectory planning
-├── 11_demo_sparkvis.py              # SparkVis UI bidirectional sync
-├── 12_benchmark_read_joints.py      # Joint reading performance benchmark
-└── 13_utmostFPS.py                  # Maximum FPS test
+├── 11_benchmark_read_joints.py      # Joint reading performance benchmark
+└── 12_utmostFPS.py                  # Maximum FPS test
 ```
 
 ## 📜 Example List
@@ -62,7 +61,7 @@ python 01_torque_switch.py
 
 ---
 
-### 2. `02_demo_zero_calibration.py`
+### 2. `02_demo_set_new_zero_configuration.py`
 Set the current position of the robot arm as the new zero point. **This operation is irreversible, use with caution.**
 
 **Parameters:**
@@ -75,7 +74,7 @@ Set the current position of the robot arm as the new zero point. **This operatio
 
 **Usage:**
 ```bash
-python 02_demo_zero_calibration.py
+python 02_demo_set_new_zero_configuration.py
 ```
 
 ---
@@ -85,10 +84,10 @@ Continuously read and print robot arm joint angles, end-effector pose, and gripp
 
 **Parameters:**
 - `--port`: Serial port (optional)
-- `--robot_version`: Robot version, default `v5_6`
 - `--gripper_type`: Gripper model, default `50mm`
 - `--format`: Angle display format, optional `rad` (radians) or `deg` (degrees), default `deg`
 - `--single`: Print state once, default is continuous printing
+- `--fps`: Target frames per second for continuous mode, default `30.0`
 
 **Use Cases:**
 - Debugging and troubleshooting
@@ -98,7 +97,7 @@ Continuously read and print robot arm joint angles, end-effector pose, and gripp
 **Usage:**
 ```bash
 # Continuous printing (press Ctrl+C to stop)
-python 03_demo_read_state.py --robot_version v5_6 --gripper_type 50mm
+python 03_demo_read_state.py --gripper_type 50mm --fps 30
 
 # Single print
 python 03_demo_read_state.py --single
@@ -151,6 +150,11 @@ Forward kinematics solving. Calculate end-effector pose based on current joint a
 
 **Parameters:**
 - `--port`: Serial port (optional)
+- `--version`: Robot version, default `v5_6`
+- `--variant`: Robot variant, optional `gripper_50mm`, `gripper_100mm`, `leader_ur`, `leader`, `vertical_50mm`, default `gripper_50mm`
+- `--model_format`: Model format, optional `urdf` or `mjcf`, default `urdf`
+- `--base_link`: Base link name, default `base_link`
+- `--end_link`: End-effector link name, default `tool0`
 
 **Features:**
 - Uses RoboCore library robot model
@@ -160,7 +164,7 @@ Forward kinematics solving. Calculate end-effector pose based on current joint a
 
 **Usage:**
 ```bash
-python 07_demo_forward_kinematics.py --port /dev/ttyUSB0
+python 06_demo_forward_kinematics.py --port /dev/ttyUSB0
 ```
 
 ---
@@ -170,13 +174,22 @@ Demonstrate inverse kinematics solving: Calculate and optionally execute joint a
 
 **Parameters:**
 - `--port`: Serial port (optional)
-- `--speed_deg_s`: Joint motion speed (degrees/second), default 10
+- `--speed_deg_s`: Joint motion speed (degrees/second), default 10, range 5-400
+- `--gripper_type`: Gripper type, default `50mm`
+- `--base_link`: Base link name, default `base_link`
+- `--end_link`: End-effector link name, default `tool0`
 - `--end-pose`: Target pose (7 floats: px py pz qx qy qz qw), default value is preset
 - `--method`: IK method, optional `dls` (damped least squares), `pinv` (pseudo-inverse), `transpose` (Jacobian transpose), default `dls`
-- `--max-iters`: Maximum iterations, default 100
-- `--multi-start`: Multi-start attempt count, 0 means disabled, recommended 5-10
-- `--use-random-init`: Use random initial value (default uses current joint angles)
+- `--max-iters`: Maximum iterations, default 500
+- `--pos-tol`: Position tolerance (meters), default 1e-3
+- `--ori-tol`: Orientation tolerance (radians), default 1e-3
+- `--num-inits`: Number of initial guesses, default 10
+- `--init-strategy`: Initial guess strategy, optional `zero`, `random`, `sobol`, `latin`, `center`, `uniform`, `current`, default `current`
+- `--init-scale`: Joint limit scale factor (0.0 to 1.0), default 1.0
+- `--seed`: Random seed (optional)
+- `--backend`: Computation backend, optional `numpy` or `torch`, default `numpy`
 - `--execute`: Execute movement to solved position
+- `--force-execute`: Force execute movement, even if solving fails
 
 **Features:**
 - Displays detailed solving results (success/failure, iteration count, position error, orientation error)
@@ -186,12 +199,13 @@ Demonstrate inverse kinematics solving: Calculate and optionally execute joint a
 **Usage:**
 ```bash
 # Only calculate inverse solution, do not execute motion
-python 08_demo_inverse_kinematics.py
+python 07_demo_inverse_kinematics.py
 
 # Calculate inverse solution and control robot arm to move to target pose
-python 08_demo_inverse_kinematics.py --execute --speed_deg_s 10
+python 07_demo_inverse_kinematics.py --execute --speed_deg_s 10
 
 # Use multi-start optimization to improve success rate
+python 07_demo_inverse_kinematics.py --execute --num-inits 10
 ```
 
 ---
@@ -201,10 +215,10 @@ Drag teaching demonstration: Record a series of trajectory points by manually dr
 
 **Parameters:**
 - `--port`: Serial port (optional)
-- `--speed_deg_s`: Joint motion speed (degrees/second), default 10
+- `--speed_deg_s`: Joint motion speed (degrees/second), default 15, range 10-80
 - `--mode`: Drag teaching mode, optional `manual` (manual interpolation), `auto` (automatic fast), or `replay_only` (replay only), default `auto`
-- `--sample-hz`: Automatic mode sampling frequency, default 300.0 Hz
-- `--save-motion`: Motion name (recording mode: new motion name; replay mode: existing motion name)
+- `--sample-hz`: Automatic mode sampling frequency, default 200.0 Hz
+- `--save-motion`: Motion name (recording mode: new motion name; replay mode: existing motion name), default `my_demo`
 - `--list-motions`: List all available motions and exit
 
 **Features:**
@@ -216,16 +230,16 @@ Drag teaching demonstration: Record a series of trajectory points by manually dr
 **Usage:**
 ```bash
 # List all available motions
-python 09_demo_drag_teaching.py --list-motions
+python 08_demo_drag_teaching.py --list-motions
 
 # Automatic mode record trajectory named "my_demo"
-python 09_demo_drag_teaching.py --mode auto --save-motion my_demo
+python 08_demo_drag_teaching.py --mode auto --save-motion my_demo
 
 # Manual mode record key point trajectory
-python 09_demo_drag_teaching.py --mode manual --save-motion key_points
+python 08_demo_drag_teaching.py --mode manual --save-motion key_points
 
 # Replay existing trajectory "my_demo"
-python 09_demo_drag_teaching.py --mode replay_only --save-motion my_demo
+python 08_demo_drag_teaching.py --mode replay_only --save-motion my_demo
 ```
 
 ---
@@ -317,41 +331,7 @@ python 10_demo_cartesian_traj.py --num-points 100
 
 ---
 
-### 11. `11_demo_sparkvis.py`
-SparkVis UI bidirectional synchronization and data logging. Start WebSocket server to achieve UI ↔ Robot bidirectional sync, supports data logging to CSV file.
-
-**Parameters:**
-- `--port`: Serial port (optional)
-- `--host`: WebSocket host, default `localhost`
-- `--websocket-port`: WebSocket port, default 8765
-- `--output-file`: CSV output path (empty string means no logging)
-- `--log-source`: Log source, optional `ui` (UI commands), `robot` (robot state), or `both`, default `ui`
-- `--enable-robot-sync`: Enable robot→UI state synchronization
-- `--robot-sync-rate`: Robot state broadcast frequency (Hz), default 50.0
-
-**Features:**
-- UI → Robot: Receive joint_update and send directly to real robot
-- Robot → UI: Periodically broadcast current robot state to UI (toggleable)
-- Data logging: Record joint data from UI commands to CSV (optional)
-
-**Usage:**
-```bash
-# Basic usage (need to start SparkVis backend and web server first)
-python 11_demo_sparkvis.py 
-
-# Enable robot state sync and log data
-python 11_demo_sparkvis.py  --enable-robot-sync --output-file data.csv --log-source both
-```
-
-**Note**: Using this feature requires running simultaneously:
-1. SparkVis backend server: `cd SparkVis && python backend_server.py`
-2. SparkVis web server: `cd SparkVis && python -m http.server 8080`
-3. This robot bridge script: `python 11_demo_sparkvis.py --port /dev/ttyUSB0`
-4. Open browser and visit: `http://localhost:8080`
-
----
-
-### 12. `12_benchmark_read_joints.py`
+### 11. `11_benchmark_read_joints.py`
 **Joint Reading Performance Benchmark**
 
 Tests the API call frequency and actual data update frequency for reading joint angles.
@@ -370,25 +350,44 @@ Tests the API call frequency and actual data update frequency for reading joint 
 **Usage:**
 ```bash
 # Basic test (5 seconds)
-python 12_benchmark_read_joints.py
+python 11_benchmark_read_joints.py
 
 # Fast mode test
-python 12_benchmark_read_joints.py --fast --duration 10
+python 11_benchmark_read_joints.py --fast --duration 10
 ```
 
 ---
 
-### 13. `13_utmostFPS.py`
+### 12. `12_utmostFPS.py`
 **Maximum FPS Test**
 
 Tests the maximum send and receive frame rate for serial communication.
+
+**Parameters:**
+- `--port`: Serial port (required, e.g., /dev/ttyUSB0 for Linux, COM3 for Windows, /dev/cu.* for macOS)
+- `--baudrate`: Baud rate, default 1000000
+- `--timeout`: Serial read timeout (seconds), default 0.015
+- `--test-timeout`: Test duration (seconds), default 300.0
 
 **Features:**
 - Tests the extreme performance of serial communication
 - Displays send frame rate, receive frame rate, and sync rate
 - Suitable for performance optimization and hardware testing
 
-**Note**: This script contains hardcoded serial port path and needs to be modified according to the actual environment.
+**Usage:**
+```bash
+# Linux/Ubuntu
+python 12_utmostFPS.py --port /dev/ttyACM0
+
+# Windows
+python 12_utmostFPS.py --port COM3
+
+# macOS
+python 12_utmostFPS.py --port /dev/cu.wchusbserial5B140413941
+
+# Custom settings
+python 12_utmostFPS.py --port /dev/ttyUSB0 --baudrate 2000000 --test-timeout 60
+```
 
 ---
 
