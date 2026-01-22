@@ -16,6 +16,7 @@
 # Author: Synria Robotics Team
 # Website: https://synriarobotics.ai
 
+import binascii
 import serial
 import platform
 import serial.tools.list_ports
@@ -24,12 +25,19 @@ import os
 from typing import List, Optional, Tuple
 import threading
 from datetime import datetime
-from PyCRC.CRC32 import CRC32
+# from PyCRC.CRC32 import CRC32
 import getpass
 from alicia_d_sdk.utils.logger import logger
 READ_LENGTH = 50
 DEFAULT_LENGTH = 6
 
+
+class CRC32:
+    @staticmethod
+    def calculate(data):
+        if isinstance(data, str):
+            data = data.encode()
+        return binascii.crc32(data) & 0xffffffff
 
 class SerialComm:
     """Robot arm serial communication module"""

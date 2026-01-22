@@ -85,38 +85,48 @@ __all__ = [
 
 def create_robot(
     port: str = "",
-    gripper_type: str = None,
+    version: str = "v5_6",
+    variant: str = None,
+    model_format: str = "urdf",
     debug_mode: bool = False,
     auto_connect: bool = True,
     base_link: str = "base_link",
     end_link: str = "tool0",
     backend: Optional[str] = None,
     device: str = "cpu",
+    model_path: str = None,
+    gripper_type: str = None,
 ) -> SynriaRobotAPI:
     """
     Create robot instance.
 
     :param port: Serial port
-    :param gripper_type: Gripper type:
-        - explicit value such as "50mm" / "100mm" for user-defined configuration
-        - None to auto-select from saved JSON (if available) or default to "50mm"
+    :param version: Version name, e.g., "v5_6", "v7_0", etc.
+    :param variant: Variant name, e.g., "gripper_50mm", "gripper_100mm", "leader_ur", etc.
+    :param model_format: Model format, 'urdf' or 'mjcf', default is 'urdf'
     :param debug_mode: Debug mode
     :param base_link: Base link name in the robot model (default 'base_link')
     :param end_link: End link name in the robot model (default 'tool0')
     :param backend: Computation backend, 'numpy' or 'torch' (default: None, uses 'numpy')
     :param device: Device for torch backend, 'cpu' or 'cuda' (default: 'cpu')
+    :param model_path: Model path, if None, use default model path
+    :param gripper_type: Gripper type:  deprecated, use variant instead please
+        - explicit value such as "50mm" / "100mm" for user-defined configuration
+        - None to auto-select from saved JSON (if available) or default to "50mm"
     :return: SynriaRobotAPI instance
     """
     servo_driver = ServoDriver(port=port, debug_mode=debug_mode)
 
     effective_gripper_type = gripper_type if gripper_type is not None else _get_gripper_type_from_json()
 
-    urdf_path = get_model_path(
-        "Alicia_D",
-        version="v5_6",
-        variant=f"gripper_{effective_gripper_type}",
-    )
-    robot_model = RobotModel(str(urdf_path), base_link=base_link, end_link=end_link)
+    if model_path is None:
+        model_path = get_model_path(
+            "Alicia_D",
+            version=version,
+            variant=variant,
+            model_format=model_format
+        )
+    robot_model = RobotModel(str(model_path), base_link=base_link, end_link=end_link)
 
     robot = SynriaRobotAPI(
         servo_driver=servo_driver,
