@@ -68,6 +68,21 @@ class ServoDriver:
         "gripper_type": [0xAA, 0x04, 0x0E, 0x01, 0xFE, 0x1B, 0xFF],
     }
 
+    ALT_FW_INFO_COMMAND_MAP: Dict[str, List[int]] = {
+        "torque_on": [0xAA, 0x13, 0x01, 0x01, 0x01, 0xFF],
+        "torque_off": [0xAA, 0x13, 0x01, 0x00, 0x00, 0xFF],
+    }
+
+    ALT_FW_JOINT_TO_SERVO_MAP = [
+        (0, 1.0),  (0, 1.0),
+        (1, 1.0),  (1, -1.0),
+        (2, 1.0),  (2, -1.0),
+        (3, 1.0),  (4, 1.0),  (5, 1.0),
+    ]
+
+    ALT_FW_CMD_SPEED = 0x05
+    ALT_FW_NUM_SPEED_CHANNELS = 10
+
     def __init__(self, port: str = "", debug_mode: bool = False):
         """
         Initialize robot arm controller
@@ -118,6 +133,32 @@ class ServoDriver:
         except Exception as e:
             if hasattr(logger, 'error'):  # logger may be destroyed in some cases
                 logger.error(f"Exception in destructor: {str(e)}")
+
+    def _build_v5_command_frame(self, cmd_id: int, data: list) -> list:
+        """Build a v5-format command frame: [AA][cmd][len][data...][CRC][FF]"""
+        frame = [0xAA, cmd_id, len(data)] + data + [0, 0xFF]
+        frame[-2] = sum(frame[3:-2]) % 2
+        return frame
+
+    def alt_fw_set_speed(self, deg_s: float) -> bool:
+        """Set servo speed for alt firmware (v5 protocol).
+        :param deg_s: Speed in degrees per second (1-360)
+        """
+        rad_s = deg_s * self.DEG_TO_RAD
+        raw = int((rad_s / (2 * math.pi)) * 3400)
+        raw = max(1, min(3400, raw))
+        data = [0x2E]
+        for _ in range(self.ALT_FW_NUM_SPEED_CHANNELS):
+            data.append(raw & 0xFF)
+            data.append((raw >> 8) & 0xFF)
+        frame = self._build_v5_command_frame(self.ALT_FW_CMD_SPEED, data)
+        return self.serial_comm.send_data(frame)
+
+    def alt_fw_set_acceleration(self) -> bool:
+        """Set max acceleration for alt firmware (v5 protocol)."""
+        data = [0x29] + [254] * 18
+        frame = self._build_v5_command_frame(self.ALT_FW_CMD_SPEED, data)
+        return self.serial_comm.send_data(frame)
 
     def connect(self) -> bool:
         """
@@ -248,7 +289,10 @@ class ServoDriver:
             event = self.data_parser._info_event_map[info_type]
             event.clear()
 
-        command = self.INFO_COMMAND_MAP[info_type]
+        if SerialComm._alt_firmware_mode and info_type in self.ALT_FW_INFO_COMMAND_MAP:
+            command = self.ALT_FW_INFO_COMMAND_MAP[info_type]
+        else:
+            command = self.INFO_COMMAND_MAP[info_type]
         # If not waiting, just send once
         if not wait:
             success = self.serial_comm.send_data(command)
@@ -319,21 +363,54 @@ class ServoDriver:
             logger.error(f"Gripper speed must be positive: {gripper_speed_deg_s} deg/s")
             return False
 
-        frame = self._build_joint_frame(
-            joint_angles=joint_angles,
-            gripper_value=gripper_value,
-            speed_deg_s=speed_deg_s,
-            gripper_speed_deg_s=gripper_speed_deg_s
-        )
+        if SerialComm._alt_firmware_mode:
+            frame = self._build_alt_fw_joint_frame(joint_angles)
+        else:
+            frame = self._build_joint_frame(
+                joint_angles=joint_angles,
+                gripper_value=gripper_value,
+                speed_deg_s=speed_deg_s,
+                gripper_speed_deg_s=gripper_speed_deg_s
+            )
 
-
-        # self.serial_comm._hex_print("Send combined control", frame)
         result = self.serial_comm.send_data(frame)
 
         if self.debug_mode:
             self.serial_comm._hex_print("Send combined control", frame)
 
         return result
+
+    def _build_alt_fw_joint_frame(self, joint_angles: Optional[List[float]] = None) -> List[int]:
+        """
+        Build joint control frame for alternate firmware (v5 format).
+        Maps 6 joints to 9 servos. Frame: [AA][0x04][Len=18][9*2 bytes][CRC][FF]
+        CRC = sum(data_payload) % 2
+        """
+        current_state = self.data_parser.get_joint_state()
+        if joint_angles is None:
+            if current_state and current_state.angles:
+                effective_joints = list(current_state.angles)
+            else:
+                effective_joints = [0.0] * self.joint_count
+        else:
+            effective_joints = list(joint_angles)
+
+        ARM_DATA_SIZE = 18
+        frame = [0] * (5 + ARM_DATA_SIZE)
+        frame[0] = self.FRAME_HEADER
+        frame[1] = 0x04
+        frame[2] = ARM_DATA_SIZE
+        frame[-1] = self.FRAME_FOOTER
+
+        for servo_idx, (joint_idx, direction) in enumerate(self.ALT_FW_JOINT_TO_SERVO_MAP):
+            angle_rad = effective_joints[joint_idx] * direction
+            hw = self._rad_to_hardware_value(angle_rad)
+            frame[3 + servo_idx * 2] = hw & 0xFF
+            frame[3 + servo_idx * 2 + 1] = (hw >> 8) & 0xFF
+
+        data_payload = frame[3:3 + ARM_DATA_SIZE]
+        frame[-2] = sum(data_payload) % 2
+        return frame
 
     def _build_joint_frame(self,
                            joint_angles: Optional[List[float]] = None,

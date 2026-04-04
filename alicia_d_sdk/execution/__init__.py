@@ -23,11 +23,14 @@ Provides trajectory execution functionality, including:
 - Joint space trajectory execution
 - Cartesian space trajectory execution
 - Drag teaching and pose recording
+- VLA data collection
 """
 
 from alicia_d_sdk.execution.trajectory_executor import JointTrajectoryExecutor, CartesianTrajectoryExecutor
+from alicia_d_sdk.execution.data_collector import DataCollector
 
 __all__ = [
     "JointTrajectoryExecutor",
-    "CartesianTrajectoryExecutor"
+    "CartesianTrajectoryExecutor",
+    "DataCollector",
 ]

@@ -94,7 +94,17 @@ class SynriaRobotAPI:
             try:
                 # Initialize state
                 self.get_robot_state("joint_gripper")
-                self._robot_type()
+                from alicia_d_sdk.hardware.serial_comm import SerialComm
+                if not SerialComm._alt_firmware_mode:
+                    try:
+                        self._robot_type()
+                    except Exception:
+                        logger.warning("Could not detect robot type (firmware may not support version query)")
+                else:
+                    logger.info("Alt firmware detected, skipping version query")
+                    self.servo_driver.alt_fw_set_acceleration()
+                    self.servo_driver.alt_fw_set_speed(200)
+                    logger.info("Alt firmware: set default speed=200 deg/s, max acceleration")
                 # Initialize joint angle cache with current joint angles
                 current_joints = self.get_robot_state("joint")
                 if current_joints is not None:
@@ -188,6 +198,14 @@ class SynriaRobotAPI:
         }
 
     # ==================== Robot Control ====================
+
+    def set_servo_speed(self, deg_s: float = 200):
+        """Set servo speed for alt firmware robots.
+        :param deg_s: Speed in degrees per second (1-360). Default 200.
+        """
+        from alicia_d_sdk.hardware.serial_comm import SerialComm
+        if SerialComm._alt_firmware_mode:
+            self.servo_driver.alt_fw_set_speed(deg_s)
 
     def set_home(self, speed_deg_s: Union[int, float, List[float], np.ndarray] = 10, gripper_speed_deg_s: Optional[float] = 483.4):
         """Move robot to home position and wait until near zero.

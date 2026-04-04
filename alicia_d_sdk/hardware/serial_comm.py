@@ -49,6 +49,19 @@ class SerialComm:
         "Windows": ["COM", "ttyUSB", "cu.usbserial", "cu.usbmodem"]
     }
 
+    ALT_FW_CMD_TO_STANDARD = {
+        0x14: (0x06, 0x00),
+        0x12: (0x04, 0x00),
+    }
+    _alt_firmware_mode = False
+
+    ALT_FW_SERVO_TO_JOINT = [
+        (0, 1.0),  (0, 1.0),
+        (1, 1.0),  (1, -1.0),
+        (2, 1.0),  (2, -1.0),
+        (3, 1.0),  (4, 1.0),  (5, 1.0),
+    ]
+
     def __init__(self, port: str = "", timeout: float = 1.0, debug_mode: bool = False, lock: Optional[threading.Lock] = None):
         """
         :param port: Serial port name, leave empty to auto-search
@@ -247,8 +260,6 @@ class SerialComm:
                     self._rx_buffer.clear()
                     continue
 
-                # self._hex_print("self._rx_buffer", self._rx_buffer)
-                # Step 2: Sync to frame header 0xAA
                 if self._rx_buffer[0] != 0xAA:
                     self._rx_buffer.pop(0)
                     continue
@@ -256,36 +267,65 @@ class SerialComm:
                 if self.debug_mode:
                     print(f" Buffer size: {len(self._rx_buffer)} bytes, first bytes: {self._rx_buffer[:min(12, len(self._rx_buffer))]}")
 
+                # Try alternate firmware format: [AA][Cmd][Len@2][Data*Len][CRC][FF]
+                # Some firmware versions use a shorter header without the Func byte.
+                alt_cmd = self._rx_buffer[1]
+                if alt_cmd in self.ALT_FW_CMD_TO_STANDARD and len(self._rx_buffer) >= 5:
+                    alt_data_len = self._rx_buffer[2]
+                    alt_frame_len = alt_data_len + 5
+                    if (7 <= alt_frame_len <= 60
+                            and len(self._rx_buffer) >= alt_frame_len
+                            and self._rx_buffer[alt_frame_len - 1] == 0xFF):
+                        if not SerialComm._alt_firmware_mode:
+                            SerialComm._alt_firmware_mode = True
+                            logger.info("Detected alternate firmware protocol, adapting frame parser")
+                        std_cmd, std_func = self.ALT_FW_CMD_TO_STANDARD[alt_cmd]
+                        alt_data = list(self._rx_buffer[3:3 + alt_data_len])
+                        self._rx_buffer = self._rx_buffer[alt_frame_len:]
+
+                        if alt_cmd == 0x14 and alt_data_len == 18:
+                            servo_vals = []
+                            for si in range(9):
+                                servo_vals.append(alt_data[si*2] | (alt_data[si*2+1] << 8))
+                            joint_vals = [0] * 6
+                            for si, (ji, d) in enumerate(self.ALT_FW_SERVO_TO_JOINT):
+                                if d < 0:
+                                    v = 4096 - servo_vals[si]
+                                    if v >= 4096:
+                                        v -= 4096
+                                else:
+                                    v = servo_vals[si]
+                                joint_vals[ji] = v
+                            new_data = []
+                            for jv in joint_vals:
+                                new_data.append(jv & 0xFF)
+                                new_data.append((jv >> 8) & 0xFF)
+                            new_data += [0x00, 0x00]
+                            new_data += [0x01]
+                            new_data_len = len(new_data)
+                            converted = [0xAA, std_cmd, std_func, new_data_len] + new_data + [0x00, 0xFF]
+                        else:
+                            converted = [0xAA, std_cmd, std_func, alt_data_len] + alt_data + [0x00, 0xFF]
+                        return converted
+
+                # Standard format: [AA][Cmd][Func][Len@3][Data*Len][CRC][FF]
                 data_len = self._rx_buffer[3]
-
                 frame_length = data_len + DEFAULT_LENGTH
-                if len(self._rx_buffer) < frame_length:
-                    # Wait for more data
-                    break
 
-                # Step 4: Check if buffer contains complete frame
                 if len(self._rx_buffer) < frame_length:
-                    if self.debug_mode:
-                        logger.debug(f" Incomplete frame: need {frame_length}, have {len(self._rx_buffer)}")
                     break
 
                 candidate = self._rx_buffer[:frame_length]
-
-                # Step 5: Verify frame tail and checksum
                 valid_tail = candidate[-1] == 0xFF
 
                 if not valid_tail:
-                    # Tail mismatch, this 0xAA was not a start or data is corrupted
                     self._rx_buffer.pop(0)
                     continue
 
-                if self._serial_data_check(candidate):
+                if self._serial_data_check(candidate) or SerialComm._alt_firmware_mode:
                     self._rx_buffer = self._rx_buffer[frame_length:]
-                    # frames_processed += 1
-                    # self._hex_print("candidate", list(candidate))
                     return list(candidate)
                 else:
-                    # Checksum failed
                     logger.warning(f"CRC Error. Raw: {' '.join(f'{b:02X}' for b in candidate)}")
                     self._rx_buffer.pop(0)
 
