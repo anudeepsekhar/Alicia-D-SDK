@@ -148,6 +148,12 @@ class SynriaRobotAPI:
         if info_type == "gripper_type" and cache:
             return self._get_gripper_type_with_cache(timeout)
 
+        # Alt firmware only supports joint/gripper data — no version, temperature, velocity, etc.
+        from alicia_d_sdk.hardware.serial_comm import SerialComm
+        if SerialComm._alt_firmware_mode and info_type not in ("joint_gripper", "joint", "gripper"):
+            logger.warning(f"'{info_type}' query not supported in alt firmware mode")
+            return None
+
         # Joint and gripper are acquired together from hardware using the "joint" command
         if info_type in ("joint_gripper", "joint", "gripper"):
             if not self.servo_driver.acquire_info("joint_gripper", wait=True, timeout=timeout):

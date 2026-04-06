@@ -51,7 +51,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Robot zero calibration program")
     
     # Robot configuration
-    parser.add_argument('--port', type=str, default="", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
+    parser.add_argument('--port', type=str, default="/dev/cu.usbmodem5B140413001", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
     args = parser.parse_args()
 
     main(args)

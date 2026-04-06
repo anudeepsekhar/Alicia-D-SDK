@@ -27,6 +27,14 @@ Features:
 - Configurable reading frequency (FPS) for continuous mode
 """
 
+from pathlib import Path
+import sys
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]  # .../Alicia_custom
+sys.path.insert(0, str(REPO_ROOT))
+
+
 import alicia_d_sdk
 
 
@@ -66,7 +74,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Read robot state")
     
     # Serial port settings
-    parser.add_argument('--port', type=str, default="", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
+    parser.add_argument('--port', type=str, default="/dev/cu.usbmodem5B140413001", help="串口端口 (例如: /dev/ttyUSB0 或 COM3)")
     parser.add_argument('--gripper_type', type=str, default="50mm",  help="夹爪型号 (默认: 50mm)")
     # Display settings
     parser.add_argument('--format', type=str, default='deg', choices=['rad', 'deg'], help="Angle display format: rad(radians) or deg(degrees)")

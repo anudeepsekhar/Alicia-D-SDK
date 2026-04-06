@@ -289,6 +289,13 @@ class ServoDriver:
             event = self.data_parser._info_event_map[info_type]
             event.clear()
 
+        # Alt firmware streams joint data autonomously — no query needed, just wait for event
+        if SerialComm._alt_firmware_mode and info_type == "joint_gripper":
+            if info_type in self.data_parser._info_event_map:
+                event = self.data_parser._info_event_map[info_type]
+                return event.wait(timeout)
+            return True
+
         if SerialComm._alt_firmware_mode and info_type in self.ALT_FW_INFO_COMMAND_MAP:
             command = self.ALT_FW_INFO_COMMAND_MAP[info_type]
         else:
@@ -364,6 +371,7 @@ class ServoDriver:
             return False
 
         if SerialComm._alt_firmware_mode:
+            self.serial_comm.send_data(self.ALT_FW_INFO_COMMAND_MAP["torque_on"])
             frame = self._build_alt_fw_joint_frame(joint_angles)
         else:
             frame = self._build_joint_frame(

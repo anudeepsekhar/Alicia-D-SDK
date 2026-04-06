@@ -20,6 +20,13 @@
 Demo: Read robot firmware version
 """
 
+from pathlib import Path
+import sys
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]  # .../Alicia_custom
+sys.path.insert(0, str(REPO_ROOT))
+
 import alicia_d_sdk
 from alicia_d_sdk.utils.logger import logger
 
@@ -29,7 +36,7 @@ def main(args):
     :param args: Command line arguments containing port
     """
     # Initialize robot instance
-    robot = alicia_d_sdk.create_robot(port=args.port)
+    robot = alicia_d_sdk.create_robot(port=args.port, debug_mode=args.debug)
 
     try:
         robot_version = robot.get_robot_state("version")
@@ -60,7 +67,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Read robot firmware version")
 
     # Robot configuration
-    parser.add_argument('--port', type=str, default="", help="Serial port (e.g. /dev/ttyUSB0 or COM3)")
+    parser.add_argument('--port', type=str, default="/dev/cu.usbmodem5B140413001", help="Serial port (e.g. /dev/ttyUSB0 or COM3)")
+    parser.add_argument('--debug', action='store_true', default="True", help="Enable debug mode to print raw frames and parsing details")
     args = parser.parse_args()
 
     main(args)
