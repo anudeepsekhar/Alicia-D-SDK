@@ -44,7 +44,7 @@ class SerialComm:
 
     PLATFORM_PRIORITIES = {
         "Darwin": ["cu.wchusbserial", "cu.SLAB_USBtoUART", "cu.usbserial", "cu.usbmodem", "ttyUSB", "COM"],
-        "Linux": ["ttyUSB", "ttyACM", "ttyCH343USB", "ttyCH341USB", "cu.wchusbserial",
+        "Linux": ["ttyCH343USB", "ttyUSB", "ttyCH341USB", "ttyACM", "cu.wchusbserial",
                   "cu.SLAB_USBtoUART", "cu.usbserial", "cu.usbmodem", "COM"],
         "Windows": ["COM", "ttyUSB", "cu.usbserial", "cu.usbmodem"]
     }
@@ -153,13 +153,19 @@ class SerialComm:
                 self.last_log_time = current_time
             return ""
 
-        if not ports:
-            return ""
-
         if should_log:
             self.last_log_time = current_time
 
-        # Find device by priority
+        # Also scan /dev for WCH driver devices that pyserial may not enumerate
+        import glob
+        for pattern in ["/dev/ttyCH343USB*", "/dev/ttyCH341USB*"]:
+            for dev_path in sorted(glob.glob(pattern)):
+                if self._is_device_accessible(dev_path):
+                    if should_log:
+                        logger.info(f"Found WCH driver device: {dev_path}")
+                    return dev_path
+
+        # Find device by priority from pyserial-enumerated ports
         for key in self.PLATFORM_PRIORITIES.get(platform.system(), self.PLATFORM_PRIORITIES["Windows"]):
             for p in ports:
                 if key in p.device:
