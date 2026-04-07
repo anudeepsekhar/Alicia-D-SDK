@@ -47,7 +47,8 @@ def main(args):
 
     try:
         # Set target joint positions in degrees
-        target_joints_deg = [-30, 30.0, 30.0, 20.0, -20.0, 10.0]
+        # target_joints_deg = [-30, 30.0, 30.0, 20.0, -20.0, 10.0]
+        target_joints_deg = [-0.09, -1.14, -0.44, 0.18, -0.79, 0.0]
 
         logger.info(f"Current joints: {robot.get_robot_state('joint')}")
         logger.info("Sending set_home command...")
