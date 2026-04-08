@@ -174,14 +174,17 @@ def load_episode_actions_and_timestamps(dataset_dir: Path, episode_index: int) -
 
     actions = np.asarray(np.load(actions_path, allow_pickle=False), dtype=np.float32)
     if actions.ndim == 1:
-        if actions.size in (7, 14):
+        if actions.size in (7, 8, 14, 15):
             actions = actions.reshape(1, -1)
         else:
             raise ValueError(
-                f"Expected actions.npy shape [T,7] or [T,14], got 1D shape {actions.shape} at {actions_path}"
+                f"Expected actions.npy shape [T,7], [T,8], [T,14], or [T,15], got 1D shape {actions.shape} at {actions_path}"
             )
-    if actions.ndim != 2 or actions.shape[1] not in (7, 14):
-        raise ValueError(f"Expected actions.npy shape [T,7] or [T,14], got {actions.shape} at {actions_path}")
+    if actions.ndim != 2 or actions.shape[1] not in (7, 8, 14, 15):
+        raise ValueError(f"Expected actions.npy shape [T,7], [T,8], [T,14], or [T,15], got {actions.shape} at {actions_path}")
+    # Strip trailing done flag if present (8 → 7, 15 → 14)
+    if actions.shape[1] in (8, 15):
+        actions = actions[:, :-1]
     if actions.shape[0] == 0:
         raise ValueError(f"Episode actions are empty: {actions_path}")
 
