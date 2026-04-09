@@ -48,6 +48,10 @@ class DataParser:
     CMD_SELF_CHECK = 0xFE  # Machine self-check (servo health)
     GRI_MAX_50MM = 3290
     GRI_MAX_100MM = 3600
+    GRIPPER_MAX_MAP = {
+        "50mm": 3290,
+        "100mm": 3600,
+    }
     # Data sizes
     JOINT_DATA_SIZE = 18
 
@@ -59,6 +63,9 @@ class DataParser:
         :param debug_mode: Whether to enable debug logging
         """
         self.debug_mode = debug_mode
+
+        self._gripper_max = self.GRI_MAX_50MM
+        self._gripper_commanded = False
 
         # Store latest joint state
         self._joint_states = JointState([0.0]*6, 0.0, 0.0, "idle")
@@ -134,10 +141,11 @@ class DataParser:
                     logger.debug(f"Unhandled function code in CMD_JOINT: 0x{func_code:02X}")
                 return None
         elif cmd_id == self.CMD_GRIPPER:
-            # Check function code to determine which parser to use
             func_code = frame[2]
             if func_code == 0x0E:
                 return self._parse_gripper_type_data(frame)
+            elif func_code == 0x00:
+                return self._parse_alt_fw_gripper_data(frame)
             else:
                 if self.debug_mode:
                     logger.debug(f"Unhandled function code in CMD_GRIPPER: 0x{func_code:02X}")
@@ -209,6 +217,17 @@ class DataParser:
                 )
             else:
                 raise ValueError(f"Unsupported info type: {info_type}")
+
+    def set_gripper_type(self, type_name: str):
+        """Set gripper type for correct hardware value scaling.
+
+        :param type_name: Gripper type name, e.g. "50mm" or "100mm"
+        """
+        with self._lock:
+            if type_name in self.GRIPPER_MAX_MAP:
+                self._gripper_max = self.GRIPPER_MAX_MAP[type_name]
+            else:
+                logger.warning(f"Unknown gripper type '{type_name}', keeping current max={self._gripper_max}")
 
     def wait_for_info(self, info_type: str, timeout: float = 2.0) -> bool:
         """
@@ -284,10 +303,7 @@ class DataParser:
         gripper_high = data_bytes[13]
         gripper_raw = (gripper_low & 0xFF) | ((gripper_high & 0xFF) << 8)
 
-        # Map raw gripper value (0-1000) to percentage (0-100)
-        # Hardware uses 0-1000 range, convert to 0-100 percentage
-        gripper_value = int(max(0.0, min(1000, gripper_raw)))
-        # Parse run status (last mandatory byte)
+        gripper_value = int(round(max(0.0, min(1000.0, gripper_raw * 1000.0 / self._gripper_max))))
         run_status = data_bytes[14]
         run_status_map = {
             0x00: "idle",
@@ -298,14 +314,15 @@ class DataParser:
             0xE2: "overheat_protect",
         }
         run_status_text = run_status_map.get(run_status, "unknown")
-        # print("run_status: 0x{:02X}".format(run_status))
-        # Store run status
         with self._lock:
             self._run_status = run_status
             self._run_status_text = run_status_text
 
-        # Update stored joint & gripper state
-        self._update_joint_state(angles=joint_values, gripper=gripper_value, run_status_text=run_status_text)
+        from alicia_d_sdk.hardware.serial_comm import SerialComm
+        if SerialComm._alt_firmware_mode:
+            self._update_joint_state(angles=joint_values, run_status_text=run_status_text)
+        else:
+            self._update_joint_state(angles=joint_values, gripper=gripper_value, run_status_text=run_status_text)
 
         # Signal that joint state has been updated
         self._joint_event.set()
@@ -457,6 +474,49 @@ class DataParser:
             "timestamp": self._self_check_timestamp,
         }
 
+    def _parse_alt_fw_gripper_data(self, frame: List[int]) -> Optional[Dict]:
+        """
+        Parse alt firmware gripper feedback (CMD=0x04, FUNC=0x00).
+        Original v5 cmd 0x12 is converted to this format by serial_comm.
+        Data layout (7 bytes): [01] [00] [00] [pos_lo] [pos_hi] [00] [00]
+        Gripper position at bytes 3-4. Higher raw = more open.
+        """
+        data_len = frame[3]
+        expected_min_len = 4 + data_len + 2
+        if len(frame) < expected_min_len:
+            return None
+
+        data_start = 4
+        data_bytes = frame[data_start:data_start + data_len]
+
+        if len(data_bytes) < 5:
+            return None
+
+        gripper_raw = (data_bytes[3] & 0xFF) | ((data_bytes[4] & 0xFF) << 8)
+        from alicia_d_sdk.hardware.serial_comm import SerialComm
+        if SerialComm._alt_firmware_mode:
+            from alicia_d_sdk.hardware.servo_driver import ServoDriver
+            hw_min = ServoDriver.ALT_FW_GRI_HW_CLOSED
+            hw_max = ServoDriver.ALT_FW_GRI_HW_OPEN
+            ratio = (gripper_raw - hw_min) / max(1, hw_max - hw_min)
+            gripper_value = int(round(max(0.0, min(1000.0, ratio * 1000.0))))
+        else:
+            gripper_value = int(round(max(0.0, min(1000.0, gripper_raw * 1000.0 / self._gripper_max))))
+
+        if not self._gripper_commanded:
+            self._update_joint_state(gripper=gripper_value)
+        self._joint_event.set()
+
+        if self.debug_mode:
+            logger.debug(f"Alt FW gripper: raw={gripper_raw}, value={gripper_value}, commanded={self._gripper_commanded}")
+
+        return {
+            "type": "gripper_data",
+            "gripper_raw": gripper_raw,
+            "gripper": gripper_value,
+            "timestamp": time.time(),
+        }
+
     def _parse_gripper_type_data(self, frame: List[int]) -> Dict:
         """
         Parse gripper type data frame (CMD=0x04, FUNC=0x0E).
@@ -485,16 +545,18 @@ class DataParser:
             f"unknown(0x{gripper_type_raw:02X})",
         )
 
-        # Store gripper type data
+        # Store gripper type data and update scaling
         with self._lock:
             self._gripper_type = gripper_type_raw
             self._gripper_type_timestamp = time.time()
+            if type_name in self.GRIPPER_MAX_MAP:
+                self._gripper_max = self.GRIPPER_MAX_MAP[type_name]
 
         # Signal that gripper type data has been updated
         self._gripper_type_event.set()
 
         if self.debug_mode:
-            logger.debug(f"Gripper type: {type_name} (0x{gripper_type_raw:02X})")
+            logger.debug(f"Gripper type: {type_name} (0x{gripper_type_raw:02X}), max={self._gripper_max}")
 
         return {
             "type": "gripper_type_data",

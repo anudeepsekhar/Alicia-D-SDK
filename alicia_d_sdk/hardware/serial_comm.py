@@ -56,10 +56,10 @@ class SerialComm:
     _alt_firmware_mode = False
 
     ALT_FW_SERVO_TO_JOINT = [
-        (0, 1.0),  (0, 1.0),
-        (1, 1.0),  (1, -1.0),
-        (2, 1.0),  (2, -1.0),
-        (3, 1.0),  (4, 1.0),  (5, 1.0),
+        (0, 1.0),  (0, 1.0),         # Servos 0,1 → Joint 0 (base)
+        (1, 1.0),  (1, -1.0),        # Servos 2,3 → Joint 1 (mirrored)
+        (2, 1.0),  (2, -1.0),        # Servos 4,5 → Joint 2 (mirrored)
+        (3, 1.0),  (4, 1.0),  (5, 1.0),  # Servos 6,7,8 → Joints 3,4,5
     ]
 
     def __init__(self, port: str = "", timeout: float = 1.0, debug_mode: bool = False, lock: Optional[threading.Lock] = None):
