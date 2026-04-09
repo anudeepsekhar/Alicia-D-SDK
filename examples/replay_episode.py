@@ -124,12 +124,13 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Replay one .npy Alicia episode.")
 
     p.add_argument("--dataset-root", default="/home/rnarasim/lerobot_data")
+    # p.add_argument("--dataset-root", default="/tmp/lerobot_mock")
     p.add_argument(
         "--dataset-repo-id",
         default=None,
         help="Optional dataset subdirectory under --dataset-root (kept for compatibility).",
     )
-    p.add_argument("--episode-index", type=int, default=40)
+    p.add_argument("--episode-index", type=int, default=0)
 
     p.add_argument("--follower-left-port", default="/dev/ttyCH343USB0")
     p.add_argument("--follower-right-port", default=None)
