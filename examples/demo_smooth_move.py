@@ -15,11 +15,14 @@ def main():
             speed_deg_s=60,
             wait_for_completion=False,
         )
-        time.sleep(wait)
-        cur = robot.get_robot_state("joint")
-        if cur:
-            degs = [round(math.degrees(j), 1) for j in cur]
-            print(f"  -> {degs}")
+        t0 = time.time()
+        while time.time() - t0 < wait:
+            cur = robot.get_robot_state("joint")
+            if cur:
+                degs = [round(math.degrees(j), 1) for j in cur]
+                print(f"\r  -> {degs}", end="", flush=True)
+            time.sleep(0.1)
+        print()
 
     try:
         print("Homing...")

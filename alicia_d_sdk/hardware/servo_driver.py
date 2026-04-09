@@ -44,6 +44,10 @@ class ServoDriver:
     # Gripper type configuration
     GRI_MAX_50MM = 3290
     GRI_MAX_100MM = 3590
+    GRIPPER_MAX_MAP = {
+        "50mm": 3290,
+        "100mm": 3590,
+    }
 
     # Default gripper speed: 5500 ticks/s ≈ 483.4 deg/s
     DEFAULT_GRIPPER_SPEED_TICKS = 5500
@@ -74,14 +78,17 @@ class ServoDriver:
     }
 
     ALT_FW_JOINT_TO_SERVO_MAP = [
-        (0, 1.0),  (0, 1.0),
-        (1, 1.0),  (1, -1.0),
-        (2, 1.0),  (2, -1.0),
-        (3, 1.0),  (4, 1.0),  (5, 1.0),
+        (0, 1.0),  (0, 1.0),         # Servos 0,1 → Joint 0 (base)
+        (1, 1.0),  (1, -1.0),        # Servos 2,3 → Joint 1 (mirrored)
+        (2, 1.0),  (2, -1.0),        # Servos 4,5 → Joint 2 (mirrored)
+        (3, 1.0),  (4, 1.0),  (5, 1.0),  # Servos 6,7,8 → Joints 3,4,5
     ]
 
     ALT_FW_CMD_SPEED = 0x05
+    ALT_FW_CMD_GRIPPER = 0x02
     ALT_FW_NUM_SPEED_CHANNELS = 10
+    ALT_FW_GRI_HW_CLOSED = 2047
+    ALT_FW_GRI_HW_OPEN = 3200
 
     def __init__(self, port: str = "", debug_mode: bool = False):
         """
@@ -97,7 +104,7 @@ class ServoDriver:
         self.serial_comm = SerialComm(lock=self._lock, port=port, debug_mode=debug_mode)
         self.data_parser = DataParser(lock=self._lock, debug_mode=debug_mode)
 
-
+        self._gripper_max = self.GRI_MAX_50MM
         self.joint_count = 6
         # State update thread related
         self._update_thread = None
@@ -106,6 +113,17 @@ class ServoDriver:
         self._thread_running = False
 
         self.disconnect()
+
+    def set_gripper_type(self, type_name: str):
+        """Set gripper type for correct hardware value scaling on both driver and parser.
+
+        :param type_name: Gripper type name, e.g. "50mm" or "100mm"
+        """
+        if type_name in self.GRIPPER_MAX_MAP:
+            self._gripper_max = self.GRIPPER_MAX_MAP[type_name]
+        else:
+            logger.warning(f"Unknown gripper type '{type_name}', keeping current max={self._gripper_max}")
+        self.data_parser.set_gripper_type(type_name)
 
     def wait_for_valid_state(self, timeout: float = 1.5) -> bool:
         """
@@ -365,6 +383,11 @@ class ServoDriver:
 
         if SerialComm._alt_firmware_mode:
             frame = self._build_alt_fw_joint_frame(joint_angles)
+            if gripper_value is not None:
+                gripper_frame = self._build_alt_fw_gripper_frame(gripper_value)
+                self.serial_comm.send_data(gripper_frame)
+                self.data_parser._gripper_commanded = True
+                self.data_parser._update_joint_state(gripper=gripper_value)
         else:
             frame = self._build_joint_frame(
                 joint_angles=joint_angles,
@@ -383,8 +406,7 @@ class ServoDriver:
     def _build_alt_fw_joint_frame(self, joint_angles: Optional[List[float]] = None) -> List[int]:
         """
         Build joint control frame for alternate firmware (v5 format).
-        Maps 6 joints to 9 servos. Frame: [AA][0x04][Len=18][9*2 bytes][CRC][FF]
-        CRC = sum(data_payload) % 2
+        Maps 6 joints to 9 servos. Frame: [AA][0x04][Len=18][9×2 bytes][CRC][FF]
         """
         current_state = self.data_parser.get_joint_state()
         if joint_angles is None:
@@ -411,6 +433,19 @@ class ServoDriver:
         data_payload = frame[3:3 + ARM_DATA_SIZE]
         frame[-2] = sum(data_payload) % 2
         return frame
+
+    def _build_alt_fw_gripper_frame(self, gripper_value: float) -> List[int]:
+        """
+        Build standalone gripper control frame for alternate firmware.
+        Uses CMD 0x02 with 7-byte data. Maps user 0-1000 to hw range
+        ALT_FW_GRI_HW_CLOSED..ALT_FW_GRI_HW_OPEN.
+        """
+        clamped = max(0.0, min(1000.0, gripper_value))
+        hw_min = self.ALT_FW_GRI_HW_CLOSED
+        hw_max = self.ALT_FW_GRI_HW_OPEN
+        gripper_hw = int(round(hw_min + (clamped / 1000.0) * (hw_max - hw_min)))
+        data = [0x01, 0x00, 0x00, gripper_hw & 0xFF, (gripper_hw >> 8) & 0xFF, 0x00, 0x00]
+        return self._build_v5_command_frame(self.ALT_FW_CMD_GRIPPER, data)
 
     def _build_joint_frame(self,
                            joint_angles: Optional[List[float]] = None,
@@ -486,14 +521,17 @@ class ServoDriver:
             frame[offset + 3] = (speed_hw_values[joint_idx] >> 8) & 0xFF
 
         # Gripper value and speed (4 bytes: 2 bytes value, 2 bytes speed)
+        # User-facing range is 0-1000, hardware range is 0-_gripper_max
         gripper_offset = data_start + 6 * 4
         if gripper_value is not None:
-            gripper_hw_value = int(max(0, min(1000, gripper_value)))
+            clamped = max(0, min(1000, gripper_value))
+            gripper_hw_value = int(round(clamped * self._gripper_max / 1000.0))
         else:
             if current_state and current_state.gripper is not None:
-                gripper_hw_value = int(max(0, min(1000, current_state.gripper)))
+                clamped = max(0, min(1000, current_state.gripper))
+                gripper_hw_value = int(round(clamped * self._gripper_max / 1000.0))
             else:
-                gripper_hw_value = 1000  # Default middle position
+                gripper_hw_value = self._gripper_max
 
         # Handle gripper speed: convert from deg/s to ticks/s, default is 5500 ticks/s
         if gripper_speed_deg_s is not None:

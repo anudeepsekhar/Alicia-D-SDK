@@ -129,6 +129,8 @@ def create_robot(
         )
     robot_model = RobotModel(str(model_path), base_link=base_link, end_link=end_link)
 
+    servo_driver.set_gripper_type(effective_gripper_type)
+
     robot = SynriaRobotAPI(
         servo_driver=servo_driver,
         robot_model=robot_model,

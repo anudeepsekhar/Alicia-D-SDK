@@ -126,6 +126,13 @@ class SynriaRobotAPI:
         """
         return self.servo_driver.serial_comm.is_connected()
 
+    def set_gripper_type(self, type_name: str):
+        """Set gripper type for correct hardware value scaling.
+
+        :param type_name: Gripper type name, e.g. "50mm" or "100mm"
+        """
+        self.servo_driver.set_gripper_type(type_name)
+
     # ==================== Get Robot Information ====================
 
     def get_robot_state(self, info_type: str = "joint_gripper", timeout: float = 1.0, cache: bool = True) -> Optional[Union[JointState, Dict, List[float], str, float]]:

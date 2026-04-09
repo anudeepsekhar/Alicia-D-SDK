@@ -44,7 +44,7 @@ class SerialComm:
 
     PLATFORM_PRIORITIES = {
         "Darwin": ["cu.wchusbserial", "cu.SLAB_USBtoUART", "cu.usbserial", "cu.usbmodem", "ttyUSB", "COM"],
-        "Linux": ["ttyUSB", "ttyACM", "ttyCH343USB", "ttyCH341USB", "cu.wchusbserial",
+        "Linux": ["ttyCH343USB", "ttyUSB", "ttyCH341USB", "ttyACM", "cu.wchusbserial",
                   "cu.SLAB_USBtoUART", "cu.usbserial", "cu.usbmodem", "COM"],
         "Windows": ["COM", "ttyUSB", "cu.usbserial", "cu.usbmodem"]
     }
@@ -56,10 +56,10 @@ class SerialComm:
     _alt_firmware_mode = False
 
     ALT_FW_SERVO_TO_JOINT = [
-        (0, 1.0),  (0, 1.0),
-        (1, 1.0),  (1, -1.0),
-        (2, 1.0),  (2, -1.0),
-        (3, 1.0),  (4, 1.0),  (5, 1.0),
+        (0, 1.0),  (0, 1.0),         # Servos 0,1 → Joint 0 (base)
+        (1, 1.0),  (1, -1.0),        # Servos 2,3 → Joint 1 (mirrored)
+        (2, 1.0),  (2, -1.0),        # Servos 4,5 → Joint 2 (mirrored)
+        (3, 1.0),  (4, 1.0),  (5, 1.0),  # Servos 6,7,8 → Joints 3,4,5
     ]
 
     def __init__(self, port: str = "", timeout: float = 1.0, debug_mode: bool = False, lock: Optional[threading.Lock] = None):
@@ -153,13 +153,19 @@ class SerialComm:
                 self.last_log_time = current_time
             return ""
 
-        if not ports:
-            return ""
-
         if should_log:
             self.last_log_time = current_time
 
-        # Find device by priority
+        # Also scan /dev for WCH driver devices that pyserial may not enumerate
+        import glob
+        for pattern in ["/dev/ttyCH343USB*", "/dev/ttyCH341USB*"]:
+            for dev_path in sorted(glob.glob(pattern)):
+                if self._is_device_accessible(dev_path):
+                    if should_log:
+                        logger.info(f"Found WCH driver device: {dev_path}")
+                    return dev_path
+
+        # Find device by priority from pyserial-enumerated ports
         for key in self.PLATFORM_PRIORITIES.get(platform.system(), self.PLATFORM_PRIORITIES["Windows"]):
             for p in ports:
                 if key in p.device:
@@ -213,7 +219,7 @@ class SerialComm:
                     return False
 
                 if self.debug_mode:
-                    self._print_hex_frame(data, 0)
+                    self._hex_print("TX", data)
 
                 return True
 
