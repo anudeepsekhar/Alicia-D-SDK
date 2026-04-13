@@ -371,9 +371,9 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--dataset-root", default="/tmp/lerobot_mock")
     parser.add_argument("--dataset-repo-id", default="ubuntu/bimanual-dataset")
-    parser.add_argument("--dataset-num-episodes", type=int, default=2)
-    parser.add_argument("--dataset-episode-time-s", type=float, default=20.0)
-    parser.add_argument("--dataset-reset-time-s", type=float, default=30.0)
+    parser.add_argument("--dataset-num-episodes", type=int, default=50)
+    parser.add_argument("--dataset-episode-time-s", type=float, default=15.0)
+    parser.add_argument("--dataset-reset-time-s", type=float, default=5.0)
     parser.add_argument("--dataset-single-task", default="Grab the screwdriver")
     parser.add_argument("--dataset-push-to-hub", action="store_true")
 
@@ -483,16 +483,16 @@ def main() -> None:
             episode_idx = start_episode_idx + episode_offset
             print(f"\n=== Episode {episode_idx:03d} (new {episode_offset + 1}/{args.dataset_num_episodes}) ===")
             print(f"Task: {args.dataset_single_task}")
-            # print("Reset phase: teleop active (not recorded)")
-            # run_teleop_phase(
-            #     leader=leader,
-            #     follower=follower,
-            #     cameras=cameras,
-            #     duration_s=args.dataset_reset_time_s,
-            #     dt=dt,
-            #     display_data=args.display_data,
-            #     episode_dir=None,
-            # )
+            print("Reset phase: teleop active (not recorded)")
+            run_teleop_phase(
+                leader=leader,
+                follower=follower,
+                cameras=cameras,
+                duration_s=args.dataset_reset_time_s,
+                dt=dt,
+                display_data=args.display_data,
+                episode_dir=None,
+            )
             print("Teleop phase: recording started")
 
             episode_dir = make_episode_dir(dataset_root, episode_idx, camera_names)
