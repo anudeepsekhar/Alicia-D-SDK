@@ -2,9 +2,9 @@
 """
 Mock version of 19_run_alicia_inference.py — no real hardware required.
 
-Uses synthetic camera frames and a simulated follower robot so the full
-inference pipeline can be tested end-to-end without physical Alicia-D arms
-or cameras. Observations are assembled in the same shape as
+Uses V4L2 cameras (default ``/dev/video*`` on Linux) and a simulated follower
+robot so the full inference pipeline can be tested end-to-end without physical
+Alicia-D arms. Observations are assembled in the same shape as
 ``NpyEpisodeDataset`` + ``default_collate``, then run through ``preprocessor``,
 ``policy.forward`` (as in ``lerobot_infer_npy.evaluate_on_test_episodes``),
 and ``policy.select_action`` + ``postprocessor`` to command the mock follower.
@@ -19,7 +19,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import math
+import os
 import signal
 import sys
 import time
@@ -45,6 +47,128 @@ sys.path.insert(0, str(REPO_ROOT))
 
 JOINT_NAMES = [f"joint_{i}" for i in range(1, 7)] + ["gripper"]
 
+# #region agent log
+_AGENT_DEBUG_LOG_PATH = "/home/rnarasim/Alicia-D-SDK/.cursor/debug-91f161.log"
+
+
+def _agent_debug_log(
+    hypothesis_id: str,
+    location: str,
+    message: str,
+    data: dict,
+    run_id: str = "pre-fix",
+) -> None:
+    try:
+        with open(_AGENT_DEBUG_LOG_PATH, "a", encoding="utf-8") as _f:
+            _f.write(
+                json.dumps(
+                    {
+                        "sessionId": "91f161",
+                        "timestamp": int(time.time() * 1000),
+                        "hypothesisId": hypothesis_id,
+                        "location": location,
+                        "message": message,
+                        "data": data,
+                        "runId": run_id,
+                    },
+                    default=str,
+                )
+                + "\n"
+            )
+    except Exception:
+        pass
+
+
+def _agent_log_opencv_environment() -> None:
+    import importlib.metadata as imm
+
+    dists = {}
+    for name in ("opencv-python", "opencv-python-headless"):
+        try:
+            dists[name] = imm.version(name)
+        except imm.PackageNotFoundError:
+            dists[name] = None
+    gui_lines: List[str] = []
+    try:
+        bi = cv2.getBuildInformation()
+        gui_lines = [
+            ln.strip()
+            for ln in bi.splitlines()
+            if any(k in ln.upper() for k in ("GTK", "GUI:", "HIGHGUI", "QT:", "WIN32UI", "FFMPEG"))
+        ][:20]
+    except Exception as e:
+        gui_lines = [f"getBuildInformation_error: {e!r}"]
+    _agent_debug_log(
+        "A",
+        "test_model.py:_agent_log_opencv_environment",
+        "cv2 module and pip distributions",
+        {
+            "cv2_file": getattr(cv2, "__file__", None),
+            "cv2_version": getattr(cv2, "__version__", None),
+            "distributions": dists,
+        },
+    )
+    _agent_debug_log(
+        "B",
+        "test_model.py:_agent_log_opencv_environment",
+        "display-related env",
+        {
+            "DISPLAY": os.environ.get("DISPLAY"),
+            "WAYLAND_DISPLAY": os.environ.get("WAYLAND_DISPLAY"),
+            "SSH_CONNECTION": os.environ.get("SSH_CONNECTION"),
+        },
+    )
+    _agent_debug_log(
+        "D",
+        "test_model.py:_agent_log_opencv_environment",
+        "OpenCV build lines (GUI stack)",
+        {"gui_related_lines": gui_lines},
+    )
+
+
+# #endregion
+
+
+def _gui_preview_available() -> tuple[bool, str]:
+    """Return (True, '') if ``cv2.imshow`` should work; else (False, user-facing reason)."""
+    if cv2 is None:
+        return False, "OpenCV is not available."
+    try:
+        bi = cv2.getBuildInformation()
+    except Exception as e:
+        return False, f"Could not read OpenCV build info: {e}"
+    for ln in bi.splitlines():
+        if "GUI:" in ln and "NONE" in ln.upper():
+            return (
+                False,
+                "This OpenCV build has no GUI backend (common with opencv-python-headless). "
+                "Try: uv pip uninstall opencv-python-headless && uv pip install opencv-python",
+            )
+    if sys.platform.startswith("linux"):
+        if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+            return (
+                False,
+                "No DISPLAY or WAYLAND_DISPLAY (typical over SSH). "
+                "Use --no-display, or enable X11 forwarding / run on a desktop session.",
+            )
+    return True, ""
+
+
+def _dev_video_number(path: str) -> Optional[int]:
+    if not path.startswith("/dev/video"):
+        return None
+    tail = path[len("/dev/video") :]
+    return int(tail) if tail.isdigit() else None
+
+
+def _linux_video_device_path(index_or_path: str) -> Optional[str]:
+    """Path under /dev/video* for permission checks, if known."""
+    if index_or_path.startswith("/dev/video"):
+        return index_or_path
+    if index_or_path.isdigit():
+        return f"/dev/video{int(index_or_path)}"
+    return None
+
 
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
@@ -67,9 +191,52 @@ class OpenCVCamera:
         self._cap = None  # type: Optional[cv2.VideoCapture]
 
     def connect(self) -> None:
-        self._cap = cv2.VideoCapture(int(self.config.index_or_path))
+        raw = self.config.index_or_path
+        linux = sys.platform.startswith("linux")
+        if linux:
+            dev = _linux_video_device_path(raw)
+            if dev is not None and Path(dev).exists():
+                if not os.access(dev, os.R_OK | os.W_OK):
+                    raise RuntimeError(
+                        f"Permission denied for {dev} (camera {self.config.name}). "
+                        "Add your user to the 'video' group: "
+                        "sudo usermod -aG video $USER — then log out and back in (or reboot). "
+                        "If you run from Cursor/VS Code Remote, restart the remote server so "
+                        "the new group is applied."
+                    )
+
+        tries: List[tuple[Any, int]] = []
+
+        if raw.isdigit():
+            n = int(raw)
+            if linux:
+                tries.append((n, cv2.CAP_V4L2))
+            tries.append((n, cv2.CAP_ANY))
+        else:
+            if linux:
+                tries.append((raw, cv2.CAP_V4L2))
+            tries.append((raw, cv2.CAP_ANY))
+            dn = _dev_video_number(raw)
+            if dn is not None:
+                if linux:
+                    tries.append((dn, cv2.CAP_V4L2))
+                tries.append((dn, cv2.CAP_ANY))
+
+        self._cap = None
+        for arg, api in tries:
+            cap = cv2.VideoCapture(arg, cv2.CAP_V4L2)
+            if cap is not None and cap.isOpened():
+                self._cap = cap
+                break
+            if cap is not None:
+                cap.release()
+
         if self._cap is None or not self._cap.isOpened():
-            raise RuntimeError(f"Failed to open camera {self.config.name}: {self.config.index_or_path}")
+            raise RuntimeError(
+                f"Failed to open camera {self.config.name}: {self.config.index_or_path}. "
+                "On Linux, check 'video' group membership, that no other process holds the device, "
+                "and try an alternate /dev/video* node if the driver exposes several."
+            )
 
         self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.config.width)
         self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config.height)
@@ -119,23 +286,25 @@ class AliciaFollower:
         self.right_arm = None
 
         if need_left:
-            if not left_port:
-                raise ValueError("--follower-left-port is required for arm_mode 'both' or 'left'.")
-            self.left_arm = create_robot(
-                port=left_port,
-                debug_mode=debug_mode
-            )
+            # if not left_port:
+            #     raise ValueError("--follower-left-port is required for arm_mode 'both' or 'left'.")
+            # self.left_arm = create_robot(
+            #     port=left_port,
+            #     debug_mode=debug_mode
+            # )
+            self.left_arm = create_robot()
         if need_right:
-            if not right_port:
-                raise ValueError("--follower-right-port is required for arm_mode 'both' or 'right'.")
+            # if not right_port:
+            #     raise ValueError("--follower-right-port is required for arm_mode 'both' or 'right'.")
             # self.right_arm = create_robot(
             #     port=right_port, baudrate=baudrate, timeout=timeout,
             #     debug_mode=debug_mode, auto_connect=False,
             # )
-            self.right_arm = create_robot(
-                port=right_port,
-                debug_mode=debug_mode
-            )
+            # self.right_arm = create_robot(
+            #     port=right_port,
+            #     debug_mode=debug_mode
+            # )
+            self.right_arm = create_robot()
 
     def connect(self) -> None:
         if self.left_arm is not None and not self.left_arm.connect():
@@ -271,8 +440,28 @@ def show_camera_frames(frames: Dict[str, np.ndarray], task: str) -> int:
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
     cv2.putText(canvas, "Press 'q' when task is done", (12, canvas.shape[0] - 40),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (180, 180, 180), 1, cv2.LINE_AA)
-    cv2.imshow("Alicia Inference (mock)", canvas)
-    return cv2.waitKey(1) & 0xFF
+    # #region agent log
+    _agent_debug_log(
+        "E",
+        "test_model.py:show_camera_frames",
+        "about to call cv2.imshow",
+        {"task": task, "canvas_shape": list(canvas.shape)},
+    )
+    # #endregion
+    try:
+        cv2.imshow("Alicia Inference (mock)", canvas)
+        return cv2.waitKey(1) & 0xFF
+    except cv2.error as e:
+        # #region agent log
+        _agent_debug_log(
+            "F",
+            "test_model.py:show_camera_frames",
+            "cv2.imshow/waitKey failed",
+            {"error": str(e)},
+            run_id="post-fix",
+        )
+        # #endregion
+        return 0
 
 
 # ---------------------------------------------------------------------------
@@ -414,8 +603,8 @@ def run_task(
     preprocessor,
     postprocessor,
     dataset_meta,
-    follower: MockFollower,
-    cameras: Dict[str, MockCamera],
+    follower: AliciaFollower,
+    cameras: Dict[str, OpenCVCamera],
     camera_names_for_policy: List[str],
     camera_height: int,
     camera_width: int,
@@ -517,14 +706,16 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    p.add_argument("--checkpoint", default="/Users/rohannarasimha/robotic-arms/lerobot/outputs/train/my_run/checkpoints/020000/pretrained_model",
+    # p.add_argument("--checkpoint", default="/home/rnarasim/lerobot/src/lerobot/scripts/outputs/train/2026-04-13/17-33-10_npy_pi05/checkpoints/050000/pretrained_model",
+    #                 help="Path to pretrained_model directory (config.json + model.safetensors).")
+    p.add_argument("--checkpoint", default="/home/rnarasim/lerobot/src/lerobot/scripts/outputs/train/2026-04-16/15-10-03_npy_pi05/checkpoints/050000/pretrained_model",
                     help="Path to pretrained_model directory (config.json + model.safetensors).")
-    p.add_argument("--dataset-root", default="/Users/rohannarasimha/lerobot_data",
+    p.add_argument("--dataset-root", default="/home/rnarasim/lerobot_data",
                     help="Path to the npy dataset root (for normalization stats / metadata).")
 
     p.add_argument("--arm-mode", choices=("both", "left", "right"), default="left")
-    p.add_argument("--num-cameras", type=int, default=1,
-                    help="Number of mock cameras to create.")
+    p.add_argument("--num-cameras", type=int, default=2,
+                    help="Number of cameras (/dev/video0, /dev/video1, ...).")
     p.add_argument("--camera-width", type=int, default=640)
     p.add_argument("--camera-height", type=int, default=480)
     p.add_argument("--camera-fps", type=int, default=30)
@@ -552,30 +743,50 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    # #region agent log
+    if cv2 is not None:
+        _agent_log_opencv_environment()
+    # #endregion
 
     # -- Mock cameras --------------------------------------------------------
     camera_configs: List[CameraConfig] = []
-    for i in range(args.num_cameras):
+    i = 0
+    max_camera_index = args.num_cameras
+    while i < max_camera_index:
         name = f"camera{i + 1}"
+        path = f"/dev/video{i}"
+        if not __import__("os").path.exists(path):
+            break
+        cap = cv2.VideoCapture(path, cv2.CAP_V4L2)
+        try:
+            if not cap.isOpened():
+                max_camera_index += 1
+                i += 1
+                print(f"Failed to open camera {path}")
+                continue
+        finally:
+            cap.release()
         camera_configs.append(CameraConfig(
             name=name,
-            index_or_path=f"mock://{name}",
+            index_or_path=f"/dev/video{i}",
             width=args.camera_width,
             height=args.camera_height,
             fps=args.camera_fps,
         ))
+        i += 1
+
     cameras = {
-        cfg.name: OpenCVCamera(cfg, seed=args.seed + i) for i, cfg in enumerate(camera_configs)
+        cfg.name: OpenCVCamera(cfg) for i, cfg in enumerate(camera_configs)
     }
 
-    print("Connecting mock cameras...")
+    print("Connecting cameras...")
     for cam in cameras.values():
         cam.connect()
-    print(f"  {len(cameras)} mock camera(s) connected.")
+    print(f"  {len(cameras)} camera(s) connected.")
 
     # -- Mock follower -------------------------------------------------------
     print("Creating mock follower robot...")
-    follower = AliciaFollower(arm_mode=args.arm_mode)
+    follower = AliciaFollower(arm_mode=args.arm_mode, left_port=None, right_port=None)
     follower.connect()
 
     # -- Load policy ---------------------------------------------------------
@@ -596,6 +807,20 @@ def main() -> None:
     if display and cv2 is None:
         print("OpenCV not available; disabling display.")
         display = False
+    if display and cv2 is not None:
+        ok_gui, gui_reason = _gui_preview_available()
+        if not ok_gui:
+            # #region agent log
+            _agent_debug_log(
+                "verify",
+                "test_model.py:main",
+                "auto-disabled GUI preview",
+                {"reason": gui_reason},
+                run_id="post-fix",
+            )
+            # #endregion
+            print(f"Camera preview disabled: {gui_reason}")
+            display = False
 
     # -- Interactive task loop -----------------------------------------------
     try:
@@ -634,7 +859,10 @@ def main() -> None:
         print("\nShutting down...")
     finally:
         if display and cv2 is not None:
-            cv2.destroyAllWindows()
+            try:
+                cv2.destroyAllWindows()
+            except cv2.error:
+                pass
         for cam in cameras.values():
             cam.disconnect()
         follower.disconnect()
