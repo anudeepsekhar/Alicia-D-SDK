@@ -372,7 +372,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dataset-root", default="/tmp/lerobot_mock")
     parser.add_argument("--dataset-repo-id", default="ubuntu/bimanual-dataset")
     parser.add_argument("--dataset-num-episodes", type=int, default=50)
-    parser.add_argument("--dataset-episode-time-s", type=float, default=15.0)
+    parser.add_argument("--dataset-episode-time-s", type=float, default=10.0)
     parser.add_argument("--dataset-reset-time-s", type=float, default=5.0)
     parser.add_argument("--dataset-single-task", default="Grab the screwdriver")
     parser.add_argument("--dataset-push-to-hub", action="store_true")
