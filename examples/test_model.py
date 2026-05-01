@@ -615,10 +615,10 @@ def run_task(
 ) -> None:
     """Run the inference control loop until the user signals the task is done.
 
-    Matches the validation path in lerobot_infer_npy.evaluate_on_test_episodes:
-    NpyEpisodeDataset-shaped batch -> default_collate -> preprocessor -> policy.forward.
-    The mock follower is driven via policy.select_action + postprocessor on the same
-    preprocessed batch (forward alone does not emit actions for e.g. SmolVLA).
+    Npy-style batch -> default_collate -> preprocessor -> policy.select_action +
+    postprocessor. We do not call policy.forward here: in policy.eval() the LeRobot
+    ACT model with use_vae returns no latent parameters, so forward() would not
+    compute a valid training loss. Use a training/validation script for that metric.
     """
     dt = 1.0 / control_hz
     torch_device = torch.device(device)
@@ -635,6 +635,12 @@ def run_task(
 
     policy.reset()
     policy.eval()
+    if log_forward_loss:
+        print(
+            "Note: --log-forward-loss is ignored in this eval loop: "
+            "LeRobot ACT policy.forward in eval with use_vae cannot compute KL; "
+            "use training/val for a full loss."
+        )
 
     try:
         while not interrupted:
@@ -663,7 +669,6 @@ def run_task(
             batch = preprocessor(batch)
 
             with torch.inference_mode(), amp_ctx:
-                loss, _output_dict = policy.forward(batch)
                 action = policy.select_action(batch)
             action = postprocessor(action)
 
@@ -671,12 +676,9 @@ def run_task(
             follower.send_action(action_np)
 
             if step % 100 == 0:
-                line = f"  [step {step}] action={action_np[:4]}..."
-                if log_forward_loss:
-                    line += f"  forward_loss={float(loss):.6f}"
-                print(line)
+                print(f"  [step {step}] action={action_np[:4]}...")
 
-            if display:
+            if display or True:
                 key = show_camera_frames(frames, task)
                 if key == ord("q"):
                     print("\nTask marked as done by user (pressed 'q').")
@@ -708,7 +710,7 @@ def parse_args() -> argparse.Namespace:
 
     # p.add_argument("--checkpoint", default="/home/rnarasim/lerobot/src/lerobot/scripts/outputs/train/2026-04-13/17-33-10_npy_pi05/checkpoints/050000/pretrained_model",
     #                 help="Path to pretrained_model directory (config.json + model.safetensors).")
-    p.add_argument("--checkpoint", default="/home/rnarasim/lerobot/src/lerobot/scripts/outputs/train/2026-04-16/15-10-03_npy_pi05/checkpoints/050000/pretrained_model",
+    p.add_argument("--checkpoint", default="/home/rnarasim/lerobot/src/lerobot/scripts/outputs/train/2026-04-21/18-31-12_npy_act/checkpoints/050000/pretrained_model",
                     help="Path to pretrained_model directory (config.json + model.safetensors).")
     p.add_argument("--dataset-root", default="/home/rnarasim/lerobot_data",
                     help="Path to the npy dataset root (for normalization stats / metadata).")
@@ -727,12 +729,12 @@ def parse_args() -> argparse.Namespace:
         else "cuda" if torch.cuda.is_available()
         else "cpu"
     ))
-    p.add_argument("--no-display", action="store_true",
+    p.add_argument("--no-display", default=False, action="store_true",
                     help="Disable the OpenCV camera preview window.")
     p.add_argument(
         "--log-forward-loss",
         action="store_true",
-        help="Every 100 steps, also print policy.forward training loss (vs synthetic action).",
+        help="Print a one-time note that full policy.forward loss is not available in this eval path.",
     )
     return p.parse_args()
 
